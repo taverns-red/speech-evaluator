@@ -1276,7 +1276,7 @@
 
     <!-- Footer -->
     <footer class="footer">
-      AI Toastmasters Evaluator &mdash; Phase 2
+      AI Toastmasters Evaluator &mdash; Phase 4
     </footer>
   </div>
 
@@ -1959,14 +1959,21 @@
           });
 
           // Send video_stream_ready to server (Req 1.5)
-          var readyMsg = {
+          const readyMsg = {
             type: "video_stream_ready",
+            width: 0,
+            height: 0,
           };
-          // Include device label only if available (optional per Req 10.2)
+          // Include dimensions and device label if available (Req 10.2)
           if (videoStream) {
-            var tracks = videoStream.getVideoTracks();
-            if (tracks.length > 0 && tracks[0].label) {
-              readyMsg.deviceLabel = tracks[0].label;
+            const tracks = videoStream.getVideoTracks();
+            if (tracks.length > 0) {
+              const settings = tracks[0].getSettings();
+              readyMsg.width = settings.width || 0;
+              readyMsg.height = settings.height || 0;
+              if (tracks[0].label) {
+                readyMsg.deviceLabel = tracks[0].label;
+              }
             }
           }
           wsSend(readyMsg);
