@@ -22,9 +22,133 @@ import type {
   StructuredEvaluation,
   StructuredEvaluationPublic,
   TranscriptSegment,
+  VisualFeedbackItem,
+  VisualObservations,
 } from "./types.js";
 import { EvidenceValidator, type ValidationResult } from "./evidence-validator.js";
 import { splitSentences } from "./utils.js";
+
+// ─── Visual Observation Metric Allowlist (Phase 4 — Req 7.8) ───────────────────
+
+/**
+ * Enumerated allowlist of metric names that may appear in visual_feedback
+ * observation_data fields. Derived from the VisualObservations type.
+ */
+const VISUAL_METRIC_KEYS = new Set([
+  "gazeBreakdown.audienceFacing",
+  "gazeBreakdown.notesFacing",
+  "gazeBreakdown.other",
+  "faceNotDetectedCount",
+  "totalGestureCount",
+  "gestureFrequency",
+  "gesturePerSentenceRatio",
+  "meanBodyStabilityScore",
+  "stageCrossingCount",
+  "movementClassification",
+  "meanFacialEnergyScore",
+  "facialEnergyVariation",
+]);
+
+/**
+ * Resolve a dotted metric key to its actual numeric value from VisualObservations.
+ * Returns undefined if the key is not found or the value is not a number.
+ */
+function resolveMetricValue(key: string, observations: VisualObservations): number | undefined {
+  if (key.startsWith("gazeBreakdown.")) {
+    const subKey = key.slice("gazeBreakdown.".length) as keyof typeof observations.gazeBreakdown;
+    const val = observations.gazeBreakdown[subKey];
+    return typeof val === "number" ? val : undefined;
+  }
+  const val = (observations as unknown as Record<string, unknown>)[key];
+  return typeof val === "number" ? val : undefined;
+}
+
+/**
+ * Check if a metric key references a reliable metric (Req 21.3).
+ * Maps metric names to their per-metric reliability flags.
+ * Returns true if the metric is reliable or if reliability cannot be determined.
+ */
+export function isMetricReliable(metricKey: string, observations: VisualObservations): boolean {
+  // Gaze-related metrics
+  if (metricKey.startsWith("gazeBreakdown.") || metricKey === "faceNotDetectedCount") {
+    return observations.gazeReliable;
+  }
+  // Gesture-related metrics
+  if (
+    metricKey === "totalGestureCount" ||
+    metricKey === "gestureFrequency" ||
+    metricKey === "gesturePerSentenceRatio"
+  ) {
+    return observations.gestureReliable;
+  }
+  // Stability-related metrics
+  if (
+    metricKey === "meanBodyStabilityScore" ||
+    metricKey === "stageCrossingCount" ||
+    metricKey === "movementClassification"
+  ) {
+    return observations.stabilityReliable;
+  }
+  // Facial energy-related metrics
+  if (metricKey === "meanFacialEnergyScore" || metricKey === "facialEnergyVariation") {
+    return observations.facialEnergyReliable;
+  }
+  // Unknown metric — assume reliable (conservative)
+  return true;
+}
+
+/**
+ * Validate that a visual_feedback item's observation_data references a real
+ * metric name from the VisualObservations allowlist and that the cited numeric
+ * value is within ±1% of the actual metric value.
+ *
+ * ±1% uses relative error: |cited - actual| / |actual| <= 0.01
+ * For actual=0, cited must be exactly 0.
+ *
+ * Requirements: 7.8, 8.3
+ */
+export function validateObservationData(
+  item: VisualFeedbackItem,
+  observations: VisualObservations,
+): boolean {
+  if (!item.observation_data || typeof item.observation_data !== "string") {
+    return false;
+  }
+
+  // Parse formal grammar: "metric=<metricName>; value=<number><unit?>; source=visualObservations"
+  const metricMatch = item.observation_data.match(/metric=([^;]+)/);
+  if (!metricMatch) return false;
+  const metricKey = metricMatch[1].trim();
+
+  // Validate metric name against allowlist
+  if (!VISUAL_METRIC_KEYS.has(metricKey)) return false;
+
+  // Parse value
+  const valueMatch = item.observation_data.match(/value=([^;]+)/);
+  if (!valueMatch) return false;
+  const valueStr = valueMatch[1].trim();
+  // Extract numeric part (strip unit like %, /min, etc.)
+  const numericMatch = valueStr.match(/^(-?\d+(?:\.\d+)?)/);
+  if (!numericMatch) return false;
+  const citedValue = parseFloat(numericMatch[1]);
+  if (isNaN(citedValue)) return false;
+
+  // Parse source
+  const sourceMatch = item.observation_data.match(/source=([^;]+)/);
+  if (!sourceMatch) return false;
+  if (sourceMatch[1].trim() !== "visualObservations") return false;
+
+  // Resolve actual value
+  const actualValue = resolveMetricValue(metricKey, observations);
+  if (actualValue === undefined) return false;
+
+  // Validate within ±1%
+  if (actualValue === 0) {
+    return citedValue === 0;
+  }
+  const relativeError = Math.abs(citedValue - actualValue) / Math.abs(actualValue);
+  return relativeError <= 0.01;
+}
 
 // ─── Transcript quality thresholds ──────────────────────────────────────────────
 
@@ -278,6 +402,7 @@ export class EvaluationGenerator {
     transcript: TranscriptSegment[],
     metrics: DeliveryMetrics,
     config?: EvaluationConfig,
+    visualObservations?: VisualObservations | null,
   ): Promise<GenerateResult> {
     const transcriptText = this.buildTranscriptText(transcript);
     const qualityWarning = this.assessTranscriptQuality(transcript, metrics);
@@ -302,7 +427,7 @@ export class EvaluationGenerator {
 
     for (let attempt = 0; attempt < MAX_FULL_GENERATION_ATTEMPTS; attempt++) {
       // Stage 1: Call LLM
-      const prompt = this.buildPrompt(transcriptText, metrics, qualityWarning, config, highConfidenceSegments);
+      const prompt = this.buildPrompt(transcriptText, metrics, qualityWarning, config, highConfidenceSegments, visualObservations);
       const raw = await this.callLLM(prompt);
       const evaluation = this.parseEvaluation(raw);
 
@@ -346,7 +471,7 @@ export class EvaluationGenerator {
     }
 
     // Short-form fallback couldn't produce valid items — best-effort last LLM call
-    const lastPrompt = this.buildPrompt(transcriptText, metrics, qualityWarning, config, highConfidenceSegments);
+    const lastPrompt = this.buildPrompt(transcriptText, metrics, qualityWarning, config, highConfidenceSegments, visualObservations);
     const lastRaw = await this.callLLM(lastPrompt);
     const lastEval = this.parseEvaluation(lastRaw);
     return {
@@ -379,8 +504,7 @@ export class EvaluationGenerator {
    *  - Each commendation/recommendation (2-3 sentences with evidence woven in)
    *  - Closing (1-2 sentences)
    *
-   * Third-party name redaction is applied: names other than the speaker's
-   * own name are replaced with "[a fellow member]".
+   * Renders the evaluation into a plain-text script suitable for TTS delivery.
    */
   /**
      * Render a validated StructuredEvaluation into a natural spoken script
@@ -402,6 +526,7 @@ export class EvaluationGenerator {
       evaluation: StructuredEvaluation,
       speakerName?: string,
       metrics?: DeliveryMetrics,
+      visualObservations?: VisualObservations | null,
     ): string {
       const parts: string[] = [];
 
@@ -433,13 +558,37 @@ export class EvaluationGenerator {
         parts.push(markedSection);
       }
 
+      // Visual feedback section (Phase 4 — Req 8.5, 7.9)
+      // Positioned after standard items and before closing
+      if (evaluation.visual_feedback && evaluation.visual_feedback.length > 0 && visualObservations) {
+        // Filter out items that failed observation_data validation
+        // AND items referencing unreliable metrics (Req 21.3 — per-metric suppression)
+        const validItems = evaluation.visual_feedback.filter((item) => {
+          if (!validateObservationData(item, visualObservations)) return false;
+          // Per-metric suppression: check if referenced metric is reliable
+          const metricMatch = item.observation_data.match(/metric=([^;]+)/);
+          if (metricMatch) {
+            const metricKey = metricMatch[1].trim();
+            if (!isMetricReliable(metricKey, visualObservations)) return false;
+          }
+          return true;
+        });
+        // Over-stripping fallback: only render if valid items remain
+        if (validItems.length > 0) {
+          parts.push("Looking at your delivery from a visual perspective...");
+          for (const item of validItems) {
+            parts.push(item.explanation);
+          }
+        }
+        // If all items stripped: no transition sentence, no visual section — clean removal
+      }
+
       // Closing
       parts.push(evaluation.closing);
 
       const script = parts.join("\n\n");
 
-      // Apply third-party name redaction for TTS delivery
-      return this.redactThirdPartyNames(script, speakerName);
+      return script;
     }
 
   // ── Prompt construction ─────────────────────────────────────────────────────
@@ -457,13 +606,15 @@ export class EvaluationGenerator {
     qualityWarning: boolean,
     config?: EvaluationConfig,
     highConfidenceSegments?: TranscriptSegment[],
+    visualObservations?: VisualObservations | null,
   ): { system: string; user: string } {
-    const system = this.buildSystemPrompt(qualityWarning);
-    const user = this.buildUserPrompt(transcriptText, metrics, config, highConfidenceSegments);
+    const hasVisual = visualObservations != null && visualObservations.videoQualityGrade !== "poor";
+    const system = this.buildSystemPrompt(qualityWarning, hasVisual);
+    const user = this.buildUserPrompt(transcriptText, metrics, config, highConfidenceSegments, visualObservations);
     return { system, user };
   }
 
-  private buildSystemPrompt(qualityWarning: boolean): string {
+  private buildSystemPrompt(qualityWarning: boolean, hasVisual: boolean = false): string {
       let prompt = `You are an experienced Toastmasters speech evaluator. Your role is to provide supportive, evidence-based evaluations of speeches.
 
   ## Output Format
@@ -548,6 +699,31 @@ export class EvaluationGenerator {
   - Still provide your best evaluation with the available content, but be transparent about limitations.`;
       }
 
+      if (hasVisual) {
+        prompt += `
+
+  ## Visual Feedback
+  The evaluation includes video analysis data. You MUST also produce a "visual_feedback" array in your JSON output.
+
+  Add this field to your JSON response:
+  "visual_feedback": [
+    {
+      "type": "visual_observation",
+      "summary": "string (brief label)",
+      "observation_data": "string (formal grammar: 'metric=<metricName>; value=<number><unit?>; source=visualObservations', e.g., 'metric=gazeBreakdown.audienceFacing; value=65%; source=visualObservations')",
+      "explanation": "string (2-3 sentences, observational, 'I observed...' language)"
+    }
+  ]
+
+  ### Visual Feedback Rules
+  - Produce 1-2 visual_feedback items based on the Visual Observations data in the user prompt.
+  - Use "I observed..." language for ALL visual observations.
+  - Each item MUST reference a specific metric name and its numeric value from the Visual Observations data.
+  - Do NOT infer emotions, psychology, or intent from visual data.
+  - Frame observations as binary-verifiable statements with thresholds.
+  - Note: gaze direction tracks head pose, not eye gaze. Accuracy depends on camera placement.`;
+      }
+
       return prompt;
     }
 
@@ -556,6 +732,7 @@ export class EvaluationGenerator {
     metrics: DeliveryMetrics,
     config?: EvaluationConfig,
     highConfidenceSegments?: TranscriptSegment[],
+    visualObservations?: VisualObservations | null,
   ): string {
     let prompt = `## Speech Transcript
 ${transcriptText}
@@ -571,6 +748,63 @@ ${JSON.stringify(metrics, null, 2)}`;
 ## High-Confidence Segments
 The following transcript segments have high confidence (mean word confidence ≥ 0.7). Focus your evidence quotes on these segments:
 ${highConfText}`;
+    }
+
+    // Visual Observations section (Phase 4 — Req 8.1, 8.2)
+    // Only include when visualObservations is provided AND videoQualityGrade !== "poor"
+    if (visualObservations != null && visualObservations.videoQualityGrade !== "poor") {
+      // Build filtered observations excluding unreliable metrics
+      const filteredObs: Record<string, unknown> = {};
+
+      // capabilities.face is the sole gate for face-dependent metrics (Req 5.4, 6.3).
+      // When capabilities.face === false, exclude gaze and facial energy metrics entirely —
+      // do NOT check gazeReliable or facialEnergyReliable.
+      const faceAvailable = visualObservations.capabilities?.face !== false;
+
+      if (faceAvailable && visualObservations.gazeReliable) {
+        filteredObs.gazeBreakdown = visualObservations.gazeBreakdown;
+        filteredObs.faceNotDetectedCount = visualObservations.faceNotDetectedCount;
+      }
+      if (visualObservations.gestureReliable) {
+        filteredObs.totalGestureCount = visualObservations.totalGestureCount;
+        filteredObs.gestureFrequency = visualObservations.gestureFrequency;
+        if (visualObservations.gesturePerSentenceRatio !== null) {
+          filteredObs.gesturePerSentenceRatio = visualObservations.gesturePerSentenceRatio;
+        }
+        filteredObs.handsDetectedFrames = visualObservations.handsDetectedFrames;
+        filteredObs.handsNotDetectedFrames = visualObservations.handsNotDetectedFrames;
+      }
+      if (visualObservations.stabilityReliable) {
+        filteredObs.meanBodyStabilityScore = visualObservations.meanBodyStabilityScore;
+        filteredObs.stageCrossingCount = visualObservations.stageCrossingCount;
+        filteredObs.movementClassification = visualObservations.movementClassification;
+      }
+      if (faceAvailable && visualObservations.facialEnergyReliable) {
+        filteredObs.meanFacialEnergyScore = visualObservations.meanFacialEnergyScore;
+        filteredObs.facialEnergyVariation = visualObservations.facialEnergyVariation;
+      }
+
+      filteredObs.framesAnalyzed = visualObservations.framesAnalyzed;
+      filteredObs.videoQualityGrade = visualObservations.videoQualityGrade;
+
+      prompt += `
+
+## Visual Observations (from video analysis)
+${JSON.stringify(filteredObs, null, 2)}
+
+### Visual Feedback Instructions
+- Produce 1-2 visual_feedback items based on the Visual Observations data above.
+- Each item MUST use "I observed..." language.
+- Each item MUST reference a specific metric name and its numeric value from the data above.
+- Do NOT infer emotions, psychology, or intent from visual data.
+- Frame observations as binary-verifiable statements with thresholds.
+- Note: gaze direction tracks head pose, not eye gaze. Accuracy depends on camera placement.
+- Example: "I observed that you faced the audience for 65% of the speech, which is below the typical 80% target for audience engagement."`;
+
+      if (visualObservations.videoQualityGrade === "degraded") {
+        prompt += `
+- Video coverage was partial (camera dropped or insufficient frames). Qualify visual observations with uncertainty language (e.g., "Based on partial video coverage...").`;
+      }
     }
 
     if (config?.projectType) {
@@ -705,11 +939,37 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
       // Parse structure_commentary with graceful defaults
       const structureCommentary = this.parseStructureCommentary(obj.structure_commentary);
 
+      // Parse optional visual_feedback array (Phase 4 — Req 8.2)
+      let visual_feedback: VisualFeedbackItem[] | undefined;
+      if (Array.isArray(obj.visual_feedback) && obj.visual_feedback.length > 0) {
+        visual_feedback = (obj.visual_feedback as unknown[])
+          .filter((vf): vf is Record<string, unknown> => {
+            if (!vf || typeof vf !== "object") return false;
+            const item = vf as Record<string, unknown>;
+            return (
+              item.type === "visual_observation" &&
+              typeof item.summary === "string" && item.summary.length > 0 &&
+              typeof item.observation_data === "string" && item.observation_data.length > 0 &&
+              typeof item.explanation === "string" && item.explanation.length > 0
+            );
+          })
+          .map((vf) => ({
+            type: "visual_observation" as const,
+            summary: vf.summary as string,
+            observation_data: vf.observation_data as string,
+            explanation: vf.explanation as string,
+          }));
+        if (visual_feedback.length === 0) {
+          visual_feedback = undefined;
+        }
+      }
+
       return {
         opening: obj.opening,
         items,
         closing: obj.closing,
         structure_commentary: structureCommentary,
+        ...(visual_feedback ? { visual_feedback } : {}),
       };
     }
 
@@ -816,6 +1076,7 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
         items: validatedItems,
         closing: evaluation.closing,
         structure_commentary: evaluation.structure_commentary,
+        ...(evaluation.visual_feedback ? { visual_feedback: evaluation.visual_feedback } : {}),
       },
       firstAttemptResults,
       // Count items that are in the final evaluation AND passed on first attempt.
@@ -937,6 +1198,7 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
         items: shortFormItems,
         closing: evaluation.closing,
         structure_commentary: evaluation.structure_commentary,
+        ...(evaluation.visual_feedback ? { visual_feedback: evaluation.visual_feedback } : {}),
       },
       passedOnFirstAttempt,
     };
@@ -1077,145 +1339,37 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
   }
 
   /**
-   * Redact third-party names from the rendered script for TTS delivery.
+   * Public redaction method (Pipeline Stage 7).
    *
-   * Per privacy steering rules:
-   *  - Third-party names should be replaced with "[a fellow member]"
-   *  - The speaker's own name (if provided) is NOT redacted
+   * Redaction disabled: the heuristic-based name detection was too aggressive,
+   * replacing company names, common words, and evaluation phrases with
+   * "a fellow member". The LLM prompt already instructs against including
+   * third-party names, which is a sufficient safeguard.
    *
-   * This is a best-effort heuristic: we look for capitalized words that
-   * appear to be proper names (2+ consecutive capitalized words, or single
-   * capitalized words not at sentence start) and replace them.
-   *
-   * Note: In a production system this would use NER. For MVP, we apply
-   * a conservative approach — the LLM is instructed not to include names,
-   * and this serves as a safety net.
+   * This method now passes through the script and evaluation unchanged,
+   * while still producing the StructuredEvaluationPublic shape required
+   * by downstream consumers.
    */
-  /**
-     * Internal helper: redact third-party names in a text string.
-     * Uses a best-effort heuristic: capitalized words mid-sentence that look like
-     * proper person names are replaced with "a fellow member".
-     *
-     * Conservative: does not redact uncertain entities (places, orgs, brands).
-     * Preserves the speaker's own name.
-     */
-    private redactThirdPartyNames(script: string, speakerName?: string): string {
-      if (!speakerName) {
-        // Without a speaker name, we can't distinguish speaker from third-party.
-        // Return as-is; the LLM prompt already instructs against including names.
-        return script;
-      }
+  redact(input: RedactionInput): RedactionOutput {
+    const { script, evaluation } = input;
 
-      return this.redactText(script, speakerName);
-    }
+    const publicItems: EvaluationItemPublic[] = evaluation.items.map((item) => ({
+      type: item.type,
+      summary: item.summary,
+      explanation: item.explanation,
+      evidence_quote: item.evidence_quote,
+      evidence_timestamp: item.evidence_timestamp,
+    }));
 
-    /**
-     * Core redaction logic: replaces third-party private individual names with
-     * "a fellow member" in the given text. Speaker's own name is preserved.
-     *
-     * Conservative heuristic:
-     * - Only redacts capitalized words that appear mid-sentence (not sentence-start)
-     * - Skips common non-name capitalized words (places, orgs, brands, common English words)
-     * - Skips words that match any token in the speaker's name
-     * - Does NOT redact uncertain entities
-     */
-    private redactText(text: string, speakerName: string): string {
-      // Build a set of speaker name tokens to preserve (case-insensitive)
-      const speakerTokens = new Set(
-        speakerName.toLowerCase().split(/\s+/).filter(Boolean),
-      );
+    const evaluationPublic: StructuredEvaluationPublic = {
+      opening: evaluation.opening,
+      items: publicItems,
+      closing: evaluation.closing,
+      structure_commentary: evaluation.structure_commentary,
+    };
 
-      // Common capitalized words that are NOT person names — conservative exclusion list
-      const nonNameWords = new Set([
-        // Common English words that may appear capitalized
-        "i", "the", "a", "an", "this", "that", "these", "those",
-        "my", "your", "his", "her", "its", "our", "their",
-        // Days, months
-        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-        "january", "february", "march", "april", "may", "june", "july",
-        "august", "september", "october", "november", "december",
-        // Common place/org indicators — if the word is one of these, skip
-        "toastmasters", "club", "university", "college", "school", "church",
-        "hospital", "company", "corporation", "inc", "llc", "ltd",
-        "street", "avenue", "road", "boulevard", "park", "city", "town",
-        "state", "country", "america", "american", "english", "spanish",
-        "french", "german", "chinese", "japanese", "african", "european",
-        "asian", "christian", "muslim", "jewish", "buddhist",
-        // Common words that start sentences or appear after quotes
-        "one", "next", "first", "second", "third", "also", "however",
-        "overall", "finally", "additionally", "furthermore", "meanwhile",
-        "something", "when", "where", "what", "who", "how", "why",
-        "thank", "thanks", "great", "good", "well", "keep",
-      ]);
-
-      const sentences = text.split(/(?<=[.!?])\s+/);
-      const redacted = sentences.map((sentence) => {
-        // Replace potential third-party names (capitalized words mid-sentence)
-        return sentence.replace(
-          /(?<=\s)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/g,
-          (match) => {
-            const matchTokens = match.toLowerCase().split(/\s+/);
-
-            // If any token matches the speaker name, preserve it
-            if (matchTokens.some((t) => speakerTokens.has(t))) {
-              return match;
-            }
-
-            // If all tokens are in the non-name exclusion list, preserve (conservative)
-            if (matchTokens.every((t) => nonNameWords.has(t))) {
-              return match;
-            }
-
-            return "a fellow member";
-          },
-        );
-      });
-
-      return redacted.join(" ");
-    }
-
-    /**
-     * Public redaction method (Pipeline Stage 8).
-     *
-     * Redacts third-party private individual names from both the script and
-     * the structured evaluation, producing:
-     * - `scriptRedacted`: the script with names replaced by "a fellow member"
-     * - `evaluationPublic`: a StructuredEvaluationPublic with redacted evidence quotes
-     *
-     * The replacement phrase "a fellow member" is identical across scriptRedacted
-     * and evaluationPublic.items[*].evidence_quote.
-     *
-     * Conservative: does not redact uncertain entities (places, orgs, brands).
-     * Preserves the speaker's own name (from consent.speakerName).
-     *
-     * Requirements: 8.1, 8.2, 8.3, 8.4, 8.5
-     */
-    redact(input: RedactionInput): RedactionOutput {
-      const { script, evaluation, consent } = input;
-      const speakerName = consent.speakerName;
-
-      // Redact the script
-      const scriptRedacted = this.redactText(script, speakerName);
-
-      // Redact the evaluation to produce the public version
-      // All user-visible text fields must be redacted (Req 8.4)
-      const publicItems: EvaluationItemPublic[] = evaluation.items.map((item) => ({
-        type: item.type,
-        summary: this.redactText(item.summary, speakerName),
-        explanation: this.redactText(item.explanation, speakerName),
-        evidence_quote: this.redactText(item.evidence_quote, speakerName),
-        evidence_timestamp: item.evidence_timestamp,
-      }));
-
-      const evaluationPublic: StructuredEvaluationPublic = {
-        opening: this.redactText(evaluation.opening, speakerName),
-        items: publicItems,
-        closing: this.redactText(evaluation.closing, speakerName),
-        structure_commentary: evaluation.structure_commentary,
-      };
-
-      return { scriptRedacted, evaluationPublic };
-    }
+    return { scriptRedacted: script, evaluationPublic };
+  }
 
     // ── Consistency Monitoring Telemetry (Req 7.1, 7.3, 7.4, 7.5) ────────────
 

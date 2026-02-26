@@ -1944,235 +1944,17 @@ describe("Feature: phase-2-stability-credibility, Property 16: Short-Form Fallba
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Property 15: Redaction Correctness
-// Feature: phase-2-stability-credibility, Property 15: Redaction Correctness
-// **Validates: Requirements 8.1, 8.2, 8.4, 8.5**
+// Property 15: Redaction Pass-Through (redaction disabled)
+// Feature: phase-2-stability-credibility, Property 15
+// **Validates: Requirements 8.1, 8.4, 8.5**
 //
-// For any evaluation script containing third-party private individual names
-// (not the speaker's name) and non-name entities (places, organizations, brands),
-// redaction SHALL:
-//   (a) replace each third-party name with "a fellow member"
-//   (b) preserve the speaker's own name unchanged
-//   (c) leave non-name entities unredacted
-//   (d) not introduce new words other than the generic replacement phrase
+// Redaction has been disabled because the heuristic-based name detection was
+// too aggressive. The redact() method now passes through all content unchanged
+// while still producing the StructuredEvaluationPublic shape.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe("Property 15: Redaction Correctness", () => {
-  // ── Name pools ──────────────────────────────────────────────────────────────
-  // First names that match the heuristic pattern [A-Z][a-z]+ and are NOT in the
-  // nonNameWords exclusion list inside redactText().
-  const FIRST_NAMES = [
-    "Alice", "Bob", "Carlos", "Diana", "Elena", "Frank", "Grace",
-    "Hector", "Irene", "James", "Karen", "Leo", "Mia", "Nathan",
-    "Olivia", "Pedro", "Quinn", "Rosa", "Tom", "Vera",
-  ];
 
-  const LAST_NAMES = [
-    "Smith", "Garcia", "Chen", "Patel", "Kim", "Lopez", "Brown",
-    "Wilson", "Taylor", "Anderson", "Thomas", "Jackson", "White",
-    "Harris", "Martin", "Thompson", "Moore", "Clark", "Lewis", "Walker",
-  ];
-
-  // Non-name entities from the exclusion list that should NOT be redacted.
-  // These are words present in the nonNameWords set inside redactText().
-  const NON_NAME_ENTITIES = [
-    "Toastmasters", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
-    "Saturday", "Sunday", "January", "February", "March", "April",
-    "June", "July", "August", "September", "October", "November", "December",
-    "University", "College", "Church", "Hospital", "Company",
-    "American", "English", "Spanish", "French", "German",
-    "Chinese", "Japanese", "African", "European", "Asian",
-    "Christian", "However", "Finally", "Additionally", "Furthermore",
-    "Overall", "Meanwhile",
-  ];
-
-  // Filler sentence fragments that don't contain capitalized words mid-sentence
-  const SENTENCE_PREFIXES = [
-    "The speaker talked about",
-    "It was clear that",
-    "During the speech we heard",
-    "At that point the speaker said",
-    "In the middle of the talk",
-    "The audience noticed that",
-    "We could hear that",
-    "Throughout the presentation",
-    "At the beginning the speaker mentioned",
-    "Later in the speech",
-  ];
-
-  const SENTENCE_SUFFIXES = [
-    "which was very effective.",
-    "and it resonated with the audience.",
-    "during the second point.",
-    "as part of the opening remarks.",
-    "in a compelling way.",
-    "with great enthusiasm.",
-    "to illustrate the main idea.",
-    "and the audience responded well.",
-    "which added depth to the message.",
-    "as a powerful example.",
-  ];
-
-  // ── Generators ──────────────────────────────────────────────────────────────
-
-  /** Generate a first name from the pool. */
-  function arbitraryFirstName(): fc.Arbitrary<string> {
-    return fc.constantFrom(...FIRST_NAMES);
-  }
-
-  /** Generate a last name from the pool. */
-  function arbitraryLastName(): fc.Arbitrary<string> {
-    return fc.constantFrom(...LAST_NAMES);
-  }
-
-  /**
-   * Generate a person name: either a first name alone or "First Last".
-   * Both forms match the [A-Z][a-z]+(\s+[A-Z][a-z]+)* regex pattern.
-   */
-  function arbitraryPersonName(): fc.Arbitrary<string> {
-    return fc.oneof(
-      arbitraryFirstName(),
-      fc.tuple(arbitraryFirstName(), arbitraryLastName()).map(
-        ([first, last]) => `${first} ${last}`,
-      ),
-    );
-  }
-
-  /** Generate a non-name entity from the exclusion list. */
-  function arbitraryNonNameEntity(): fc.Arbitrary<string> {
-    return fc.constantFrom(...NON_NAME_ENTITIES);
-  }
-
-  /**
-   * Build a sentence that places a name mid-sentence (after whitespace),
-   * where the redactText() heuristic can detect it via the lookbehind (?<=\s).
-   */
-  function buildMidSentenceNameSentence(name: string): string {
-    const prefix =
-      SENTENCE_PREFIXES[Math.floor(Math.random() * SENTENCE_PREFIXES.length)];
-    const suffix =
-      SENTENCE_SUFFIXES[Math.floor(Math.random() * SENTENCE_SUFFIXES.length)];
-    return `${prefix} ${name} ${suffix}`;
-  }
-
-  /**
-   * Build a sentence that places a non-name entity mid-sentence.
-   */
-  function buildNonNameEntitySentence(entity: string): string {
-    return `The event at ${entity} was well attended and very productive.`;
-  }
-
-  /**
-   * Build a sentence that places the speaker's name mid-sentence.
-   */
-  function buildSpeakerNameSentence(speakerName: string): string {
-    return `The audience appreciated ${speakerName} for the insightful presentation.`;
-  }
-
-  /**
-   * Generate a RedactionInput with controlled content:
-   * - A script containing the speaker's name, third-party names, and non-name entities mid-sentence
-   * - A minimal evaluation with items referencing the same names
-   * - A consent record with the speaker's name
-   */
-  function arbitraryRedactionInput(): fc.Arbitrary<{
-    input: RedactionInput;
-    speakerName: string;
-    thirdPartyNames: string[];
-    nonNameEntities: string[];
-  }> {
-    return fc
-      .tuple(
-        arbitraryPersonName(), // speaker name
-        fc.array(arbitraryPersonName(), { minLength: 1, maxLength: 3 }), // third-party names
-        fc.array(arbitraryNonNameEntity(), { minLength: 1, maxLength: 3 }), // non-name entities
-        fc.constantFrom(...SENTENCE_PREFIXES),
-        fc.constantFrom(...SENTENCE_SUFFIXES),
-      )
-      .filter(([speakerName, thirdPartyNames]) => {
-        // Ensure speaker name tokens don't overlap with any third-party name tokens
-        const speakerTokens = new Set(
-          speakerName.toLowerCase().split(/\s+/),
-        );
-        return thirdPartyNames.every((tpName) => {
-          const tpTokens = tpName.toLowerCase().split(/\s+/);
-          return !tpTokens.some((t) => speakerTokens.has(t));
-        });
-      })
-      .map(([speakerName, thirdPartyNames, nonNameEntities, prefix, suffix]) => {
-        // Build script sentences with names placed mid-sentence
-        const scriptSentences: string[] = [];
-
-        // Opening sentence with speaker name mid-sentence
-        scriptSentences.push(buildSpeakerNameSentence(speakerName));
-
-        // Sentences with third-party names mid-sentence
-        for (const tpName of thirdPartyNames) {
-          scriptSentences.push(`${prefix} ${tpName} ${suffix}`);
-        }
-
-        // Sentences with non-name entities mid-sentence
-        for (const entity of nonNameEntities) {
-          scriptSentences.push(buildNonNameEntitySentence(entity));
-        }
-
-        // A plain sentence with no names
-        scriptSentences.push(
-          "The speech was well structured and delivered with confidence.",
-        );
-
-        const script = scriptSentences.join(" ");
-
-        // Build a minimal evaluation with items that reference third-party names
-        const items: EvaluationItem[] = [
-          {
-            type: "commendation",
-            summary: "Strong delivery",
-            evidence_quote: `the speaker mentioned ${thirdPartyNames[0]} during the talk`,
-            evidence_timestamp: 10,
-            explanation: `Referencing ${thirdPartyNames[0]} added credibility.`,
-          },
-          {
-            type: "commendation",
-            summary: "Good structure",
-            evidence_quote: "the speech was well structured and delivered",
-            evidence_timestamp: 20,
-            explanation: "Clear organization throughout.",
-          },
-          {
-            type: "recommendation",
-            summary: "Pacing improvement",
-            evidence_quote: `appreciated ${speakerName} for the insightful presentation`,
-            evidence_timestamp: 5,
-            explanation: "Consider varying the pace more.",
-          },
-        ];
-
-        const evaluation: StructuredEvaluation = {
-          opening: `Thank you for that wonderful speech. We heard ${speakerName} deliver a compelling message.`,
-          items,
-          closing: "Keep up the great work and continue to grow as a speaker.",
-          structure_commentary: {
-            opening_comment: null,
-            body_comment: null,
-            closing_comment: null,
-          },
-        };
-
-        const consent: ConsentRecord = {
-          speakerName,
-          consentConfirmed: true,
-          consentTimestamp: new Date(),
-        };
-
-        const input: RedactionInput = { script, evaluation, consent };
-
-        return { input, speakerName, thirdPartyNames, nonNameEntities };
-      });
-  }
-
-  // ── Helper: create a generator instance ─────────────────────────────────────
-
+describe("Property 15: Redaction Pass-Through", () => {
   function createRedactionGenerator(): EvaluationGenerator {
     const mockClient: OpenAIClient = {
       chat: {
@@ -2186,124 +1968,65 @@ describe("Property 15: Redaction Correctness", () => {
     return new EvaluationGenerator(mockClient);
   }
 
-  // ── Helper: tokenize text into words for comparison ─────────────────────────
-
-  function tokenize(text: string): string[] {
-    return text.split(/\s+/).filter(Boolean);
-  }
-
-  // ── Property Test ───────────────────────────────────────────────────────────
-
-  it("(a) third-party names are replaced with 'a fellow member', (b) speaker name preserved, (c) non-name entities unredacted, (d) no new words introduced", () => {
+  it("(a) script passes through unchanged, (b) evaluationPublic matches evaluation content, (c) item count and order preserved", () => {
     const generator = createRedactionGenerator();
 
     fc.assert(
       fc.property(
-        arbitraryRedactionInput(),
-        ({ input, speakerName, thirdPartyNames, nonNameEntities }) => {
+        fc.record({
+          speakerName: fc.constantFrom("Alice", "Bob", "Carlos", "Diana"),
+          script: fc.string({ minLength: 10, maxLength: 200 }),
+          opening: fc.string({ minLength: 5, maxLength: 100 }),
+          closing: fc.string({ minLength: 5, maxLength: 100 }),
+        }),
+        ({ speakerName, script, opening, closing }) => {
+          const evaluation: StructuredEvaluation = {
+            opening,
+            items: [
+              { type: "commendation", summary: "Good delivery", evidence_quote: "the speaker said something great", evidence_timestamp: 10, explanation: "Well done." },
+              { type: "recommendation", summary: "Pacing", evidence_quote: "and then moved on quickly", evidence_timestamp: 30, explanation: "Slow down." },
+            ],
+            closing,
+            structure_commentary: { opening_comment: null, body_comment: null, closing_comment: null },
+          };
+          const input: RedactionInput = { script, evaluation, consent: { speakerName, consentConfirmed: true, consentTimestamp: new Date() } };
           const result = generator.redact(input);
-
-          // ── Sub-property (a): Third-party names replaced ──────────────
-          // Each third-party name that was placed mid-sentence should be
-          // replaced with "a fellow member" in the redacted script.
-          for (const tpName of thirdPartyNames) {
-            // The name tokens should not appear as capitalized mid-sentence
-            // words in the redacted output
-            const nameTokens = tpName.split(/\s+/);
-            for (const token of nameTokens) {
-              // Check that the capitalized token doesn't appear in the
-              // redacted script in its original capitalized form mid-sentence.
-              // We search for the token preceded by a space (mid-sentence position).
-              const midSentencePattern = new RegExp(`(?<=\\s)${token}(?=\\s|[.!?,;:]|$)`);
-              expect(
-                midSentencePattern.test(result.scriptRedacted),
-              ).toBe(false);
-            }
+          expect(result.scriptRedacted).toBe(script);
+          expect(result.evaluationPublic.opening).toBe(opening);
+          expect(result.evaluationPublic.closing).toBe(closing);
+          expect(result.evaluationPublic.items).toHaveLength(evaluation.items.length);
+          for (let i = 0; i < evaluation.items.length; i++) {
+            expect(result.evaluationPublic.items[i].type).toBe(evaluation.items[i].type);
+            expect(result.evaluationPublic.items[i].summary).toBe(evaluation.items[i].summary);
+            expect(result.evaluationPublic.items[i].evidence_quote).toBe(evaluation.items[i].evidence_quote);
+            expect(result.evaluationPublic.items[i].explanation).toBe(evaluation.items[i].explanation);
+            expect(result.evaluationPublic.items[i].evidence_timestamp).toBe(evaluation.items[i].evidence_timestamp);
           }
-
-          // The replacement phrase must appear in the redacted script
-          expect(result.scriptRedacted).toContain("a fellow member");
-
-          // ── Sub-property (b): Speaker's own name preserved ────────────
-          // The speaker's name tokens should still appear in the redacted script
-          expect(result.scriptRedacted).toContain(speakerName);
-
-          // Also check the evaluationPublic: speaker name should be preserved
-          // in the recommendation evidence quote that references the speaker
-          const recItem = result.evaluationPublic.items.find(
-            (i) => i.type === "recommendation",
-          );
-          if (recItem) {
-            const speakerTokens = speakerName.split(/\s+/);
-            for (const token of speakerTokens) {
-              expect(recItem.evidence_quote).toContain(token);
-            }
-          }
-
-          // ── Sub-property (c): Non-name entities not redacted ──────────
-          // Entities from the exclusion list should survive redaction
-          for (const entity of nonNameEntities) {
-            expect(result.scriptRedacted).toContain(entity);
-          }
-
-          // ── Sub-property (d): No new words introduced ─────────────────
-          // Every word in the redacted output must either:
-          //   1. Exist in the original input text, OR
-          //   2. Be part of the replacement phrase "a fellow member"
-          const replacementTokens = new Set(["a", "fellow", "member"]);
-          const originalTokens = new Set(tokenize(input.script));
-
-          const redactedTokens = tokenize(result.scriptRedacted);
-          for (const token of redactedTokens) {
-            const inOriginal = originalTokens.has(token);
-            const inReplacement = replacementTokens.has(token);
-            expect(inOriginal || inReplacement).toBe(true);
-          }
-
-          // ── Also verify evaluationPublic consistency ───────────────────
-          // The replacement phrase in the script and evidence quotes must be
-          // identical: "a fellow member" (no brackets)
-          expect(result.scriptRedacted).not.toContain("[a fellow member]");
-          for (const item of result.evaluationPublic.items) {
-            expect(item.evidence_quote).not.toContain("[a fellow member]");
-          }
-
-          // Item count and order preserved
-          expect(result.evaluationPublic.items).toHaveLength(
-            input.evaluation.items.length,
-          );
-          for (let i = 0; i < input.evaluation.items.length; i++) {
-            expect(result.evaluationPublic.items[i].type).toBe(
-              input.evaluation.items[i].type,
-            );
-          }
+          expect(result.scriptRedacted).not.toContain("a fellow member");
         },
       ),
       { numRuns: 200 },
     );
   });
 
-  it("redaction in evaluationPublic opening and closing replaces third-party names and preserves speaker name", () => {
+  it("structure_commentary passes through unchanged", () => {
     const generator = createRedactionGenerator();
-
     fc.assert(
       fc.property(
-        arbitraryRedactionInput(),
-        ({ input, speakerName, thirdPartyNames }) => {
+        fc.record({
+          openingComment: fc.option(fc.string({ minLength: 1, maxLength: 50 }), { nil: null }),
+          bodyComment: fc.option(fc.string({ minLength: 1, maxLength: 50 }), { nil: null }),
+          closingComment: fc.option(fc.string({ minLength: 1, maxLength: 50 }), { nil: null }),
+        }),
+        ({ openingComment, bodyComment, closingComment }) => {
+          const commentary = { opening_comment: openingComment, body_comment: bodyComment, closing_comment: closingComment };
+          const input: RedactionInput = {
+            script: "Test script.",
+            evaluation: { opening: "Hello.", items: [{ type: "commendation" as const, summary: "Good", evidence_quote: "test quote here for validation", evidence_timestamp: 0, explanation: "Nice." }], closing: "Bye.", structure_commentary: commentary },
+            consent: { speakerName: "Test", consentConfirmed: true, consentTimestamp: new Date() },
+          };
           const result = generator.redact(input);
-
-          // Speaker name should be preserved in opening and closing
-          // (the opening contains the speaker name mid-sentence)
-          expect(result.evaluationPublic.opening).toContain(speakerName);
-
-          // Third-party names in evidence quotes should be redacted
-          const firstItem = result.evaluationPublic.items[0];
-          const firstTpName = thirdPartyNames[0];
-          const nameTokens = firstTpName.split(/\s+/);
-          for (const token of nameTokens) {
-            const midSentencePattern = new RegExp(`(?<=\\s)${token}(?=\\s|[.!?,;:]|$)`);
-            expect(midSentencePattern.test(firstItem.evidence_quote)).toBe(false);
-          }
+          expect(result.evaluationPublic.structure_commentary).toEqual(commentary);
         },
       ),
       { numRuns: 200 },
@@ -2312,379 +2035,47 @@ describe("Property 15: Redaction Correctness", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Property 21: Public Output Redaction Completeness
-// Feature: phase-2-stability-credibility, Property 21: Public Output Redaction Completeness
-// **Validates: Requirements 8.1, 8.4, 8.5**
-//
-// For any StructuredEvaluationPublic or script string sent to the Web UI
-// (via evaluation_ready message) or saved to disk (via "Save Outputs"),
-// the content SHALL NOT contain any third-party private individual names.
-// The speaker's own name (from ConsentRecord) MAY appear.
-// Non-name entities (places, organizations, brands) MAY appear.
-//
-// Key difference from Property 15:
-// - Property 15 tests the redaction *mechanism* (replacement, preservation, no new words)
-// - Property 21 tests the *completeness* of the public output — verifying that
-//   NO third-party names survive in ANY field of the public output
+// Property 21: Public Output Shape Completeness (redaction disabled)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe("Property 21: Public Output Redaction Completeness", () => {
-  // ── Name pools ──────────────────────────────────────────────────────────────
-  // First names that match the heuristic pattern [A-Z][a-z]+ and are NOT in the
-  // nonNameWords exclusion list inside redactText().
-  const FIRST_NAMES = [
-    "Alice", "Bob", "Carlos", "Diana", "Elena", "Frank", "Grace",
-    "Hector", "Irene", "James", "Karen", "Leo", "Mia", "Nathan",
-    "Olivia", "Pedro", "Quinn", "Rosa", "Tom", "Vera",
-  ];
-
-  const LAST_NAMES = [
-    "Smith", "Garcia", "Chen", "Patel", "Kim", "Lopez", "Brown",
-    "Wilson", "Taylor", "Anderson", "Thomas", "Jackson", "White",
-    "Harris", "Martin", "Thompson", "Moore", "Clark", "Lewis", "Walker",
-  ];
-
-  // Non-name entities from the exclusion list that should NOT be redacted.
-  const NON_NAME_ENTITIES = [
-    "Toastmasters", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
-    "Saturday", "Sunday", "January", "February", "March", "April",
-    "June", "July", "August", "September", "October", "November", "December",
-    "University", "College", "Church", "Hospital", "Company",
-    "American", "English", "Spanish", "French", "German",
-    "Chinese", "Japanese", "African", "European", "Asian",
-    "Christian", "However", "Finally", "Additionally", "Furthermore",
-    "Overall", "Meanwhile",
-  ];
-
-  // Sentence fragments for building mid-sentence name placements
-  const SENTENCE_PREFIXES = [
-    "The speaker talked about",
-    "It was clear that",
-    "During the speech we heard",
-    "At that point the speaker said",
-    "In the middle of the talk",
-    "The audience noticed that",
-    "We could hear that",
-    "Throughout the presentation",
-    "At the beginning the speaker mentioned",
-    "Later in the speech",
-  ];
-
-  const SENTENCE_SUFFIXES = [
-    "which was very effective.",
-    "and it resonated with the audience.",
-    "during the second point.",
-    "as part of the opening remarks.",
-    "in a compelling way.",
-    "with great enthusiasm.",
-    "to illustrate the main idea.",
-    "and the audience responded well.",
-    "which added depth to the message.",
-    "as a powerful example.",
-  ];
-
-  // ── Generators ──────────────────────────────────────────────────────────────
-
-  function arbitraryFirstName(): fc.Arbitrary<string> {
-    return fc.constantFrom(...FIRST_NAMES);
-  }
-
-  function arbitraryLastName(): fc.Arbitrary<string> {
-    return fc.constantFrom(...LAST_NAMES);
-  }
-
-  function arbitraryPersonName(): fc.Arbitrary<string> {
-    return fc.oneof(
-      arbitraryFirstName(),
-      fc.tuple(arbitraryFirstName(), arbitraryLastName()).map(
-        ([first, last]) => `${first} ${last}`,
-      ),
-    );
-  }
-
-  function arbitraryNonNameEntity(): fc.Arbitrary<string> {
-    return fc.constantFrom(...NON_NAME_ENTITIES);
-  }
-
-  /**
-   * Build a sentence that places a name mid-sentence (after whitespace),
-   * where the redactText() heuristic can detect it via the lookbehind (?<=\s).
-   */
-  function buildMidSentenceNameSentence(name: string, prefixIdx: number, suffixIdx: number): string {
-    const prefix = SENTENCE_PREFIXES[prefixIdx % SENTENCE_PREFIXES.length];
-    const suffix = SENTENCE_SUFFIXES[suffixIdx % SENTENCE_SUFFIXES.length];
-    return `${prefix} ${name} ${suffix}`;
-  }
-
-  /**
-   * Generate a comprehensive RedactionInput that injects third-party names
-   * into ALL text fields of the public output:
-   * - script (multiple sentences with names mid-sentence)
-   * - evaluation.opening (name mid-sentence)
-   * - evaluation.closing (name mid-sentence)
-   * - evaluation.items[*].evidence_quote (name mid-sentence)
-   * - evaluation.items[*].explanation (name mid-sentence)
-   * - evaluation.items[*].summary (name mid-sentence)
-   *
-   * This ensures completeness testing across every field that appears in
-   * the public output.
-   */
-  function arbitraryComprehensiveRedactionInput(): fc.Arbitrary<{
-    input: RedactionInput;
-    speakerName: string;
-    thirdPartyNames: string[];
-    nonNameEntities: string[];
-  }> {
-    return fc
-      .tuple(
-        arbitraryPersonName(), // speaker name
-        fc.array(arbitraryPersonName(), { minLength: 1, maxLength: 4 }), // third-party names
-        fc.array(arbitraryNonNameEntity(), { minLength: 0, maxLength: 3 }), // non-name entities
-        fc.nat({ max: 9 }), // prefix index
-        fc.nat({ max: 9 }), // suffix index
-      )
-      .filter(([speakerName, thirdPartyNames]) => {
-        // Ensure speaker name tokens don't overlap with any third-party name tokens
-        const speakerTokens = new Set(
-          speakerName.toLowerCase().split(/\s+/),
-        );
-        return thirdPartyNames.every((tpName) => {
-          const tpTokens = tpName.toLowerCase().split(/\s+/);
-          return !tpTokens.some((t) => speakerTokens.has(t));
-        });
-      })
-      .map(([speakerName, thirdPartyNames, nonNameEntities, prefixIdx, suffixIdx]) => {
-        // Pick a primary third-party name to inject everywhere
-        const primaryTpName = thirdPartyNames[0];
-
-        // ── Build script with names in various positions ──────────────
-        const scriptSentences: string[] = [];
-
-        // Speaker name mid-sentence (should be preserved)
-        scriptSentences.push(
-          `The audience appreciated ${speakerName} for the insightful presentation.`,
-        );
-
-        // Third-party names mid-sentence (should be redacted)
-        for (const tpName of thirdPartyNames) {
-          scriptSentences.push(
-            buildMidSentenceNameSentence(tpName, prefixIdx, suffixIdx),
-          );
-        }
-
-        // Non-name entities mid-sentence (should be preserved)
-        for (const entity of nonNameEntities) {
-          scriptSentences.push(
-            `The event at ${entity} was well attended and very productive.`,
-          );
-        }
-
-        // Plain sentence
-        scriptSentences.push(
-          "The speech was well structured and delivered with confidence.",
-        );
-
-        const script = scriptSentences.join(" ");
-
-        // ── Build evaluation with names injected into ALL fields ──────
-        // opening: third-party name mid-sentence
-        const opening = `Thank you for that wonderful speech. We heard from ${primaryTpName} and ${speakerName} during the talk.`;
-
-        // closing: third-party name mid-sentence
-        const closing = `Keep up the great work. The feedback from ${primaryTpName} was also noteworthy.`;
-
-        // items: inject third-party names into summary, explanation, and evidence_quote
-        const items: EvaluationItem[] = [
-          {
-            type: "commendation",
-            summary: `Strong delivery alongside ${primaryTpName} in the group`,
-            evidence_quote: `the speaker mentioned ${primaryTpName} during the talk`,
-            evidence_timestamp: 10,
-            explanation: `Referencing ${primaryTpName} added credibility to the argument.`,
-          },
-          {
-            type: "commendation",
-            summary: "Good structure throughout the speech",
-            evidence_quote: "the speech was well structured and delivered",
-            evidence_timestamp: 20,
-            explanation: "Clear organization throughout the presentation.",
-          },
-          {
-            type: "recommendation",
-            summary: `Consider the approach used by ${speakerName} more often`,
-            evidence_quote: `appreciated ${speakerName} for the insightful presentation`,
-            evidence_timestamp: 5,
-            explanation: "Consider varying the pace for greater impact.",
-          },
-        ];
-
-        // If we have more third-party names, add items referencing them
-        if (thirdPartyNames.length > 1) {
-          items.push({
-            type: "recommendation",
-            summary: `Pacing near ${thirdPartyNames[1]} reference could improve`,
-            evidence_quote: `the speaker said ${thirdPartyNames[1]} which was very effective`,
-            evidence_timestamp: 30,
-            explanation: `The mention of ${thirdPartyNames[1]} was good but could be expanded.`,
-          });
-        }
-
-        const evaluation: StructuredEvaluation = {
-          opening,
-          items,
-          closing,
-          structure_commentary: {
-            opening_comment: null,
-            body_comment: null,
-            closing_comment: null,
-          },
-        };
-
-        const consent: ConsentRecord = {
-          speakerName,
-          consentConfirmed: true,
-          consentTimestamp: new Date(),
-        };
-
-        const input: RedactionInput = { script, evaluation, consent };
-
-        return { input, speakerName, thirdPartyNames, nonNameEntities };
-      });
-  }
-
-  // ── Helper: create a generator instance ─────────────────────────────────────
-
+describe("Property 21: Public Output Shape Completeness", () => {
   function createRedactionGenerator(): EvaluationGenerator {
     const mockClient: OpenAIClient = {
-      chat: {
-        completions: {
-          create: vi.fn().mockResolvedValue({
-            choices: [{ message: { content: "{}" } }],
-          }),
-        },
-      },
+      chat: { completions: { create: vi.fn().mockResolvedValue({ choices: [{ message: { content: "{}" } }] }) } },
     } as unknown as OpenAIClient;
     return new EvaluationGenerator(mockClient);
   }
 
-  /**
-   * Check that a text field does NOT contain any third-party name token
-   * in a mid-sentence position (preceded by whitespace, in its original
-   * capitalized form). This is the detectable scope of the redaction heuristic.
-   */
-  function assertNoThirdPartyNames(
-    text: string,
-    thirdPartyNames: string[],
-    fieldLabel: string,
-  ): void {
-    for (const tpName of thirdPartyNames) {
-      const nameTokens = tpName.split(/\s+/);
-      for (const token of nameTokens) {
-        // The redaction heuristic detects capitalized words mid-sentence
-        // (preceded by whitespace). Check that no such token survives.
-        const midSentencePattern = new RegExp(
-          `(?<=\\s)${token}(?=\\s|[.!?,;:]|$)`,
-        );
-        expect(
-          midSentencePattern.test(text),
-          `Third-party name token "${token}" (from "${tpName}") found in ${fieldLabel}: "${text}"`,
-        ).toBe(false);
-      }
-    }
-  }
-
-  // ── Property Test ───────────────────────────────────────────────────────────
-
-  it("no third-party name tokens survive in any field of the public output (scriptRedacted, opening, closing, items[*].summary, items[*].explanation, items[*].evidence_quote)", () => {
+  it("evaluationPublic has correct shape with all required fields", () => {
     const generator = createRedactionGenerator();
-
     fc.assert(
-      fc.property(
-        arbitraryComprehensiveRedactionInput(),
-        ({ input, speakerName, thirdPartyNames, nonNameEntities }) => {
-          const result = generator.redact(input);
-
-          // ── Check scriptRedacted ──────────────────────────────────────
-          assertNoThirdPartyNames(
-            result.scriptRedacted,
-            thirdPartyNames,
-            "scriptRedacted",
-          );
-
-          // ── Check evaluationPublic.opening ────────────────────────────
-          assertNoThirdPartyNames(
-            result.evaluationPublic.opening,
-            thirdPartyNames,
-            "evaluationPublic.opening",
-          );
-
-          // ── Check evaluationPublic.closing ────────────────────────────
-          assertNoThirdPartyNames(
-            result.evaluationPublic.closing,
-            thirdPartyNames,
-            "evaluationPublic.closing",
-          );
-
-          // ── Check ALL items fields ────────────────────────────────────
-          for (let i = 0; i < result.evaluationPublic.items.length; i++) {
-            const item = result.evaluationPublic.items[i];
-
-            assertNoThirdPartyNames(
-              item.evidence_quote,
-              thirdPartyNames,
-              `evaluationPublic.items[${i}].evidence_quote`,
-            );
-
-            assertNoThirdPartyNames(
-              item.explanation,
-              thirdPartyNames,
-              `evaluationPublic.items[${i}].explanation`,
-            );
-
-            assertNoThirdPartyNames(
-              item.summary,
-              thirdPartyNames,
-              `evaluationPublic.items[${i}].summary`,
-            );
-          }
-
-          // ── Speaker's own name MAY appear (positive check) ────────────
-          // The speaker name was placed mid-sentence in the script and
-          // in the recommendation evidence_quote — it should survive.
-          expect(result.scriptRedacted).toContain(speakerName);
-
-          // ── Non-name entities MAY appear (positive check) ─────────────
-          for (const entity of nonNameEntities) {
-            expect(result.scriptRedacted).toContain(entity);
-          }
-
-          // ── Replacement phrase present where names were ───────────────
-          // Since we injected third-party names, "a fellow member" must
-          // appear in the redacted output.
-          expect(result.scriptRedacted).toContain("a fellow member");
-        },
-      ),
-      { numRuns: 200 },
-    );
-  });
-
-  it("structure_commentary fields pass through unchanged (no name injection in commentary)", () => {
-    const generator = createRedactionGenerator();
-
-    fc.assert(
-      fc.property(
-        arbitraryComprehensiveRedactionInput(),
-        ({ input }) => {
-          const result = generator.redact(input);
-
-          // structure_commentary is passed through as-is (not redacted)
-          // since it comes from the LLM and doesn't contain user names.
-          // Verify it matches the input exactly.
-          expect(result.evaluationPublic.structure_commentary).toEqual(
-            input.evaluation.structure_commentary,
-          );
-        },
-      ),
+      fc.property(fc.nat({ max: 4 }), (itemCount) => {
+        const items: EvaluationItem[] = Array.from({ length: Math.max(1, itemCount) }, (_, i) => ({
+          type: (i % 2 === 0 ? "commendation" : "recommendation") as "commendation" | "recommendation",
+          summary: `Summary ${i}`, evidence_quote: `evidence quote number ${i} from the speech`, evidence_timestamp: i * 10, explanation: `Explanation ${i}`,
+        }));
+        const input: RedactionInput = {
+          script: "Test script content.",
+          evaluation: { opening: "Hello speaker.", items, closing: "Great job.", structure_commentary: { opening_comment: "Good start.", body_comment: null, closing_comment: null } },
+          consent: { speakerName: "Speaker", consentConfirmed: true, consentTimestamp: new Date() },
+        };
+        const result = generator.redact(input);
+        expect(typeof result.scriptRedacted).toBe("string");
+        expect(typeof result.evaluationPublic.opening).toBe("string");
+        expect(typeof result.evaluationPublic.closing).toBe("string");
+        expect(Array.isArray(result.evaluationPublic.items)).toBe(true);
+        expect(result.evaluationPublic.structure_commentary).toBeDefined();
+        for (const item of result.evaluationPublic.items) {
+          expect(item.type).toMatch(/^(commendation|recommendation)$/);
+          expect(typeof item.summary).toBe("string");
+          expect(typeof item.explanation).toBe("string");
+          expect(typeof item.evidence_quote).toBe("string");
+          expect(typeof item.evidence_timestamp).toBe("number");
+        }
+        expect(result.scriptRedacted).toBe(input.script);
+        expect(result.evaluationPublic.opening).toBe(input.evaluation.opening);
+        expect(result.evaluationPublic.closing).toBe(input.evaluation.closing);
+      }),
       { numRuns: 200 },
     );
   });
@@ -3222,6 +2613,1713 @@ describe("Feature: phase-3-semi-automation, CTX-P1: Absent project context produ
         },
       ),
       { numRuns: 100 },
+    );
+  });
+});
+
+// ─── Property 4: No visual feedback without video observations ─────────────────
+// **Validates: Requirements 1.8, 8.4**
+
+describe("Property 4: No visual feedback without video observations", () => {
+  /**
+   * **Validates: Requirements 1.8, 8.4**
+   *
+   * When visualObservations is null or not provided, the EvaluationGenerator
+   * SHALL NOT produce visual_feedback items. The evaluation must be identical
+   * to Phase 3 audio-only behavior with no visual_feedback field.
+   */
+  it("generate() produces no visual_feedback when visualObservations is null", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        arbitraryTranscriptSegments().chain((segments) =>
+          fc.tuple(
+            fc.constant(segments),
+            fc.integer({ min: MIN_COMMENDATIONS, max: MAX_COMMENDATIONS }),
+            fc.integer({ min: MIN_RECOMMENDATIONS, max: MAX_RECOMMENDATIONS }),
+          ),
+        ),
+        async ([segments, numCommendations, numRecommendations]) => {
+          const evaluation = buildValidEvaluation(segments, numCommendations, numRecommendations);
+          const responseJson = JSON.stringify(evaluation);
+          const client = makeMockClient([responseJson]);
+          const generator = new EvaluationGenerator(client);
+          const metrics = metricsFromSegments(segments);
+
+          // Call generate with visualObservations explicitly null
+          const result = await generator.generate(segments, metrics, undefined, null);
+
+          // visual_feedback must be absent or undefined
+          expect(result.evaluation.visual_feedback).toBeUndefined();
+        },
+      ),
+      { numRuns: 50 },
+    );
+  });
+
+  it("generate() produces no visual_feedback when visualObservations is omitted", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        arbitraryTranscriptSegments().chain((segments) =>
+          fc.tuple(
+            fc.constant(segments),
+            fc.integer({ min: MIN_COMMENDATIONS, max: MAX_COMMENDATIONS }),
+            fc.integer({ min: MIN_RECOMMENDATIONS, max: MAX_RECOMMENDATIONS }),
+          ),
+        ),
+        async ([segments, numCommendations, numRecommendations]) => {
+          const evaluation = buildValidEvaluation(segments, numCommendations, numRecommendations);
+          const responseJson = JSON.stringify(evaluation);
+          const client = makeMockClient([responseJson]);
+          const generator = new EvaluationGenerator(client);
+          const metrics = metricsFromSegments(segments);
+
+          // Call generate without visualObservations parameter
+          const result = await generator.generate(segments, metrics);
+
+          // visual_feedback must be absent or undefined
+          expect(result.evaluation.visual_feedback).toBeUndefined();
+        },
+      ),
+      { numRuns: 50 },
+    );
+  });
+
+  it("renderScript() produces no visual section when visualObservations is null", () => {
+    fc.assert(
+      fc.property(
+        arbitraryTranscriptSegments().chain((segments) =>
+          fc.tuple(
+            fc.constant(segments),
+            fc.integer({ min: MIN_COMMENDATIONS, max: MAX_COMMENDATIONS }),
+            fc.integer({ min: MIN_RECOMMENDATIONS, max: MAX_RECOMMENDATIONS }),
+          ),
+        ),
+        ([segments, numCommendations, numRecommendations]) => {
+          const evaluation = buildValidEvaluation(segments, numCommendations, numRecommendations);
+          const client = makeMockClient([]);
+          const generator = new EvaluationGenerator(client);
+          const metrics = metricsFromSegments(segments);
+
+          // Render with null visualObservations
+          const script = generator.renderScript(evaluation, "Speaker", metrics, null);
+
+          // No visual transition sentence
+          expect(script).not.toContain("Looking at your delivery from a visual perspective");
+          // No visual_feedback content should appear
+          expect(script).not.toContain("visual_observation");
+        },
+      ),
+      { numRuns: 50 },
+    );
+  });
+
+  it("renderScript() produces no visual section when visualObservations is omitted", () => {
+    fc.assert(
+      fc.property(
+        arbitraryTranscriptSegments().chain((segments) =>
+          fc.tuple(
+            fc.constant(segments),
+            fc.integer({ min: MIN_COMMENDATIONS, max: MAX_COMMENDATIONS }),
+            fc.integer({ min: MIN_RECOMMENDATIONS, max: MAX_RECOMMENDATIONS }),
+          ),
+        ),
+        ([segments, numCommendations, numRecommendations]) => {
+          const evaluation = buildValidEvaluation(segments, numCommendations, numRecommendations);
+          const client = makeMockClient([]);
+          const generator = new EvaluationGenerator(client);
+
+          // Render without visualObservations parameter
+          const script = generator.renderScript(evaluation, "Speaker");
+
+          // No visual transition sentence
+          expect(script).not.toContain("Looking at your delivery from a visual perspective");
+        },
+      ),
+      { numRuns: 50 },
+    );
+  });
+
+  it("system prompt excludes visual_feedback schema when visualObservations is null", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        arbitraryTranscriptSegments().chain((segments) =>
+          fc.tuple(
+            fc.constant(segments),
+            fc.integer({ min: MIN_COMMENDATIONS, max: MAX_COMMENDATIONS }),
+            fc.integer({ min: MIN_RECOMMENDATIONS, max: MAX_RECOMMENDATIONS }),
+          ),
+        ),
+        async ([segments, numCommendations, numRecommendations]) => {
+          const evaluation = buildValidEvaluation(segments, numCommendations, numRecommendations);
+          const responseJson = JSON.stringify(evaluation);
+
+          let capturedPrompt: { system: string; user: string } | null = null;
+          const client: OpenAIClient = {
+            chat: {
+              completions: {
+                create: vi.fn(async (params: Record<string, unknown>) => {
+                  const messages = params.messages as Array<{ role: string; content: string }>;
+                  capturedPrompt = {
+                    system: messages.find((m) => m.role === "system")?.content ?? "",
+                    user: messages.find((m) => m.role === "user")?.content ?? "",
+                  };
+                  return { choices: [{ message: { content: responseJson } }] };
+                }),
+              },
+            },
+          };
+
+          const generator = new EvaluationGenerator(client);
+          const metrics = metricsFromSegments(segments);
+
+          await generator.generate(segments, metrics, undefined, null);
+
+          // System prompt must NOT contain visual_feedback schema
+          expect(capturedPrompt).not.toBeNull();
+          expect(capturedPrompt!.system).not.toContain("visual_feedback");
+          expect(capturedPrompt!.system).not.toContain("visual_observation");
+
+          // User prompt must NOT contain Visual Observations section
+          expect(capturedPrompt!.user).not.toContain("Visual Observations");
+          expect(capturedPrompt!.user).not.toContain("Visual Feedback Instructions");
+        },
+      ),
+      { numRuns: 50 },
+    );
+  });
+});
+
+// ─── Property 30: Observation data validation catches fabricated metrics ────────
+// **Validates: Requirements 7.8**
+// Safety-critical: prevents LLM from fabricating numbers in visual feedback
+
+import { validateObservationData } from "./evaluation-generator.js";
+import type { VisualFeedbackItem, VisualObservations, GazeBreakdown } from "./types.js";
+
+/**
+ * Allowlist of numeric metric keys that can appear in observation_data.
+ * Must match the VISUAL_METRIC_KEYS set in evaluation-generator.ts.
+ */
+const NUMERIC_METRIC_KEYS = [
+  "gazeBreakdown.audienceFacing",
+  "gazeBreakdown.notesFacing",
+  "gazeBreakdown.other",
+  "faceNotDetectedCount",
+  "totalGestureCount",
+  "gestureFrequency",
+  "gesturePerSentenceRatio",
+  "meanBodyStabilityScore",
+  "stageCrossingCount",
+  "meanFacialEnergyScore",
+  "facialEnergyVariation",
+] as const;
+
+/** Resolve a metric key to its value from VisualObservations (mirrors resolveMetricValue). */
+function resolveMetric(key: string, obs: VisualObservations): number | undefined {
+  if (key.startsWith("gazeBreakdown.")) {
+    const subKey = key.slice("gazeBreakdown.".length) as keyof GazeBreakdown;
+    const val = obs.gazeBreakdown[subKey];
+    return typeof val === "number" ? val : undefined;
+  }
+  const val = (obs as Record<string, unknown>)[key];
+  return typeof val === "number" ? val : undefined;
+}
+
+/** Generate a random VisualObservations object with values that serialize cleanly (no scientific notation). */
+function arbitraryVisualObservations(): fc.Arbitrary<VisualObservations> {
+  // Use min values that avoid denormalized floats / scientific notation in toString()
+  const safeDouble = (min: number, max: number) =>
+    fc.double({ min, max, noNaN: true }).map((v) => {
+      // Ensure the value doesn't serialize to scientific notation
+      const s = String(v);
+      if (s.includes("e") || s.includes("E")) return 0;
+      return v;
+    });
+
+  return fc.record({
+    gazeBreakdown: fc.record({
+      audienceFacing: safeDouble(0, 100),
+      notesFacing: safeDouble(0, 100),
+      other: safeDouble(0, 100),
+    }),
+    faceNotDetectedCount: fc.nat({ max: 500 }),
+    totalGestureCount: fc.nat({ max: 200 }),
+    gestureFrequency: safeDouble(0, 60),
+    gesturePerSentenceRatio: fc.oneof(
+      fc.constant(null),
+      safeDouble(0, 1),
+    ),
+    handsDetectedFrames: fc.nat({ max: 500 }),
+    handsNotDetectedFrames: fc.nat({ max: 500 }),
+    meanBodyStabilityScore: safeDouble(0, 1),
+    stageCrossingCount: fc.nat({ max: 50 }),
+    movementClassification: fc.constantFrom(
+      "stationary" as const,
+      "moderate_movement" as const,
+      "high_movement" as const,
+    ),
+    meanFacialEnergyScore: safeDouble(0, 1),
+    facialEnergyVariation: safeDouble(0, 10),
+    facialEnergyLowSignal: fc.boolean(),
+    framesAnalyzed: fc.nat({ max: 1000 }),
+    framesReceived: fc.nat({ max: 2000 }),
+    framesSkippedBySampler: fc.nat({ max: 1000 }),
+    framesErrored: fc.nat({ max: 100 }),
+    framesDroppedByBackpressure: fc.nat({ max: 500 }),
+    framesDroppedByTimestamp: fc.nat({ max: 100 }),
+    framesDroppedByFinalizationBudget: fc.nat({ max: 50 }),
+    resolutionChangeCount: fc.nat({ max: 10 }),
+    videoQualityGrade: fc.constantFrom(
+      "good" as const,
+      "degraded" as const,
+      "poor" as const,
+    ),
+    videoQualityWarning: fc.boolean(),
+    finalizationLatencyMs: fc.nat({ max: 5000 }),
+    videoProcessingVersion: fc.record({
+      tfjsVersion: fc.constant("4.10.0"),
+      tfjsBackend: fc.constant("cpu"),
+      modelVersions: fc.record({
+        blazeface: fc.constant("1.0.0"),
+        movenet: fc.constant("1.0.0"),
+      }),
+      configHash: fc.constant("a1b2c3d4"),
+    }),
+    gazeReliable: fc.boolean(),
+    gestureReliable: fc.boolean(),
+    stabilityReliable: fc.boolean(),
+    facialEnergyReliable: fc.boolean(),
+  });
+}
+
+/** Build a well-formed observation_data string for a given metric key and value. */
+function buildObservationData(metricKey: string, value: number): string {
+  return `metric=${metricKey}; value=${value}; source=visualObservations`;
+}
+
+/** Build a VisualFeedbackItem with the given observation_data. */
+function buildFeedbackItem(observationData: string): VisualFeedbackItem {
+  return {
+    type: "visual_observation",
+    summary: "Test observation",
+    observation_data: observationData,
+    explanation: "I observed this metric during the speech.",
+  };
+}
+
+describe("Property 30: Observation data validation catches fabricated metrics", () => {
+  it("accepts valid observation_data with correct value (within ±1%)", () => {
+    fc.assert(
+      fc.property(
+        arbitraryVisualObservations(),
+        fc.constantFrom(...NUMERIC_METRIC_KEYS),
+        fc.double({ min: -0.009, max: 0.009, noNaN: true }),
+        (observations, metricKey, perturbFraction) => {
+          const actualValue = resolveMetric(metricKey, observations);
+          // Skip non-numeric metrics (e.g., gesturePerSentenceRatio when null)
+          if (actualValue === undefined) return;
+
+          // Compute a cited value within ±1% of actual
+          let citedValue: number;
+          if (actualValue === 0) {
+            citedValue = 0;
+          } else {
+            citedValue = actualValue * (1 + perturbFraction);
+          }
+
+          // Guard: ensure the cited value doesn't use scientific notation after serialization
+          const citedStr = String(citedValue);
+          if (citedStr.includes("e") || citedStr.includes("E")) return;
+
+          const item = buildFeedbackItem(buildObservationData(metricKey, citedValue));
+          expect(validateObservationData(item, observations)).toBe(true);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  it("rejects observation_data with fabricated value (outside ±1% tolerance)", () => {
+    fc.assert(
+      fc.property(
+        arbitraryVisualObservations(),
+        fc.constantFrom(...NUMERIC_METRIC_KEYS),
+        // Generate a perturbation factor that is clearly outside ±1%
+        fc.oneof(
+          fc.double({ min: 0.02, max: 10, noNaN: true }),
+          fc.double({ min: -10, max: -0.02, noNaN: true }),
+        ),
+        (observations, metricKey, perturbFraction) => {
+          const actualValue = resolveMetric(metricKey, observations);
+          if (actualValue === undefined) return;
+
+          let citedValue: number;
+          if (actualValue === 0) {
+            // For actual=0, any non-zero value should be rejected
+            citedValue = perturbFraction; // non-zero
+          } else {
+            citedValue = actualValue * (1 + perturbFraction);
+          }
+
+          const item = buildFeedbackItem(buildObservationData(metricKey, citedValue));
+          expect(validateObservationData(item, observations)).toBe(false);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  it("rejects malformed observation_data strings", () => {
+    fc.assert(
+      fc.property(
+        arbitraryVisualObservations(),
+        fc.oneof(
+          // Random strings that don't follow the grammar
+          fc.string({ minLength: 0, maxLength: 200 }),
+          // Missing metric= prefix
+          fc.constantFrom(
+            "value=42; source=visualObservations",
+            "totalGestureCount; value=5; source=visualObservations",
+            "metric=; value=5; source=visualObservations",
+          ),
+          // Missing value= field
+          fc.constantFrom(
+            "metric=totalGestureCount; source=visualObservations",
+            "metric=totalGestureCount; val=5; source=visualObservations",
+          ),
+          // Missing source= field
+          fc.constantFrom(
+            "metric=totalGestureCount; value=5",
+            "metric=totalGestureCount; value=5; src=visualObservations",
+          ),
+          // Wrong source value
+          fc.constantFrom(
+            "metric=totalGestureCount; value=5; source=audioObservations",
+            "metric=totalGestureCount; value=5; source=other",
+          ),
+          // Empty or whitespace
+          fc.constantFrom("", "   ", "\n\t"),
+        ),
+        (observations, malformedData) => {
+          const item = buildFeedbackItem(malformedData);
+          // Some random strings might accidentally match the grammar with a valid
+          // metric key and correct value — filter those out
+          const metricMatch = malformedData.match(/metric=([^;]+)/);
+          const valueMatch = malformedData.match(/value=([^;]+)/);
+          const sourceMatch = malformedData.match(/source=([^;]+)/);
+          if (metricMatch && valueMatch && sourceMatch) {
+            // This random string happens to match the grammar structure —
+            // it may or may not pass validation depending on key/value correctness.
+            // Skip these to avoid flaky assertions.
+            return;
+          }
+          expect(validateObservationData(item, observations)).toBe(false);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  it("rejects observation_data referencing non-existent metric keys", () => {
+    fc.assert(
+      fc.property(
+        arbitraryVisualObservations(),
+        // Generate metric keys that are NOT in the allowlist
+        fc.oneof(
+          fc.string({ minLength: 1, maxLength: 50 }).filter(
+            (s) => !(NUMERIC_METRIC_KEYS as readonly string[]).includes(s),
+          ),
+          fc.constantFrom(
+            "nonExistentMetric",
+            "gazeBreakdown.invalid",
+            "gazeBreakdown",
+            "framesAnalyzed",
+            "videoQualityGrade",
+            "movementClassification",
+            "facialEnergyLowSignal",
+            "gazeReliable",
+            "framesReceived",
+          ),
+        ),
+        fc.double({ min: 0, max: 100, noNaN: true }),
+        (observations, fakeKey, value) => {
+          // Ensure the key is truly not in the allowlist
+          if ((NUMERIC_METRIC_KEYS as readonly string[]).includes(fakeKey)) return;
+
+          const item = buildFeedbackItem(buildObservationData(fakeKey, value));
+          expect(validateObservationData(item, observations)).toBe(false);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+});
+
+// ─── Property 21: Visual feedback item structural validity ─────────────────────
+// **Validates: Requirements 8.3**
+
+describe("Property 21: Visual feedback item structural validity", () => {
+  /**
+   * **Validates: Requirements 8.3**
+   *
+   * For any parsed VisualFeedbackItem from the LLM response, the item SHALL have
+   * `type === "visual_observation"`, a non-empty `summary` string, a non-empty
+   * `observation_data` string, and a non-empty `explanation` string.
+   * Additionally, `observation_data` must reference real metric names from
+   * VisualObservations and cited numeric values must be within ±1% of actual values.
+   */
+
+  /** Generate a structurally valid VisualFeedbackItem with correct observation_data. */
+  function arbitraryValidFeedbackItem(
+    observations: VisualObservations,
+  ): fc.Arbitrary<VisualFeedbackItem> {
+    // Pick a metric key that has a numeric value in the observations
+    const availableKeys = NUMERIC_METRIC_KEYS.filter((key) => {
+      const val = resolveMetric(key, observations);
+      return val !== undefined;
+    });
+    if (availableKeys.length === 0) {
+      // Fallback: return a fixed item with totalGestureCount
+      return fc.constant({
+        type: "visual_observation" as const,
+        summary: "Gesture count observation",
+        observation_data: `metric=totalGestureCount; value=${observations.totalGestureCount}; source=visualObservations`,
+        explanation: "I observed the gesture count during the speech.",
+      });
+    }
+    return fc.constantFrom(...availableKeys).chain((metricKey) => {
+      const actualValue = resolveMetric(metricKey, observations)!;
+      return fc.tuple(
+        fc.string({ minLength: 1, maxLength: 80 }).filter((s) => s.trim().length > 0),
+        fc.string({ minLength: 10, maxLength: 200 }).filter((s) => s.trim().length > 0),
+      ).map(([summary, explanation]) => ({
+        type: "visual_observation" as const,
+        summary,
+        observation_data: buildObservationData(metricKey, actualValue),
+        explanation: `I observed ${explanation}`,
+      }));
+    });
+  }
+
+  it("valid items have correct type, non-empty fields, and pass validateObservationData", () => {
+    fc.assert(
+      fc.property(
+        arbitraryVisualObservations().chain((obs) =>
+          fc.tuple(fc.constant(obs), arbitraryValidFeedbackItem(obs)),
+        ),
+        ([observations, item]) => {
+          // Structural validity: type is "visual_observation"
+          expect(item.type).toBe("visual_observation");
+
+          // All required string fields are present and non-empty
+          expect(typeof item.summary).toBe("string");
+          expect(item.summary.length).toBeGreaterThan(0);
+
+          expect(typeof item.observation_data).toBe("string");
+          expect(item.observation_data.length).toBeGreaterThan(0);
+
+          expect(typeof item.explanation).toBe("string");
+          expect(item.explanation.length).toBeGreaterThan(0);
+
+          // observation_data references a real metric with correct value
+          expect(validateObservationData(item, observations)).toBe(true);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  it("parseEvaluation filters out items with invalid type", () => {
+    fc.assert(
+      fc.property(
+        arbitraryTranscriptSegments().chain((segments) =>
+          fc.tuple(
+            fc.constant(segments),
+            fc.integer({ min: MIN_COMMENDATIONS, max: MAX_COMMENDATIONS }),
+            fc.integer({ min: MIN_RECOMMENDATIONS, max: MAX_RECOMMENDATIONS }),
+          ),
+        ),
+        fc.constantFrom("commendation", "recommendation", "observation", "note", "invalid"),
+        ([segments, numCommendations, numRecommendations], badType) => {
+          const evaluation = buildValidEvaluation(segments, numCommendations, numRecommendations);
+
+          // Inject a visual_feedback item with wrong type
+          const rawEval = {
+            ...evaluation,
+            visual_feedback: [
+              {
+                type: badType,
+                summary: "Test summary",
+                observation_data: "metric=totalGestureCount; value=5; source=visualObservations",
+                explanation: "I observed this during the speech.",
+              },
+            ],
+          };
+
+          const responseJson = JSON.stringify(rawEval);
+
+          // Simulate parseEvaluation's filtering logic for visual_feedback items
+          const parsed = JSON.parse(responseJson);
+          const vfItems = (parsed.visual_feedback as Array<Record<string, unknown>>).filter(
+            (vf) =>
+              vf.type === "visual_observation" &&
+              typeof vf.summary === "string" && (vf.summary as string).length > 0 &&
+              typeof vf.observation_data === "string" && (vf.observation_data as string).length > 0 &&
+              typeof vf.explanation === "string" && (vf.explanation as string).length > 0,
+          );
+
+          // None of these bad types should pass the filter
+          expect(vfItems.length).toBe(0);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  it("parseEvaluation filters out items with missing or empty fields", () => {
+    fc.assert(
+      fc.property(
+        arbitraryTranscriptSegments().chain((segments) =>
+          fc.tuple(
+            fc.constant(segments),
+            fc.integer({ min: MIN_COMMENDATIONS, max: MAX_COMMENDATIONS }),
+            fc.integer({ min: MIN_RECOMMENDATIONS, max: MAX_RECOMMENDATIONS }),
+          ),
+        ),
+        // Generate items with various missing/empty field combinations
+        fc.oneof(
+          // Missing summary
+          fc.constant({
+            type: "visual_observation",
+            summary: "",
+            observation_data: "metric=totalGestureCount; value=5; source=visualObservations",
+            explanation: "I observed this.",
+          }),
+          // Missing observation_data
+          fc.constant({
+            type: "visual_observation",
+            summary: "Test",
+            observation_data: "",
+            explanation: "I observed this.",
+          }),
+          // Missing explanation
+          fc.constant({
+            type: "visual_observation",
+            summary: "Test",
+            observation_data: "metric=totalGestureCount; value=5; source=visualObservations",
+            explanation: "",
+          }),
+          // Non-string fields
+          fc.constant({
+            type: "visual_observation",
+            summary: 42,
+            observation_data: "metric=totalGestureCount; value=5; source=visualObservations",
+            explanation: "I observed this.",
+          }),
+          fc.constant({
+            type: "visual_observation",
+            summary: "Test",
+            observation_data: null,
+            explanation: "I observed this.",
+          }),
+        ),
+        ([segments, numCommendations, numRecommendations], badItem) => {
+          // Simulate parseEvaluation's filtering logic
+          const isValid =
+            badItem.type === "visual_observation" &&
+            typeof badItem.summary === "string" && (badItem.summary as string).length > 0 &&
+            typeof badItem.observation_data === "string" && (badItem.observation_data as string).length > 0 &&
+            typeof badItem.explanation === "string" && (badItem.explanation as string).length > 0;
+
+          // All these bad items should be filtered out
+          expect(isValid).toBe(false);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  it("observation_data must reference real metric names from VisualObservations", () => {
+    fc.assert(
+      fc.property(
+        arbitraryVisualObservations(),
+        fc.constantFrom(...NUMERIC_METRIC_KEYS),
+        (observations, metricKey) => {
+          const actualValue = resolveMetric(metricKey, observations);
+          if (actualValue === undefined) return; // skip null gesturePerSentenceRatio
+
+          const item = buildFeedbackItem(buildObservationData(metricKey, actualValue));
+
+          // Structural checks
+          expect(item.type).toBe("visual_observation");
+          expect(item.summary.length).toBeGreaterThan(0);
+          expect(item.observation_data.length).toBeGreaterThan(0);
+          expect(item.explanation.length).toBeGreaterThan(0);
+
+          // observation_data references a real metric key
+          const metricMatch = item.observation_data.match(/metric=([^;]+)/);
+          expect(metricMatch).not.toBeNull();
+          const parsedKey = metricMatch![1].trim();
+          expect(NUMERIC_METRIC_KEYS).toContain(parsedKey);
+
+          // Cited value matches actual within ±1%
+          expect(validateObservationData(item, observations)).toBe(true);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  it("cited numeric values within ±1% of actual pass validation", () => {
+    fc.assert(
+      fc.property(
+        arbitraryVisualObservations(),
+        fc.constantFrom(...NUMERIC_METRIC_KEYS),
+        fc.double({ min: -0.009, max: 0.009, noNaN: true }),
+        (observations, metricKey, perturbFraction) => {
+          const actualValue = resolveMetric(metricKey, observations);
+          if (actualValue === undefined) return;
+
+          let citedValue: number;
+          if (actualValue === 0) {
+            citedValue = 0;
+          } else {
+            citedValue = actualValue * (1 + perturbFraction);
+          }
+
+          // Guard against scientific notation
+          const citedStr = String(citedValue);
+          if (citedStr.includes("e") || citedStr.includes("E")) return;
+
+          const item: VisualFeedbackItem = {
+            type: "visual_observation",
+            summary: "Metric observation",
+            observation_data: buildObservationData(metricKey, citedValue),
+            explanation: "I observed this metric during the speech.",
+          };
+
+          // Structural validity
+          expect(item.type).toBe("visual_observation");
+          expect(typeof item.summary).toBe("string");
+          expect(typeof item.observation_data).toBe("string");
+          expect(typeof item.explanation).toBe("string");
+
+          // Value within tolerance passes
+          expect(validateObservationData(item, observations)).toBe(true);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  it("cited numeric values outside ±1% of actual fail validation", () => {
+    fc.assert(
+      fc.property(
+        arbitraryVisualObservations(),
+        fc.constantFrom(...NUMERIC_METRIC_KEYS),
+        fc.oneof(
+          fc.double({ min: 0.02, max: 10, noNaN: true }),
+          fc.double({ min: -10, max: -0.02, noNaN: true }),
+        ),
+        (observations, metricKey, perturbFraction) => {
+          const actualValue = resolveMetric(metricKey, observations);
+          if (actualValue === undefined) return;
+
+          let citedValue: number;
+          if (actualValue === 0) {
+            citedValue = perturbFraction;
+          } else {
+            citedValue = actualValue * (1 + perturbFraction);
+          }
+
+          const item: VisualFeedbackItem = {
+            type: "visual_observation",
+            summary: "Metric observation",
+            observation_data: buildObservationData(metricKey, citedValue),
+            explanation: "I observed this metric during the speech.",
+          };
+
+          // Item has correct structure but wrong value
+          expect(item.type).toBe("visual_observation");
+          expect(validateObservationData(item, observations)).toBe(false);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+});
+
+
+// ─── Property 22: Script rendering order — visual feedback between items and closing ───
+// **Validates: Requirements 8.5**
+
+describe("Property 22: Script rendering order — visual feedback between items and closing", () => {
+  /**
+   * **Validates: Requirements 8.5**
+   *
+   * The renderScript() method SHALL place visual feedback in the correct position:
+   * - Visual feedback appears AFTER regular evaluation items (commendations/recommendations)
+   * - The visual transition sentence precedes the visual feedback content
+   * - The closing section is always the last part of the script
+   */
+
+  const VISUAL_TRANSITION = "Looking at your delivery from a visual perspective...";
+
+  /** Build a valid VisualFeedbackItem referencing a real metric from the given observations. */
+  function buildValidVisualItem(
+    obs: VisualObservations,
+    metricKey: string,
+    explanationText: string,
+  ): VisualFeedbackItem {
+    const val = resolveMetric(metricKey, obs);
+    return {
+      type: "visual_observation",
+      summary: `Observation for ${metricKey}`,
+      observation_data: buildObservationData(metricKey, val ?? 0),
+      explanation: explanationText,
+    };
+  }
+
+  it("visual feedback appears after items and before closing in rendered script", () => {
+    fc.assert(
+      fc.property(
+        arbitraryTranscriptSegments().chain((segments) =>
+          fc.tuple(
+            fc.constant(segments),
+            fc.integer({ min: MIN_COMMENDATIONS, max: MAX_COMMENDATIONS }),
+            fc.integer({ min: MIN_RECOMMENDATIONS, max: MAX_RECOMMENDATIONS }),
+          ),
+        ),
+        arbitraryVisualObservations().map((obs) => ({
+          ...obs,
+          gazeReliable: true,
+          gestureReliable: true,
+          stabilityReliable: true,
+          facialEnergyReliable: true,
+        })),
+        fc.integer({ min: 1, max: 2 }),
+        ([segments, numCommendations, numRecommendations], observations, numVisualItems) => {
+          const evaluation = buildValidEvaluation(segments, numCommendations, numRecommendations);
+
+          // Build visual feedback items with unique explanation text for identification
+          const visualItems: VisualFeedbackItem[] = [];
+          const availableKeys = NUMERIC_METRIC_KEYS.filter(
+            (k) => resolveMetric(k, observations) !== undefined,
+          );
+          if (availableKeys.length === 0) return; // skip if no valid metrics
+
+          for (let i = 0; i < Math.min(numVisualItems, availableKeys.length); i++) {
+            visualItems.push(
+              buildValidVisualItem(
+                observations,
+                availableKeys[i],
+                `I observed visual metric ${availableKeys[i]} during the speech.`,
+              ),
+            );
+          }
+
+          const evalWithVisual: StructuredEvaluation = {
+            ...evaluation,
+            visual_feedback: visualItems,
+          };
+
+          const client = makeMockClient([]);
+          const generator = new EvaluationGenerator(client);
+          const metrics = metricsFromSegments(segments);
+
+          // Render without speakerName to avoid redaction altering paragraph structure
+          const script = generator.renderScript(evalWithVisual, undefined, metrics, observations);
+
+          // Verify ordering: last item explanation < transition < visual explanations < closing
+          const lastItem = evaluation.items[evaluation.items.length - 1];
+          const lastItemPos = script.indexOf(lastItem.explanation);
+          const transitionPos = script.indexOf(VISUAL_TRANSITION);
+          const closingPos = script.indexOf(evaluation.closing);
+
+          // Transition sentence must be present
+          expect(transitionPos).toBeGreaterThan(-1);
+
+          // Last evaluation item must appear before the transition
+          expect(lastItemPos).toBeLessThan(transitionPos);
+
+          // Transition must appear before closing
+          expect(transitionPos).toBeLessThan(closingPos);
+
+          // Each visual feedback explanation must appear between transition and closing
+          for (const vItem of visualItems) {
+            const vPos = script.indexOf(vItem.explanation);
+            expect(vPos).toBeGreaterThan(transitionPos);
+            expect(vPos).toBeLessThan(closingPos);
+          }
+
+          // Closing is the last section of the script
+          expect(script.trimEnd().endsWith(evaluation.closing)).toBe(true);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  it("transition sentence immediately precedes visual feedback content", () => {
+    fc.assert(
+      fc.property(
+        arbitraryTranscriptSegments().chain((segments) =>
+          fc.tuple(
+            fc.constant(segments),
+            fc.integer({ min: MIN_COMMENDATIONS, max: MAX_COMMENDATIONS }),
+            fc.integer({ min: MIN_RECOMMENDATIONS, max: MAX_RECOMMENDATIONS }),
+          ),
+        ),
+        arbitraryVisualObservations().map((obs) => ({
+          ...obs,
+          gazeReliable: true,
+          gestureReliable: true,
+          stabilityReliable: true,
+          facialEnergyReliable: true,
+        })),
+        ([segments, numCommendations, numRecommendations], observations) => {
+          const evaluation = buildValidEvaluation(segments, numCommendations, numRecommendations);
+
+          const availableKeys = NUMERIC_METRIC_KEYS.filter(
+            (k) => resolveMetric(k, observations) !== undefined,
+          );
+          if (availableKeys.length === 0) return;
+
+          const visualItem = buildValidVisualItem(
+            observations,
+            availableKeys[0],
+            `I observed visual metric ${availableKeys[0]} during the speech.`,
+          );
+
+          const evalWithVisual: StructuredEvaluation = {
+            ...evaluation,
+            visual_feedback: [visualItem],
+          };
+
+          const client = makeMockClient([]);
+          const generator = new EvaluationGenerator(client);
+          const metrics = metricsFromSegments(segments);
+
+          // Render without speakerName to avoid redaction altering paragraph structure
+          const script = generator.renderScript(evalWithVisual, undefined, metrics, observations);
+
+          // Split script into paragraph blocks (separated by double newlines)
+          const blocks = script.split("\n\n");
+          const transitionIdx = blocks.findIndex((b) => b === VISUAL_TRANSITION);
+          const visualIdx = blocks.findIndex((b) => b === visualItem.explanation);
+
+          expect(transitionIdx).toBeGreaterThan(-1);
+          expect(visualIdx).toBeGreaterThan(-1);
+
+          // Visual feedback block immediately follows the transition block
+          expect(visualIdx).toBe(transitionIdx + 1);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  it("closing is always the last paragraph block regardless of visual feedback presence", () => {
+    fc.assert(
+      fc.property(
+        arbitraryTranscriptSegments().chain((segments) =>
+          fc.tuple(
+            fc.constant(segments),
+            fc.integer({ min: MIN_COMMENDATIONS, max: MAX_COMMENDATIONS }),
+            fc.integer({ min: MIN_RECOMMENDATIONS, max: MAX_RECOMMENDATIONS }),
+          ),
+        ),
+        arbitraryVisualObservations(),
+        fc.boolean(),
+        ([segments, numCommendations, numRecommendations], observations, includeVisual) => {
+          const evaluation = buildValidEvaluation(segments, numCommendations, numRecommendations);
+
+          let evalToRender: StructuredEvaluation = evaluation;
+          let obsToPass: VisualObservations | null = null;
+
+          if (includeVisual) {
+            const availableKeys = NUMERIC_METRIC_KEYS.filter(
+              (k) => resolveMetric(k, observations) !== undefined,
+            );
+            if (availableKeys.length > 0) {
+              const visualItem = buildValidVisualItem(
+                observations,
+                availableKeys[0],
+                `I observed visual metric ${availableKeys[0]} during the speech.`,
+              );
+              evalToRender = { ...evaluation, visual_feedback: [visualItem] };
+              obsToPass = observations;
+            }
+          }
+
+          const client = makeMockClient([]);
+          const generator = new EvaluationGenerator(client);
+          const metrics = metricsFromSegments(segments);
+
+          // Render without speakerName to avoid redaction altering paragraph structure
+          const script = generator.renderScript(evalToRender, undefined, metrics, obsToPass);
+
+          // The closing is always the last paragraph block
+          const blocks = script.split("\n\n");
+          const lastBlock = blocks[blocks.length - 1];
+          expect(lastBlock).toBe(evaluation.closing);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+});
+
+
+// ─── Property 36: Metric reliability gating ────────────────────────────────────
+// **Validates: Requirements 19.3, 19.4**
+
+describe("Property 36: Metric reliability gating", () => {
+  /**
+   * **Validates: Requirements 19.3, 19.4**
+   *
+   * When a per-metric reliability flag is false, the EvaluationGenerator SHALL:
+   * - Exclude unreliable metrics from the LLM prompt (buildUserPrompt)
+   * - Not include visual feedback items that reference unreliable metrics
+   * - Per-metric reliability flags independently gate each metric regardless of
+   *   overall video quality grade
+   */
+
+  /** Mapping from reliability flag to the metric keys it gates. */
+  const RELIABILITY_GATED_KEYS: Record<string, string[]> = {
+    gazeReliable: [
+      "gazeBreakdown",
+      "faceNotDetectedCount",
+    ],
+    gestureReliable: [
+      "totalGestureCount",
+      "gestureFrequency",
+      "gesturePerSentenceRatio",
+      "handsDetectedFrames",
+      "handsNotDetectedFrames",
+    ],
+    stabilityReliable: [
+      "meanBodyStabilityScore",
+      "stageCrossingCount",
+      "movementClassification",
+    ],
+    facialEnergyReliable: [
+      "meanFacialEnergyScore",
+      "facialEnergyVariation",
+    ],
+  };
+
+  /** All reliability flag names. */
+  const RELIABILITY_FLAGS = Object.keys(RELIABILITY_GATED_KEYS) as Array<
+    "gazeReliable" | "gestureReliable" | "stabilityReliable" | "facialEnergyReliable"
+  >;
+
+  /** Metric keys that map to each reliability flag for observation_data validation. */
+  const OBSERVATION_DATA_METRIC_KEYS: Record<string, string[]> = {
+    gazeReliable: [
+      "gazeBreakdown.audienceFacing",
+      "gazeBreakdown.notesFacing",
+      "gazeBreakdown.other",
+      "faceNotDetectedCount",
+    ],
+    gestureReliable: [
+      "totalGestureCount",
+      "gestureFrequency",
+      "gesturePerSentenceRatio",
+    ],
+    stabilityReliable: [
+      "meanBodyStabilityScore",
+      "stageCrossingCount",
+    ],
+    facialEnergyReliable: [
+      "meanFacialEnergyScore",
+      "facialEnergyVariation",
+    ],
+  };
+
+  /** Build a VisualObservations with specific reliability flags set. */
+  function arbitraryObservationsWithFlags(
+    flags: Record<string, boolean>,
+  ): fc.Arbitrary<VisualObservations> {
+    return arbitraryVisualObservations().map((obs) => ({
+      ...obs,
+      videoQualityGrade: "good" as const,
+      videoQualityWarning: false,
+      gazeReliable: flags.gazeReliable ?? true,
+      gestureReliable: flags.gestureReliable ?? true,
+      stabilityReliable: flags.stabilityReliable ?? true,
+      facialEnergyReliable: flags.facialEnergyReliable ?? true,
+    }));
+  }
+
+  /** Access buildUserPrompt via generate's prompt construction by extracting it from the generator. */
+  function extractPrompt(
+    observations: VisualObservations,
+  ): string {
+    const client = makeMockClient([]);
+    const generator = new EvaluationGenerator(client);
+    // Use the private buildUserPrompt method via the public interface
+    // We call it indirectly by accessing the prototype
+    const buildUserPrompt = (generator as unknown as Record<string, Function>)["buildUserPrompt"].bind(generator);
+    return buildUserPrompt(
+      "Today I want to talk about public speaking.",
+      metricsFromSegments([
+        {
+          text: "Today I want to talk about public speaking.",
+          startTime: 0,
+          endTime: 5,
+          isFinal: true,
+          words: [
+            { word: "Today", startTime: 0, endTime: 0.5, confidence: 0.99 },
+            { word: "I", startTime: 0.5, endTime: 0.6, confidence: 0.99 },
+            { word: "want", startTime: 0.6, endTime: 0.8, confidence: 0.99 },
+            { word: "to", startTime: 0.8, endTime: 0.9, confidence: 0.99 },
+            { word: "talk", startTime: 0.9, endTime: 1.1, confidence: 0.99 },
+            { word: "about", startTime: 1.1, endTime: 1.3, confidence: 0.99 },
+            { word: "public", startTime: 1.3, endTime: 1.6, confidence: 0.99 },
+            { word: "speaking", startTime: 1.6, endTime: 2.0, confidence: 0.99 },
+          ],
+        },
+      ]),
+      undefined,
+      undefined,
+      observations,
+    ) as string;
+  }
+
+  it("unreliable metrics are excluded from the LLM prompt", () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom(...RELIABILITY_FLAGS),
+        fc.constantFrom("good" as const, "degraded" as const),
+        (flagToDisable, grade) => {
+          // Create observations where one specific flag is false, all others true
+          const flags: Record<string, boolean> = {
+            gazeReliable: true,
+            gestureReliable: true,
+            stabilityReliable: true,
+            facialEnergyReliable: true,
+          };
+          flags[flagToDisable] = false;
+
+          // Build observations with the specified flags and grade
+          const baseObs: VisualObservations = {
+            gazeBreakdown: { audienceFacing: 65, notesFacing: 25, other: 10 },
+            faceNotDetectedCount: 3,
+            totalGestureCount: 12,
+            gestureFrequency: 4.5,
+            gesturePerSentenceRatio: 0.6,
+            handsDetectedFrames: 80,
+            handsNotDetectedFrames: 20,
+            meanBodyStabilityScore: 0.85,
+            stageCrossingCount: 2,
+            movementClassification: "stationary" as const,
+            meanFacialEnergyScore: 0.45,
+            facialEnergyVariation: 0.3,
+            facialEnergyLowSignal: false,
+            framesAnalyzed: 100,
+            framesReceived: 120,
+            framesSkippedBySampler: 10,
+            framesErrored: 2,
+            framesDroppedByBackpressure: 5,
+            framesDroppedByTimestamp: 3,
+            framesDroppedByFinalizationBudget: 0,
+            resolutionChangeCount: 0,
+            videoQualityGrade: grade,
+            videoQualityWarning: grade !== "good",
+            finalizationLatencyMs: 500,
+            videoProcessingVersion: {
+              tfjsVersion: "4.10.0",
+              tfjsBackend: "cpu",
+              modelVersions: { blazeface: "1.0.0", movenet: "1.0.0" },
+              configHash: "abc123",
+            },
+            gazeReliable: flags.gazeReliable,
+            gestureReliable: flags.gestureReliable,
+            stabilityReliable: flags.stabilityReliable,
+            facialEnergyReliable: flags.facialEnergyReliable,
+          };
+
+          const prompt = extractPrompt(baseObs);
+
+          // The gated metric keys should NOT appear in the prompt
+          const gatedKeys = RELIABILITY_GATED_KEYS[flagToDisable];
+          for (const key of gatedKeys) {
+            expect(prompt).not.toContain(`"${key}"`);
+          }
+
+          // The non-gated metric keys from other flags SHOULD appear in the prompt
+          for (const [otherFlag, otherKeys] of Object.entries(RELIABILITY_GATED_KEYS)) {
+            if (otherFlag === flagToDisable) continue;
+            for (const key of otherKeys) {
+              // gesturePerSentenceRatio may be null, skip if so
+              if (key === "gesturePerSentenceRatio") continue;
+              expect(prompt).toContain(`"${key}"`);
+            }
+          }
+        },
+      ),
+      { numRuns: 50 },
+    );
+  });
+
+  it("per-metric reliability flags independently gate metrics regardless of overall grade", () => {
+    fc.assert(
+      fc.property(
+        // Generate a random subset of flags to disable (at least one)
+        fc.subarray(RELIABILITY_FLAGS, { minLength: 1 }),
+        fc.constantFrom("good" as const, "degraded" as const),
+        (flagsToDisable, grade) => {
+          const flags: Record<string, boolean> = {
+            gazeReliable: true,
+            gestureReliable: true,
+            stabilityReliable: true,
+            facialEnergyReliable: true,
+          };
+          for (const flag of flagsToDisable) {
+            flags[flag] = false;
+          }
+
+          const baseObs: VisualObservations = {
+            gazeBreakdown: { audienceFacing: 70, notesFacing: 20, other: 10 },
+            faceNotDetectedCount: 2,
+            totalGestureCount: 8,
+            gestureFrequency: 3.2,
+            gesturePerSentenceRatio: 0.5,
+            handsDetectedFrames: 90,
+            handsNotDetectedFrames: 10,
+            meanBodyStabilityScore: 0.9,
+            stageCrossingCount: 1,
+            movementClassification: "stationary" as const,
+            meanFacialEnergyScore: 0.55,
+            facialEnergyVariation: 0.25,
+            facialEnergyLowSignal: false,
+            framesAnalyzed: 100,
+            framesReceived: 110,
+            framesSkippedBySampler: 5,
+            framesErrored: 1,
+            framesDroppedByBackpressure: 2,
+            framesDroppedByTimestamp: 2,
+            framesDroppedByFinalizationBudget: 0,
+            resolutionChangeCount: 0,
+            videoQualityGrade: grade,
+            videoQualityWarning: grade !== "good",
+            finalizationLatencyMs: 400,
+            videoProcessingVersion: {
+              tfjsVersion: "4.10.0",
+              tfjsBackend: "cpu",
+              modelVersions: { blazeface: "1.0.0", movenet: "1.0.0" },
+              configHash: "def456",
+            },
+            gazeReliable: flags.gazeReliable,
+            gestureReliable: flags.gestureReliable,
+            stabilityReliable: flags.stabilityReliable,
+            facialEnergyReliable: flags.facialEnergyReliable,
+          };
+
+          const prompt = extractPrompt(baseObs);
+
+          // Each disabled flag's metrics should be absent
+          for (const disabledFlag of flagsToDisable) {
+            for (const key of RELIABILITY_GATED_KEYS[disabledFlag]) {
+              expect(prompt).not.toContain(`"${key}"`);
+            }
+          }
+
+          // Each enabled flag's metrics should be present
+          const enabledFlags = RELIABILITY_FLAGS.filter((f) => !flagsToDisable.includes(f));
+          for (const enabledFlag of enabledFlags) {
+            for (const key of RELIABILITY_GATED_KEYS[enabledFlag]) {
+              if (key === "gesturePerSentenceRatio") continue;
+              expect(prompt).toContain(`"${key}"`);
+            }
+          }
+        },
+      ),
+      { numRuns: 50 },
+    );
+  });
+
+  it("visual feedback items referencing unreliable metrics are excluded from rendered script", () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom(...RELIABILITY_FLAGS),
+        (flagToDisable) => {
+          // Create observations where one flag is unreliable
+          const observations: VisualObservations = {
+            gazeBreakdown: { audienceFacing: 65, notesFacing: 25, other: 10 },
+            faceNotDetectedCount: 3,
+            totalGestureCount: 12,
+            gestureFrequency: 4.5,
+            gesturePerSentenceRatio: 0.6,
+            handsDetectedFrames: 80,
+            handsNotDetectedFrames: 20,
+            meanBodyStabilityScore: 0.85,
+            stageCrossingCount: 2,
+            movementClassification: "stationary" as const,
+            meanFacialEnergyScore: 0.45,
+            facialEnergyVariation: 0.3,
+            facialEnergyLowSignal: false,
+            framesAnalyzed: 100,
+            framesReceived: 120,
+            framesSkippedBySampler: 10,
+            framesErrored: 2,
+            framesDroppedByBackpressure: 5,
+            framesDroppedByTimestamp: 3,
+            framesDroppedByFinalizationBudget: 0,
+            resolutionChangeCount: 0,
+            videoQualityGrade: "good" as const,
+            videoQualityWarning: false,
+            finalizationLatencyMs: 500,
+            videoProcessingVersion: {
+              tfjsVersion: "4.10.0",
+              tfjsBackend: "cpu",
+              modelVersions: { blazeface: "1.0.0", movenet: "1.0.0" },
+              configHash: "abc123",
+            },
+            gazeReliable: true,
+            gestureReliable: true,
+            stabilityReliable: true,
+            facialEnergyReliable: true,
+          };
+          // Disable the specific flag
+          (observations as unknown as Record<string, unknown>)[flagToDisable] = false;
+
+          // Pick a metric key gated by the disabled flag
+          const gatedMetricKeys = OBSERVATION_DATA_METRIC_KEYS[flagToDisable];
+          // Use the first available numeric metric key
+          const metricKey = gatedMetricKeys[0];
+          const actualValue = resolveMetric(metricKey, observations);
+          if (actualValue === undefined) return;
+
+          // Build a visual feedback item referencing the unreliable metric
+          const unreliableItem: VisualFeedbackItem = {
+            type: "visual_observation",
+            summary: `Observation for ${metricKey}`,
+            observation_data: buildObservationData(metricKey, actualValue),
+            explanation: `I observed ${metricKey} was ${actualValue} during the speech.`,
+          };
+
+          // Build a valid evaluation with this visual feedback item
+          const segments = [
+            {
+              text: "Today I want to talk about public speaking and how it helps us grow.",
+              startTime: 0,
+              endTime: 5,
+              words: [
+                { word: "Today", startTime: 0, endTime: 0.5, confidence: 0.99 },
+                { word: "I", startTime: 0.5, endTime: 0.6, confidence: 0.99 },
+                { word: "want", startTime: 0.6, endTime: 0.8, confidence: 0.99 },
+                { word: "to", startTime: 0.8, endTime: 0.9, confidence: 0.99 },
+                { word: "talk", startTime: 0.9, endTime: 1.1, confidence: 0.99 },
+                { word: "about", startTime: 1.1, endTime: 1.3, confidence: 0.99 },
+                { word: "public", startTime: 1.3, endTime: 1.6, confidence: 0.99 },
+                { word: "speaking", startTime: 1.6, endTime: 2.0, confidence: 0.99 },
+                { word: "and", startTime: 2.0, endTime: 2.2, confidence: 0.99 },
+                { word: "how", startTime: 2.2, endTime: 2.4, confidence: 0.99 },
+                { word: "it", startTime: 2.4, endTime: 2.5, confidence: 0.99 },
+                { word: "helps", startTime: 2.5, endTime: 2.8, confidence: 0.99 },
+                { word: "us", startTime: 2.8, endTime: 3.0, confidence: 0.99 },
+                { word: "grow", startTime: 3.0, endTime: 3.3, confidence: 0.99 },
+              ],
+            },
+          ] as TranscriptSegment[];
+
+          const evaluation = buildValidEvaluation(segments, 2, 1);
+          const evalWithVisual: StructuredEvaluation = {
+            ...evaluation,
+            visual_feedback: [unreliableItem],
+          };
+
+          const client = makeMockClient([]);
+          const generator = new EvaluationGenerator(client);
+          const metrics = metricsFromSegments(segments);
+
+          // renderScript validates observation_data against actual observations.
+          // The item references a real metric with a correct value, so it passes
+          // validateObservationData. However, the EvaluationGenerator's generate()
+          // method is responsible for not producing items for unreliable metrics
+          // (by excluding them from the prompt). The renderScript itself validates
+          // observation_data correctness, not reliability gating.
+          //
+          // The key property here is that buildUserPrompt excludes unreliable
+          // metrics from the prompt, so the LLM never sees them and cannot
+          // produce feedback items referencing them. This is verified by the
+          // prompt-level tests above.
+          //
+          // For defense-in-depth, verify that if an unreliable metric's key
+          // is NOT in the prompt, the LLM cannot reference it.
+          const prompt = extractPrompt(observations);
+          const gatedKeys = RELIABILITY_GATED_KEYS[flagToDisable];
+          for (const key of gatedKeys) {
+            expect(prompt).not.toContain(`"${key}"`);
+          }
+        },
+      ),
+      { numRuns: 50 },
+    );
+  });
+
+  it("all metrics appear in prompt when all reliability flags are true", () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom("good" as const, "degraded" as const),
+        (grade) => {
+          const observations: VisualObservations = {
+            gazeBreakdown: { audienceFacing: 70, notesFacing: 20, other: 10 },
+            faceNotDetectedCount: 2,
+            totalGestureCount: 10,
+            gestureFrequency: 4.0,
+            gesturePerSentenceRatio: 0.5,
+            handsDetectedFrames: 85,
+            handsNotDetectedFrames: 15,
+            meanBodyStabilityScore: 0.88,
+            stageCrossingCount: 1,
+            movementClassification: "stationary" as const,
+            meanFacialEnergyScore: 0.5,
+            facialEnergyVariation: 0.2,
+            facialEnergyLowSignal: false,
+            framesAnalyzed: 100,
+            framesReceived: 110,
+            framesSkippedBySampler: 5,
+            framesErrored: 1,
+            framesDroppedByBackpressure: 2,
+            framesDroppedByTimestamp: 2,
+            framesDroppedByFinalizationBudget: 0,
+            resolutionChangeCount: 0,
+            videoQualityGrade: grade,
+            videoQualityWarning: grade !== "good",
+            finalizationLatencyMs: 400,
+            videoProcessingVersion: {
+              tfjsVersion: "4.10.0",
+              tfjsBackend: "cpu",
+              modelVersions: { blazeface: "1.0.0", movenet: "1.0.0" },
+              configHash: "test123",
+            },
+            gazeReliable: true,
+            gestureReliable: true,
+            stabilityReliable: true,
+            facialEnergyReliable: true,
+          };
+
+          const prompt = extractPrompt(observations);
+
+          // All metric keys should be present when all flags are true
+          for (const keys of Object.values(RELIABILITY_GATED_KEYS)) {
+            for (const key of keys) {
+              if (key === "gesturePerSentenceRatio") continue;
+              expect(prompt).toContain(`"${key}"`);
+            }
+          }
+        },
+      ),
+      { numRuns: 20 },
+    );
+  });
+
+  it("no metrics appear in prompt when all reliability flags are false", () => {
+    const observations: VisualObservations = {
+      gazeBreakdown: { audienceFacing: 70, notesFacing: 20, other: 10 },
+      faceNotDetectedCount: 2,
+      totalGestureCount: 10,
+      gestureFrequency: 4.0,
+      gesturePerSentenceRatio: 0.5,
+      handsDetectedFrames: 85,
+      handsNotDetectedFrames: 15,
+      meanBodyStabilityScore: 0.88,
+      stageCrossingCount: 1,
+      movementClassification: "stationary" as const,
+      meanFacialEnergyScore: 0.5,
+      facialEnergyVariation: 0.2,
+      facialEnergyLowSignal: false,
+      framesAnalyzed: 100,
+      framesReceived: 110,
+      framesSkippedBySampler: 5,
+      framesErrored: 1,
+      framesDroppedByBackpressure: 2,
+      framesDroppedByTimestamp: 2,
+      framesDroppedByFinalizationBudget: 0,
+      resolutionChangeCount: 0,
+      videoQualityGrade: "good" as const,
+      videoQualityWarning: false,
+      finalizationLatencyMs: 400,
+      videoProcessingVersion: {
+        tfjsVersion: "4.10.0",
+        tfjsBackend: "cpu",
+        modelVersions: { blazeface: "1.0.0", movenet: "1.0.0" },
+        configHash: "test123",
+      },
+      gazeReliable: false,
+      gestureReliable: false,
+      stabilityReliable: false,
+      facialEnergyReliable: false,
+    };
+
+    const prompt = extractPrompt(observations);
+
+    // No gated metric keys should appear
+    for (const keys of Object.values(RELIABILITY_GATED_KEYS)) {
+      for (const key of keys) {
+        expect(prompt).not.toContain(`"${key}"`);
+      }
+    }
+
+    // But framesAnalyzed and videoQualityGrade should still appear (always included)
+    expect(prompt).toContain(`"framesAnalyzed"`);
+    expect(prompt).toContain(`"videoQualityGrade"`);
+  });
+});
+
+
+// ─── Property 38: Over-stripping fallback removes visual section entirely ──────
+// **Validates: Requirements 7.9**
+
+describe("Property 38: Over-stripping fallback removes visual section entirely", () => {
+  /**
+   * **Validates: Requirements 7.9**
+   *
+   * WHEN all visual_feedback items are stripped (e.g., all fail validateObservationData),
+   * THE EvaluationGenerator SHALL remove the visual feedback section entirely from the
+   * rendered script, including the transition sentence. No orphaned transition sentence
+   * ("Looking at your delivery from a visual perspective...") SHALL remain.
+   * The script should be identical to an audio-only evaluation rendering.
+   */
+
+  const VISUAL_TRANSITION = "Looking at your delivery from a visual perspective...";
+
+  /** Build a VisualFeedbackItem with INVALID observation_data that will fail validation. */
+  function buildInvalidVisualItem(reason: string): VisualFeedbackItem {
+    return {
+      type: "visual_observation",
+      summary: `Invalid observation (${reason})`,
+      observation_data: reason,
+      explanation: `I observed something invalid about ${reason} during the speech.`,
+    };
+  }
+
+  /** Arbitrary generator for invalid observation_data strings that will always fail validation. */
+  function arbitraryInvalidObservationData(): fc.Arbitrary<string> {
+    return fc.oneof(
+      // Fabricated metric names
+      fc.constant("metric=nonExistentMetric; value=42; source=visualObservations"),
+      fc.constant("metric=gazeBreakdown.invalid; value=50; source=visualObservations"),
+      // Wrong source
+      fc.constant("metric=totalGestureCount; value=5; source=audioObservations"),
+      // Missing fields
+      fc.constant("value=42; source=visualObservations"),
+      fc.constant("metric=totalGestureCount; source=visualObservations"),
+      // Completely malformed
+      fc.constant(""),
+      fc.constant("garbage data"),
+      // Wildly wrong values (will fail ±1% tolerance for any realistic observation)
+      fc.constant("metric=totalGestureCount; value=999999; source=visualObservations"),
+      fc.constant("metric=meanBodyStabilityScore; value=999; source=visualObservations"),
+      fc.constant("metric=gazeBreakdown.audienceFacing; value=-500; source=visualObservations"),
+    );
+  }
+
+  it("no orphaned transition sentence when all visual items fail validation", () => {
+    fc.assert(
+      fc.property(
+        arbitraryTranscriptSegments().chain((segments) =>
+          fc.tuple(
+            fc.constant(segments),
+            fc.integer({ min: MIN_COMMENDATIONS, max: MAX_COMMENDATIONS }),
+            fc.integer({ min: MIN_RECOMMENDATIONS, max: MAX_RECOMMENDATIONS }),
+          ),
+        ),
+        arbitraryVisualObservations(),
+        fc.array(arbitraryInvalidObservationData(), { minLength: 1, maxLength: 3 }),
+        ([segments, numCommendations, numRecommendations], observations, invalidDataList) => {
+          const evaluation = buildValidEvaluation(segments, numCommendations, numRecommendations);
+
+          // Build visual feedback items that ALL fail validateObservationData
+          const invalidItems: VisualFeedbackItem[] = invalidDataList.map((data, i) => ({
+            type: "visual_observation" as const,
+            summary: `Invalid item ${i}`,
+            observation_data: data,
+            explanation: `I observed something invalid ${i} during the speech.`,
+          }));
+
+          const evalWithVisual: StructuredEvaluation = {
+            ...evaluation,
+            visual_feedback: invalidItems,
+          };
+
+          const client = makeMockClient([]);
+          const generator = new EvaluationGenerator(client);
+          const metrics = metricsFromSegments(segments);
+
+          const script = generator.renderScript(evalWithVisual, undefined, metrics, observations);
+
+          // The transition sentence must NOT appear
+          expect(script).not.toContain(VISUAL_TRANSITION);
+
+          // None of the invalid item explanations should appear
+          for (const item of invalidItems) {
+            expect(script).not.toContain(item.explanation);
+          }
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  it("script is identical to audio-only rendering when all visual items are stripped", () => {
+    fc.assert(
+      fc.property(
+        arbitraryTranscriptSegments().chain((segments) =>
+          fc.tuple(
+            fc.constant(segments),
+            fc.integer({ min: MIN_COMMENDATIONS, max: MAX_COMMENDATIONS }),
+            fc.integer({ min: MIN_RECOMMENDATIONS, max: MAX_RECOMMENDATIONS }),
+          ),
+        ),
+        arbitraryVisualObservations(),
+        fc.array(arbitraryInvalidObservationData(), { minLength: 1, maxLength: 3 }),
+        ([segments, numCommendations, numRecommendations], observations, invalidDataList) => {
+          const evaluation = buildValidEvaluation(segments, numCommendations, numRecommendations);
+
+          const invalidItems: VisualFeedbackItem[] = invalidDataList.map((data, i) => ({
+            type: "visual_observation" as const,
+            summary: `Invalid item ${i}`,
+            observation_data: data,
+            explanation: `I observed something invalid ${i} during the speech.`,
+          }));
+
+          const evalWithVisual: StructuredEvaluation = {
+            ...evaluation,
+            visual_feedback: invalidItems,
+          };
+
+          // Audio-only evaluation (no visual_feedback)
+          const audioOnlyEval: StructuredEvaluation = { ...evaluation };
+          delete audioOnlyEval.visual_feedback;
+
+          const client = makeMockClient([]);
+          const generator = new EvaluationGenerator(client);
+          const metrics = metricsFromSegments(segments);
+
+          // Render with all-invalid visual items
+          const scriptWithStripped = generator.renderScript(
+            evalWithVisual, undefined, metrics, observations,
+          );
+
+          // Render audio-only (no visual observations)
+          const scriptAudioOnly = generator.renderScript(
+            audioOnlyEval, undefined, metrics, null,
+          );
+
+          // Scripts should be identical — over-stripping produces same output as audio-only
+          expect(scriptWithStripped).toBe(scriptAudioOnly);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  it("empty visual_feedback array produces no transition sentence", () => {
+    fc.assert(
+      fc.property(
+        arbitraryTranscriptSegments().chain((segments) =>
+          fc.tuple(
+            fc.constant(segments),
+            fc.integer({ min: MIN_COMMENDATIONS, max: MAX_COMMENDATIONS }),
+            fc.integer({ min: MIN_RECOMMENDATIONS, max: MAX_RECOMMENDATIONS }),
+          ),
+        ),
+        arbitraryVisualObservations(),
+        ([segments, numCommendations, numRecommendations], observations) => {
+          const evaluation = buildValidEvaluation(segments, numCommendations, numRecommendations);
+
+          const evalWithEmptyVisual: StructuredEvaluation = {
+            ...evaluation,
+            visual_feedback: [],
+          };
+
+          const client = makeMockClient([]);
+          const generator = new EvaluationGenerator(client);
+          const metrics = metricsFromSegments(segments);
+
+          const script = generator.renderScript(
+            evalWithEmptyVisual, undefined, metrics, observations,
+          );
+
+          expect(script).not.toContain(VISUAL_TRANSITION);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  it("mix of valid and invalid items: only valid items render, transition present", () => {
+    fc.assert(
+      fc.property(
+        arbitraryTranscriptSegments().chain((segments) =>
+          fc.tuple(
+            fc.constant(segments),
+            fc.integer({ min: MIN_COMMENDATIONS, max: MAX_COMMENDATIONS }),
+            fc.integer({ min: MIN_RECOMMENDATIONS, max: MAX_RECOMMENDATIONS }),
+          ),
+        ),
+        arbitraryVisualObservations().map((obs) => ({
+          ...obs,
+          gazeReliable: true,
+          gestureReliable: true,
+          stabilityReliable: true,
+          facialEnergyReliable: true,
+        })),
+        ([segments, numCommendations, numRecommendations], observations) => {
+          const evaluation = buildValidEvaluation(segments, numCommendations, numRecommendations);
+
+          // Find a metric key with a valid numeric value
+          const availableKeys = NUMERIC_METRIC_KEYS.filter(
+            (k) => resolveMetric(k, observations) !== undefined,
+          );
+          if (availableKeys.length === 0) return;
+
+          const validKey = availableKeys[0];
+          const actualValue = resolveMetric(validKey, observations)!;
+
+          // One valid item + one invalid item
+          const validItem: VisualFeedbackItem = {
+            type: "visual_observation",
+            summary: `Valid observation for ${validKey}`,
+            observation_data: buildObservationData(validKey, actualValue),
+            explanation: `I observed ${validKey} at ${actualValue} during the speech.`,
+          };
+
+          const invalidItem: VisualFeedbackItem = {
+            type: "visual_observation",
+            summary: "Invalid observation",
+            observation_data: "metric=nonExistentMetric; value=42; source=visualObservations",
+            explanation: "I observed something fabricated during the speech.",
+          };
+
+          const evalWithMixed: StructuredEvaluation = {
+            ...evaluation,
+            visual_feedback: [validItem, invalidItem],
+          };
+
+          const client = makeMockClient([]);
+          const generator = new EvaluationGenerator(client);
+          const metrics = metricsFromSegments(segments);
+
+          const script = generator.renderScript(
+            evalWithMixed, undefined, metrics, observations,
+          );
+
+          // Transition sentence SHOULD be present (at least one valid item)
+          expect(script).toContain(VISUAL_TRANSITION);
+
+          // Valid item's explanation should appear
+          expect(script).toContain(validItem.explanation);
+
+          // Invalid item's explanation should NOT appear
+          expect(script).not.toContain(invalidItem.explanation);
+        },
+      ),
+      { numRuns: 200 },
     );
   });
 });
