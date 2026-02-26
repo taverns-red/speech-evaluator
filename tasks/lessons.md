@@ -15,3 +15,5 @@
 6. **CSS variable names matter for migration**: When renaming CSS custom properties (e.g., `--color-text-muted` → `--text-muted`), grep the JS for inline style references like `style.color = "var(--color-text-muted)"`. These are easy to miss and will silently fail.
 
 7. **Unicode in CSS comments breaks text-matching tools**: CSS files with box-drawing characters (─) in comment headers cause exact-string-matching tools to fail because the tool representation may encode them differently. Use `sed` line-number ranges instead.
+
+8. **Never hardcode version in tests**: The `index.test.ts` asserted `APP_VERSION === "0.1.0"` which broke on every version bump. Instead, read `package.json` dynamically in the test and assert `APP_VERSION === pkg.version` — this validates the plumbing without coupling to a specific version string.
