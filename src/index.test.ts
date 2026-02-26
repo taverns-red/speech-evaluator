@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { APP_NAME, APP_VERSION } from "./index.js";
+import { APP_NAME, APP_VERSION } from "./version.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

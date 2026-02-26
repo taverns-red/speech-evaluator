@@ -20,16 +20,8 @@ import { VideoProcessor } from "./video-processor.js";
 import type { VideoProcessorDeps } from "./video-processor.js";
 import type { VideoConfig } from "./types.js";
 
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf-8"));
-
-export const APP_NAME = "AI Toastmasters Evaluator";
-export const APP_VERSION: string = pkg.version;
+export { APP_NAME, APP_VERSION } from "./version.js";
+import { APP_NAME, APP_VERSION } from "./version.js";
 
 const ts = () => new Date().toISOString();
 const logInit = (msg: string) => console.log(`[INIT] [${ts()}] ${msg}`);
