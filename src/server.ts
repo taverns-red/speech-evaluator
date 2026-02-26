@@ -96,6 +96,8 @@ export interface CreateServerOptions {
   logger?: ServerLogger;
   /** Externally provided SessionManager (for testing). Created internally if omitted. */
   sessionManager?: SessionManager;
+  /** Application version string (from package.json). */
+  version?: string;
 }
 
 export interface AppServer {
@@ -121,6 +123,7 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
     sessionManager = new SessionManager({
       vadMonitorFactory: (config, callbacks) => new VADMonitor(config, callbacks),
     }),
+    version = "0.0.0",
   } = options;
 
   const app = express();
@@ -132,6 +135,11 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
   // Health check endpoint
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // Version endpoint — serves package.json version for the UI footer
+  app.get("/api/version", (_req, res) => {
+    res.json({ version });
   });
 
   // WebSocket server attached to the HTTP server
@@ -318,7 +326,7 @@ function handleBinaryMessage(
     if (jitter > MAX_CHUNK_JITTER_MS) {
       logger.warn(
         `Chunk jitter ${jitter}ms exceeds ${MAX_CHUNK_JITTER_MS}ms threshold ` +
-          `(session ${connState.sessionId}, interval ${elapsed}ms)`,
+        `(session ${connState.sessionId}, interval ${elapsed}ms)`,
       );
     }
   }

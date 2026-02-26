@@ -233,8 +233,8 @@
     </section>
 
     <!-- Footer -->
-    <footer class="footer">
-      AI Toastmasters Evaluator &mdash; Phase 4
+    <footer class="footer" id="app-footer">
+      AI Toastmasters Evaluator
     </footer>
   </div>
 
@@ -2823,6 +2823,17 @@
 
     // Check mic availability on load (non-blocking)
     checkMicPermission();
+
+    // Fetch and display app version in footer
+    fetch("/api/version")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.version) {
+          document.getElementById("app-footer").textContent =
+            "AI Toastmasters Evaluator \u2014 v" + data.version;
+        }
+      })
+      .catch(function () { /* footer stays as default text */ });
 
     // ─── Phase 2: Consent & Time Limit Event Listeners ────────────────
     // Listen for consent form changes
