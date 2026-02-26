@@ -19,6 +19,8 @@ import type { VADConfig, VADEventCallback } from "./vad-monitor.js";
 import { VideoProcessor } from "./video-processor.js";
 import type { VideoProcessorDeps } from "./video-processor.js";
 import type { VideoConfig } from "./types.js";
+import { StubPoseDetector } from "./stub-pose-detector.js";
+import { StubFaceDetector } from "./stub-face-detector.js";
 
 export { APP_NAME, APP_VERSION } from "./version.js";
 import { APP_NAME, APP_VERSION } from "./version.js";
@@ -73,6 +75,10 @@ const filePersistence = new FilePersistence("output");
 
 // ─── Create SessionManager with all dependencies ────────────────────────────────
 
+logInit("Initializing stub detectors (replace with real ML per issue #27)...");
+const stubPoseDetector = new StubPoseDetector();
+const stubFaceDetector = new StubFaceDetector();
+
 logInit("Wiring SessionManager pipeline...");
 const sessionManager = new SessionManager({
   transcriptionEngine,
@@ -83,7 +89,10 @@ const sessionManager = new SessionManager({
   vadMonitorFactory: (config: VADConfig, callbacks: VADEventCallback) =>
     new VADMonitor(config, callbacks),
   videoProcessorFactory: (config: VideoConfig, deps: VideoProcessorDeps) =>
-    new VideoProcessor(config, deps),
+    new VideoProcessor(config, {
+      poseDetector: deps.poseDetector ?? stubPoseDetector,
+      faceDetector: deps.faceDetector ?? stubFaceDetector,
+    }),
 });
 
 // ─── Start server ───────────────────────────────────────────────────────────────
