@@ -161,10 +161,16 @@
 
     <!-- Video Preview (Phase 4 — Req 2.1, 2.2) -->
     <div id="video-preview-container" class="video-preview-container" aria-label="Camera preview">
-      <span class="video-preview-label">Camera</span>
+      <div class="video-preview-header">
+        <span class="video-preview-label">Camera</span>
+        <button id="btn-video-toggle" class="btn-video-toggle" onclick="toggleVideoSize()"
+          title="Expand/collapse video preview">⤢</button>
+      </div>
       <video id="video-preview" class="video-preview" autoplay muted playsinline></video>
       <canvas id="video-capture-canvas" style="display:none;"></canvas>
-      <span id="video-frame-stats" class="video-frame-stats"></span>
+      <div class="video-preview-info">
+        <span id="video-frame-stats" class="video-frame-stats"></span>
+      </div>
     </div>
 
     <!-- Controls -->
@@ -2333,6 +2339,18 @@
     }
 
     // ─── Button Click Handlers ────────────────────────────────────────
+
+    function toggleVideoSize() {
+      const preview = document.getElementById("video-preview");
+      const btn = document.getElementById("btn-video-toggle");
+      if (preview.classList.toggle("expanded")) {
+        btn.textContent = "⤡";
+        btn.title = "Collapse video preview";
+      } else {
+        btn.textContent = "⤢";
+        btn.title = "Expand video preview";
+      }
+    }
 
     async function onStartSpeech() {
       // Guard: don't start during cooldown
