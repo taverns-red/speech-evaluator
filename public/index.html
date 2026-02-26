@@ -1,936 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI Toastmasters Evaluator</title>
   <link rel="icon" href="data:,">
-  <style>
-    /* ─── CSS Custom Properties ──────────────────────────────────────── */
-    :root {
-      --color-bg: #1a1a2e;
-      --color-surface: #16213e;
-      --color-surface-alt: #0f3460;
-      --color-text: #e8e8e8;
-      --color-text-muted: #a0a0b0;
-      --color-primary: #4a90d9;
-      --color-primary-hover: #5ba0e9;
-      --color-success: #27ae60;
-      --color-success-hover: #2ecc71;
-      --color-danger: #e74c3c;
-      --color-danger-hover: #ff5544;
-      --color-warning: #f39c12;
-      --color-warning-hover: #f1c40f;
-      --color-info: #3498db;
-      --color-border: #2a2a4a;
-      --color-recording: #e74c3c;
-      --color-processing: #f39c12;
-      --color-delivering: #3498db;
-      --font-main: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      --font-mono: "SF Mono", "Fira Code", "Fira Mono", monospace;
-      --radius: 8px;
-      --radius-lg: 12px;
-      --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-      --transition: 0.2s ease;
-    }
-
-    /* ─── Reset & Base ───────────────────────────────────────────────── */
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    html {
-      font-size: 18px;
-    }
-
-    body {
-      font-family: var(--font-main);
-      background: var(--color-bg);
-      color: var(--color-text);
-      min-height: 100vh;
-      line-height: 1.5;
-    }
-
-    /* ─── Layout ─────────────────────────────────────────────────────── */
-    .app {
-      max-width: 960px;
-      margin: 0 auto;
-      padding: 1.5rem 1rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1.25rem;
-      min-height: 100vh;
-    }
-
-    /* ─── Header ─────────────────────────────────────────────────────── */
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding-bottom: 0.75rem;
-      border-bottom: 1px solid var(--color-border);
-    }
-
-    .header h1 {
-      font-size: 1.4rem;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-    }
-
-    .header h1 span {
-      color: var(--color-primary);
-    }
-
-    /* ─── Status Bar ─────────────────────────────────────────────────── */
-    .status-bar {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.6rem 1rem;
-      background: var(--color-surface);
-      border-radius: var(--radius);
-      border: 1px solid var(--color-border);
-      font-size: 0.95rem;
-    }
-
-    .status-indicator {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: var(--color-text-muted);
-      flex-shrink: 0;
-      transition: background var(--transition);
-    }
-
-    .status-indicator.idle { background: var(--color-text-muted); }
-    .status-indicator.recording {
-      background: var(--color-recording);
-      animation: pulse 1.2s ease-in-out infinite;
-    }
-    .status-indicator.processing {
-      background: var(--color-success);
-    }
-    .status-indicator.delivering {
-      background: var(--color-delivering);
-      animation: pulse 1s ease-in-out infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-
-    .status-text {
-      flex: 1;
-      font-weight: 500;
-    }
-
-    .elapsed-time {
-      font-family: var(--font-mono);
-      font-size: 1.3rem;
-      font-weight: 700;
-      color: var(--color-recording);
-      display: none;
-    }
-
-    .elapsed-time.visible {
-      display: block;
-    }
-
-    /* ─── Audio Level Meter ──────────────────────────────────────────── */
-    .audio-level {
-      display: none;
-      width: 80px;
-      height: 10px;
-      background: var(--color-border);
-      border-radius: 5px;
-      overflow: hidden;
-      flex-shrink: 0;
-    }
-
-    .audio-level.visible {
-      display: block;
-    }
-
-    .audio-level-bar {
-      height: 100%;
-      width: 0%;
-      background: var(--color-success);
-      border-radius: 5px;
-      transition: width 0.05s linear, background 0.15s ease;
-    }
-
-    .audio-level-bar.hot {
-      background: var(--color-danger);
-    }
-
-    /* ─── Controls ───────────────────────────────────────────────────── */
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-      align-items: center;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.65rem 1.25rem;
-      border: none;
-      border-radius: var(--radius);
-      font-family: var(--font-main);
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background var(--transition), opacity var(--transition), transform 0.1s ease;
-      white-space: nowrap;
-    }
-
-    .btn:active:not(:disabled) {
-      transform: scale(0.97);
-    }
-
-    .btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .btn-primary {
-      background: var(--color-primary);
-      color: #fff;
-    }
-    .btn-primary:hover:not(:disabled) {
-      background: var(--color-primary-hover);
-    }
-
-    .btn-success {
-      background: var(--color-success);
-      color: #fff;
-    }
-    .btn-success:hover:not(:disabled) {
-      background: var(--color-success-hover);
-    }
-
-    .btn-danger {
-      background: var(--color-danger);
-      color: #fff;
-    }
-    .btn-danger:hover:not(:disabled) {
-      background: var(--color-danger-hover);
-    }
-
-    .btn-warning {
-      background: var(--color-warning);
-      color: #1a1a2e;
-    }
-    .btn-warning:hover:not(:disabled) {
-      background: var(--color-warning-hover);
-    }
-
-    .btn-save {
-      background: var(--color-surface-alt);
-      color: var(--color-text);
-      border: 1px solid var(--color-border);
-    }
-    .btn-save:hover:not(:disabled) {
-      background: var(--color-primary);
-      border-color: var(--color-primary);
-    }
-
-    /* Panic mute is always visible and visually distinct */
-    .btn-panic {
-      background: var(--color-danger);
-      color: #fff;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      border: 2px solid var(--color-danger-hover);
-      margin-left: auto;
-    }
-    .btn-panic:hover:not(:disabled) {
-      background: var(--color-danger-hover);
-      border-color: #ff7766;
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    /* ─── Speaking Indicator ─────────────────────────────────────────── */
-    .speaking-indicator {
-      display: none;
-      align-items: center;
-      justify-content: center;
-      gap: 0.75rem;
-      padding: 1rem;
-      background: var(--color-surface);
-      border: 1px solid var(--color-delivering);
-      border-radius: var(--radius);
-      font-size: 1.15rem;
-      font-weight: 600;
-      color: var(--color-delivering);
-    }
-
-    .speaking-indicator.visible {
-      display: flex;
-    }
-
-    .speaking-dots {
-      display: flex;
-      gap: 4px;
-    }
-
-    .speaking-dots span {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--color-delivering);
-      animation: speakingBounce 1.4s ease-in-out infinite;
-    }
-    .speaking-dots span:nth-child(2) { animation-delay: 0.2s; }
-    .speaking-dots span:nth-child(3) { animation-delay: 0.4s; }
-
-    @keyframes speakingBounce {
-      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
-      40% { transform: translateY(-6px); opacity: 1; }
-    }
-
-    /* ─── Processing Indicator ───────────────────────────────────────── */
-    .processing-indicator {
-      display: none;
-      align-items: center;
-      justify-content: center;
-      gap: 0.75rem;
-      padding: 1rem;
-      background: var(--color-surface);
-      border: 1px solid var(--color-success);
-      border-radius: var(--radius);
-      font-size: 1rem;
-      color: var(--color-success);
-    }
-
-    .processing-indicator.visible {
-      display: flex;
-    }
-
-    /* ─── Content Panels ─────────────────────────────────────────────── */
-    .panel {
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-    }
-
-    .panel-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.6rem 1rem;
-      background: rgba(255, 255, 255, 0.03);
-      border-bottom: 1px solid var(--color-border);
-      font-size: 0.85rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--color-text-muted);
-    }
-
-    .panel-body {
-      padding: 1rem;
-      min-height: 120px;
-      max-height: 400px;
-      overflow-y: auto;
-    }
-
-    /* ─── Transcript Area ────────────────────────────────────────────── */
-    #transcript-panel {
-      display: none;
-    }
-
-    #transcript-panel.visible {
-      display: block;
-    }
-
-    .transcript-content {
-      font-size: 1.05rem;
-      line-height: 1.7;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-    }
-
-    .transcript-content .segment {
-      margin-bottom: 0.5rem;
-    }
-
-    .transcript-content .segment-time {
-      color: var(--color-text-muted);
-      font-family: var(--font-mono);
-      font-size: 0.8rem;
-      margin-right: 0.5rem;
-    }
-
-    .transcript-content .interim {
-      color: var(--color-text-muted);
-      font-style: italic;
-    }
-
-    .transcript-empty {
-      color: var(--color-text-muted);
-      font-style: italic;
-      text-align: center;
-      padding: 2rem 0;
-    }
-
-    /* ─── Evaluation Area ────────────────────────────────────────────── */
-    #evaluation-panel {
-      display: none;
-    }
-
-    #evaluation-panel.visible {
-      display: block;
-    }
-
-    .evaluation-content {
-      font-size: 1.05rem;
-      line-height: 1.7;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-    }
-
-    .evaluation-empty {
-      color: var(--color-text-muted);
-      font-style: italic;
-      text-align: center;
-      padding: 2rem 0;
-    }
-
-    /* ─── Error Banner ───────────────────────────────────────────────── */
-    .error-banner {
-      display: none;
-      padding: 0.75rem 1rem;
-      border-radius: var(--radius);
-      font-size: 0.95rem;
-      line-height: 1.4;
-    }
-
-    .error-banner.visible {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.75rem;
-    }
-
-    .error-banner.recoverable {
-      background: rgba(243, 156, 18, 0.15);
-      border: 1px solid var(--color-warning);
-      color: var(--color-warning);
-    }
-
-    .error-banner.non-recoverable {
-      background: rgba(231, 76, 60, 0.15);
-      border: 1px solid var(--color-danger);
-      color: var(--color-danger);
-    }
-
-    .error-banner .error-icon {
-      font-size: 1.2rem;
-      flex-shrink: 0;
-      line-height: 1;
-    }
-
-    .error-banner .error-message {
-      flex: 1;
-    }
-
-    .error-banner .error-dismiss {
-      background: none;
-      border: none;
-      color: inherit;
-      cursor: pointer;
-      font-size: 1.2rem;
-      padding: 0;
-      line-height: 1;
-      opacity: 0.7;
-    }
-
-    .error-banner .error-dismiss:hover {
-      opacity: 1;
-    }
-
-    /* ─── Interruption Banner ────────────────────────────────────────── */
-    .interruption-banner {
-      display: none;
-      padding: 0.6rem 1rem;
-      background: rgba(231, 76, 60, 0.1);
-      border: 1px solid var(--color-danger);
-      border-radius: var(--radius);
-      color: var(--color-danger);
-      font-size: 0.9rem;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .interruption-banner.visible {
-      display: flex;
-    }
-
-    /* ─── Saved Confirmation ─────────────────────────────────────────── */
-    .saved-confirmation {
-      display: none;
-      padding: 0.6rem 1rem;
-      background: rgba(39, 174, 96, 0.15);
-      border: 1px solid var(--color-success);
-      border-radius: var(--radius);
-      color: var(--color-success);
-      font-size: 0.9rem;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .saved-confirmation.visible {
-      display: flex;
-    }
-
-    /* ─── Consent Form ───────────────────────────────────────────────── */
-    .consent-form {
-      display: none;
-      flex-direction: column;
-      gap: 0.75rem;
-      padding: 1rem;
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-lg);
-    }
-
-    .consent-form.visible {
-      display: flex;
-    }
-
-    .consent-form-title {
-      font-size: 0.85rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--color-text-muted);
-      margin-bottom: 0.25rem;
-    }
-
-    .consent-form .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-    }
-
-    .consent-form label {
-      font-size: 0.9rem;
-      color: var(--color-text-muted);
-    }
-
-    .consent-form input[type="text"] {
-      padding: 0.5rem 0.75rem;
-      background: var(--color-bg);
-      color: var(--color-text);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius);
-      font-family: var(--font-main);
-      font-size: 0.95rem;
-      outline: none;
-      transition: border-color var(--transition);
-    }
-
-    .consent-form input[type="text"]:focus {
-      border-color: var(--color-primary);
-    }
-
-    .consent-form .checkbox-group {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.5rem;
-    }
-
-    .consent-form .checkbox-group input[type="checkbox"] {
-      margin-top: 0.25rem;
-      accent-color: var(--color-primary);
-      width: 16px;
-      height: 16px;
-      flex-shrink: 0;
-    }
-
-    .consent-form .checkbox-group label {
-      font-size: 0.9rem;
-      color: var(--color-text);
-      line-height: 1.4;
-      cursor: pointer;
-    }
-
-    /* ─── Consent Status Display ─────────────────────────────────────── */
-    .consent-status {
-      display: none;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.4rem 0.75rem;
-      font-size: 0.85rem;
-      color: var(--color-success);
-    }
-
-    .consent-status.visible {
-      display: flex;
-    }
-
-    /* ─── Time Limit Control ─────────────────────────────────────────── */
-    .time-limit-control {
-      display: none;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.5rem 0;
-    }
-
-    .time-limit-control.visible {
-      display: flex;
-    }
-
-    .time-limit-control label {
-      font-size: 0.85rem;
-      color: var(--color-text-muted);
-      white-space: nowrap;
-    }
-
-    .time-limit-control input[type="number"] {
-      width: 80px;
-      padding: 0.35rem 0.5rem;
-      background: var(--color-bg);
-      color: var(--color-text);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius);
-      font-family: var(--font-mono);
-      font-size: 0.9rem;
-      outline: none;
-      transition: border-color var(--transition);
-    }
-
-    .time-limit-control input[type="number"]:focus {
-      border-color: var(--color-primary);
-    }
-
-    .time-limit-control .time-unit {
-      font-size: 0.8rem;
-      color: var(--color-text-muted);
-    }
-
-    /* ─── Duration Estimate Display ──────────────────────────────────── */
-    .duration-estimate {
-      display: none;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.4rem 0.75rem;
-      background: rgba(52, 152, 219, 0.1);
-      border: 1px solid var(--color-info);
-      border-radius: var(--radius);
-      font-size: 0.85rem;
-      color: var(--color-info);
-    }
-
-    .duration-estimate.visible {
-      display: flex;
-    }
-
-    /* ─── Revoke Consent Button ──────────────────────────────────────── */
-    .btn-revoke {
-      background: transparent;
-      color: var(--color-danger);
-      border: 1px solid var(--color-danger);
-      font-size: 0.8rem;
-      padding: 0.4rem 0.75rem;
-      font-weight: 600;
-    }
-    .btn-revoke:hover:not(:disabled) {
-      background: rgba(231, 76, 60, 0.15);
-    }
-
-    /* ─── Data Purged Banner ─────────────────────────────────────────── */
-    .purge-banner {
-      display: none;
-      padding: 0.6rem 1rem;
-      border-radius: var(--radius);
-      font-size: 0.9rem;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .purge-banner.visible {
-      display: flex;
-    }
-
-    .purge-banner.opt-out {
-      background: rgba(231, 76, 60, 0.15);
-      border: 1px solid var(--color-danger);
-      color: var(--color-danger);
-    }
-
-    .purge-banner.auto-purge {
-      background: rgba(52, 152, 219, 0.1);
-      border: 1px solid var(--color-info);
-      color: var(--color-info);
-    }
-
-    /* ─── VAD Notification Banner ────────────────────────────────────── */
-    .vad-notification {
-      display: none;
-      padding: 0.6rem 1rem;
-      background: rgba(243, 156, 18, 0.15);
-      border: 1px solid var(--color-warning);
-      border-radius: var(--radius);
-      color: var(--color-warning);
-      font-size: 0.95rem;
-      align-items: center;
-      gap: 0.75rem;
-    }
-
-    .vad-notification.visible {
-      display: flex;
-    }
-
-    .vad-notification .vad-notification-text {
-      flex: 1;
-      font-weight: 500;
-    }
-
-    .vad-notification .vad-notification-actions {
-      display: flex;
-      gap: 0.5rem;
-      flex-shrink: 0;
-    }
-
-    .vad-notification .btn-vad-confirm {
-      padding: 0.35rem 0.75rem;
-      background: var(--color-warning);
-      color: #1a1a2e;
-      border: none;
-      border-radius: var(--radius);
-      font-family: var(--font-main);
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background var(--transition);
-    }
-
-    .vad-notification .btn-vad-confirm:hover {
-      background: var(--color-warning-hover);
-    }
-
-    .vad-notification .btn-vad-dismiss {
-      padding: 0.35rem 0.75rem;
-      background: transparent;
-      color: var(--color-warning);
-      border: 1px solid var(--color-warning);
-      border-radius: var(--radius);
-      font-family: var(--font-main);
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background var(--transition);
-    }
-
-    .vad-notification .btn-vad-dismiss:hover {
-      background: rgba(243, 156, 18, 0.1);
-    }
-
-    /* ─── Project Context Form ───────────────────────────────────────── */
-    .project-context-form {
-      display: none;
-      flex-direction: column;
-      gap: 0.75rem;
-      padding: 1rem;
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-lg);
-    }
-
-    .project-context-form.visible {
-      display: flex;
-    }
-
-    .project-context-form-title {
-      font-size: 0.85rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--color-text-muted);
-      margin-bottom: 0.25rem;
-    }
-
-    .project-context-form .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-    }
-
-    .project-context-form label {
-      font-size: 0.9rem;
-      color: var(--color-text-muted);
-    }
-
-    .project-context-form input[type="text"],
-    .project-context-form select,
-    .project-context-form textarea {
-      padding: 0.5rem 0.75rem;
-      background: var(--color-bg);
-      color: var(--color-text);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius);
-      font-family: var(--font-main);
-      font-size: 0.95rem;
-      outline: none;
-      transition: border-color var(--transition);
-    }
-
-    .project-context-form input[type="text"]:focus,
-    .project-context-form select:focus,
-    .project-context-form textarea:focus {
-      border-color: var(--color-primary);
-    }
-
-    .project-context-form select {
-      cursor: pointer;
-      appearance: auto;
-    }
-
-    .project-context-form textarea {
-      min-height: 80px;
-      resize: vertical;
-      line-height: 1.5;
-    }
-
-    /* ─── VAD Config Control ─────────────────────────────────────────── */
-    .vad-config {
-      display: none;
-      flex-direction: column;
-      gap: 0.5rem;
-      padding: 0.75rem 1rem;
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-lg);
-    }
-
-    .vad-config.visible {
-      display: flex;
-    }
-
-    .vad-config-title {
-      font-size: 0.85rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--color-text-muted);
-      margin-bottom: 0.1rem;
-    }
-
-    .vad-config-row {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-    }
-
-    .vad-toggle-group {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .vad-toggle-group label {
-      font-size: 0.9rem;
-      color: var(--color-text);
-      cursor: pointer;
-    }
-
-    .vad-toggle-group input[type="checkbox"] {
-      accent-color: var(--color-primary);
-      width: 16px;
-      height: 16px;
-      cursor: pointer;
-    }
-
-    .vad-slider-group {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      flex: 1;
-    }
-
-    .vad-slider-group label {
-      font-size: 0.85rem;
-      color: var(--color-text-muted);
-      white-space: nowrap;
-    }
-
-    .vad-slider-group input[type="range"] {
-      flex: 1;
-      min-width: 100px;
-      accent-color: var(--color-primary);
-      cursor: pointer;
-    }
-
-    .vad-slider-group .vad-value {
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
-      color: var(--color-text);
-      min-width: 2.5em;
-      text-align: right;
-    }
-
-    /* ─── Evidence Link (Phase 3 — Req 7.1) ────────────────────────── */
-    .evidence-link {
-      color: var(--color-primary);
-      cursor: pointer;
-      text-decoration: underline;
-      text-decoration-style: dotted;
-      text-underline-offset: 2px;
-      border-radius: 2px;
-      padding: 0 2px;
-      transition: background var(--transition), color var(--transition);
-    }
-
-    .evidence-link:hover {
-      background: rgba(74, 144, 217, 0.15);
-      color: var(--color-primary-hover);
-      text-decoration-style: solid;
-    }
-
-    /* Evidence quotes that couldn't be matched — no clickable navigation (Req 7.4) */
-    .evidence-no-match {
-      color: var(--color-text-muted);
-      font-style: italic;
-    }
-
-    /* ─── Segment Highlight (Phase 3 — Req 7.2, 7.5) ────────────────── */
-    .segment-highlight {
-      background: rgba(74, 144, 217, 0.25);
-      border-left: 3px solid var(--color-primary);
-      padding-left: 0.5rem;
-      border-radius: 2px;
-      transition: background 0.3s ease, border-color 0.3s ease;
-    }
-
-    /* ─── Footer ─────────────────────────────────────────────────────── */
-    .footer {
-      margin-top: auto;
-      padding-top: 0.75rem;
-      border-top: 1px solid var(--color-border);
-      font-size: 0.75rem;
-      color: var(--color-text-muted);
-      text-align: center;
-    }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <div class="app">
     <!-- Header -->
     <header class="header">
       <h1><span>AI</span> Toastmasters Evaluator</h1>
-      <span id="connection-status" style="font-size: 0.8rem; color: var(--color-text-muted);">Disconnected</span>
+      <span id="connection-status" style="font-size: 0.8rem; color: var(--text-muted);">Disconnected</span>
     </header>
 
     <!-- Error Banner -->
@@ -974,12 +61,20 @@
       <div class="consent-form-title">Speaker Consent</div>
       <div class="form-group">
         <label for="speaker-name-input">Speaker's name</label>
-        <input type="text" id="speaker-name-input" placeholder="Speaker's name" required aria-required="true" autocomplete="off">
+        <input type="text" id="speaker-name-input" placeholder="Speaker's name" required aria-required="true"
+          autocomplete="off">
       </div>
       <div class="checkbox-group">
         <input type="checkbox" id="consent-checkbox" aria-describedby="consent-label">
-        <label id="consent-label" for="consent-checkbox">I confirm the speaker has given verbal consent to be recorded and evaluated</label>
+        <label id="consent-label" for="consent-checkbox">I confirm the speaker has given verbal consent to be recorded
+          and evaluated</label>
       </div>
+      <div class="checkbox-group">
+        <input type="checkbox" id="video-consent-checkbox" aria-describedby="video-consent-label" disabled>
+        <label id="video-consent-label" for="video-consent-checkbox">Enable video capture for visual delivery
+          feedback</label>
+      </div>
+      <div id="video-consent-error" class="video-consent-error" role="alert" aria-live="polite"></div>
     </div>
 
     <!-- Project Context Form (visible in IDLE state) -->
@@ -987,7 +82,8 @@
       <div class="project-context-form-title">Project Context</div>
       <div class="form-group">
         <label for="speech-title-input">Speech title</label>
-        <input type="text" id="speech-title-input" placeholder="e.g. My Journey to Toastmasters" maxlength="200" autocomplete="off">
+        <input type="text" id="speech-title-input" placeholder="e.g. My Journey to Toastmasters" maxlength="200"
+          autocomplete="off">
       </div>
       <div class="form-group">
         <label for="project-type-select">Project type</label>
@@ -1004,14 +100,16 @@
       </div>
       <div class="form-group">
         <label for="objectives-textarea">Project objectives</label>
-        <textarea id="objectives-textarea" placeholder="One objective per line (auto-populated on project type selection)" rows="4"></textarea>
+        <textarea id="objectives-textarea"
+          placeholder="One objective per line (auto-populated on project type selection)" rows="4"></textarea>
       </div>
     </div>
 
     <!-- Time Limit Control (visible in IDLE and PROCESSING states) -->
     <div id="time-limit-control" class="time-limit-control" aria-label="Evaluation time limit">
       <label for="time-limit-input">Evaluation time limit</label>
-      <input type="number" id="time-limit-input" value="120" min="30" max="600" step="10" aria-label="Time limit in seconds">
+      <input type="number" id="time-limit-input" value="120" min="30" max="600" step="10"
+        aria-label="Time limit in seconds">
       <span class="time-unit">seconds</span>
     </div>
 
@@ -1025,8 +123,22 @@
         </div>
         <div class="vad-slider-group">
           <label for="vad-threshold-slider">Silence threshold</label>
-          <input type="range" id="vad-threshold-slider" min="3" max="15" value="5" step="1" aria-label="Silence threshold in seconds">
+          <input type="range" id="vad-threshold-slider" min="3" max="15" value="5" step="1"
+            aria-label="Silence threshold in seconds">
           <span id="vad-threshold-value" class="vad-value">5s</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Video FPS Configuration (visible in IDLE state when video consent enabled — Req 2.9) -->
+    <div id="video-fps-config" class="video-fps-config" aria-label="Video frame rate configuration">
+      <div class="video-fps-config-title">Video Configuration</div>
+      <div class="video-fps-config-row">
+        <div class="video-fps-slider-group">
+          <label for="video-fps-slider">Frame rate</label>
+          <input type="range" id="video-fps-slider" min="1" max="5" value="2" step="1"
+            aria-label="Video frame rate in FPS">
+          <span id="video-fps-value" class="video-fps-value">2 FPS</span>
         </div>
       </div>
     </div>
@@ -1047,6 +159,14 @@
       <span id="duration-estimate-text">Estimated: --:-- / Limit: 2:00</span>
     </div>
 
+    <!-- Video Preview (Phase 4 — Req 2.1, 2.2) -->
+    <div id="video-preview-container" class="video-preview-container" aria-label="Camera preview">
+      <span class="video-preview-label">Camera</span>
+      <video id="video-preview" class="video-preview" autoplay muted playsinline></video>
+      <canvas id="video-capture-canvas" style="display:none;"></canvas>
+      <span id="video-frame-stats" class="video-frame-stats"></span>
+    </div>
+
     <!-- Controls -->
     <div class="controls">
       <button id="btn-start" class="btn btn-success" onclick="onStartSpeech()">
@@ -1064,7 +184,8 @@
       <button id="btn-save" class="btn btn-save hidden" onclick="onSaveOutputs()">
         💾 Save Outputs
       </button>
-      <button id="btn-revoke" class="btn btn-revoke hidden" onclick="onRevokeConsent()" aria-label="Revoke speaker consent and purge data">
+      <button id="btn-revoke" class="btn btn-revoke hidden" onclick="onRevokeConsent()"
+        aria-label="Revoke speaker consent and purge data">
         ✕ Revoke Consent
       </button>
       <button id="btn-panic" class="btn btn-panic" onclick="onPanicMute()">
@@ -1082,7 +203,7 @@
 
     <!-- Processing Indicator -->
     <div id="processing-indicator" class="processing-indicator" role="status" aria-live="polite">
-      <span>✓ Speech processed — review transcript and click "Deliver Evaluation" when ready</span>
+      <span>Processing speech...</span>
     </div>
 
     <!-- Transcript Panel -->
@@ -1102,6 +223,7 @@
     <section id="evaluation-panel" class="panel" aria-label="Evaluation">
       <div class="panel-header">
         <span>Evaluation</span>
+        <span id="video-quality-grade" class="video-quality-grade" aria-live="polite"></span>
       </div>
       <div class="panel-body">
         <div id="evaluation-content" class="evaluation-content">
@@ -1111,8 +233,8 @@
     </section>
 
     <!-- Footer -->
-    <footer class="footer">
-      AI Toastmasters Evaluator &mdash; Phase 2
+    <footer class="footer" id="app-footer">
+      AI Toastmasters Evaluator
     </footer>
   </div>
 
@@ -1156,6 +278,14 @@
     // ─── Phase 3: Project Context State (Req 4.1, 4.2, 4.3, 4.4) ────
     /** Client-side project context state, synced to server via set_project_context */
     let projectContext = { speechTitle: "", projectType: "", objectives: [] };
+
+    // ─── Phase 4: Video Consent State (Req 1.1, 1.2, 1.5, 2.9) ──────
+    /** Whether video consent toggle is checked */
+    let videoConsentEnabled = false;
+    /** Whether camera was successfully acquired after video consent */
+    let videoStreamReady = false;
+    /** Configured video FPS (1-5, default 2) */
+    let videoFpsConfig = 2;
 
     /** Predefined Toastmasters Pathways project types and their standard objectives (Req 4.2) */
     const PROJECT_TYPES = {
@@ -1308,6 +438,12 @@
       speechTitleInput: document.getElementById("speech-title-input"),
       projectTypeSelect: document.getElementById("project-type-select"),
       objectivesTextarea: document.getElementById("objectives-textarea"),
+      // Phase 4: Video Consent DOM refs
+      videoConsentCheckbox: document.getElementById("video-consent-checkbox"),
+      videoConsentError: document.getElementById("video-consent-error"),
+      videoFpsConfig: document.getElementById("video-fps-config"),
+      videoFpsSlider: document.getElementById("video-fps-slider"),
+      videoFpsValue: document.getElementById("video-fps-value"),
     };
 
     // ─── Status Text Map ──────────────────────────────────────────────
@@ -1357,6 +493,20 @@
         show(dom.timeLimitControl);
         // Show VAD config in IDLE (Req 3.1, 3.4)
         show(dom.vadConfig);
+        // Show video FPS config in IDLE only when video consent is enabled (Req 2.9)
+        if (videoConsentEnabled) {
+          show(dom.videoFpsConfig);
+        } else {
+          hide(dom.videoFpsConfig);
+        }
+        // Show video preview in IDLE only when video consent is enabled and camera is active
+        if (videoConsentEnabled && videoStream) {
+          show(videoDom.previewContainer);
+        } else {
+          hide(videoDom.previewContainer);
+        }
+        // Enable video consent checkbox in IDLE
+        enable(dom.videoConsentCheckbox);
         // Hide duration estimate in IDLE
         hide(dom.durationEstimate);
 
@@ -1415,6 +565,11 @@
         hide(dom.timeLimitControl);
         // Hide VAD config during recording (Req 3.4)
         hide(dom.vadConfig);
+        // Hide video FPS config during recording (Req 1.4 — immutable after recording starts)
+        hide(dom.videoFpsConfig);
+        // Disable video consent checkbox during recording (Req 1.4)
+        disable(dom.videoConsentCheckbox);
+        // Keep video preview visible during recording so operator can verify camera is working
         hide(dom.durationEstimate);
 
         hide(dom.btnStart);
@@ -1453,6 +608,12 @@
         show(dom.timeLimitControl);
         // Hide VAD config during processing (Req 3.4)
         hide(dom.vadConfig);
+        // Hide video FPS config during processing
+        hide(dom.videoFpsConfig);
+        // Disable video consent checkbox during processing
+        disable(dom.videoConsentCheckbox);
+        // Hide video preview during processing
+        hide(videoDom.previewContainer);
         // Show duration estimate if available
         if (estimatedDuration !== null) {
           show(dom.durationEstimate);
@@ -1464,12 +625,12 @@
         hide(dom.btnSave);
         hide(dom.btnReplay);
         // Deliver button gating based on pipeline stage (Req 4.1-4.4)
-        // Disable during in-progress stages; enable on terminal/actionable stages
+        // Disable during in-progress stages and initial idle; enable only on terminal/actionable stages
         // Server remains authoritative — UI gating is advisory only (Req 4.4)
-        if (pipelineStage === "processing_speech" || pipelineStage === "generating_evaluation" || pipelineStage === "synthesizing_audio") {
-          disable(dom.btnDeliver);
-        } else {
+        if (pipelineStage === "ready" || pipelineStage === "failed" || pipelineStage === "invalidated") {
           enable(dom.btnDeliver);
+        } else {
+          disable(dom.btnDeliver);
         }
         enable(dom.btnPanic);
 
@@ -1483,9 +644,7 @@
         hide(dom.speakingIndicator);
         show(dom.processingIndicator);
         // Update processing indicator text to reflect current pipeline stage
-        if (pipelineStage !== "idle") {
-          updateProcessingIndicator(pipelineStage);
-        }
+        updateProcessingIndicator(pipelineStage);
         hideElapsedTime();
         hide(dom.audioLevel);
 
@@ -1505,6 +664,12 @@
         hide(dom.timeLimitControl);
         // Hide VAD config during delivery (Req 3.4)
         hide(dom.vadConfig);
+        // Hide video FPS config during delivery
+        hide(dom.videoFpsConfig);
+        // Disable video consent checkbox during delivery
+        disable(dom.videoConsentCheckbox);
+        // Hide video preview during delivery
+        hide(videoDom.previewContainer);
         hide(dom.durationEstimate);
 
         hide(dom.btnStart);
@@ -1683,10 +848,10 @@
      */
     function updateDeliverButtonState(stage) {
       if (currentState !== SessionState.PROCESSING) return;
-      if (stage === "processing_speech" || stage === "generating_evaluation" || stage === "synthesizing_audio") {
-        disable(dom.btnDeliver);
-      } else if (stage === "ready" || stage === "failed" || stage === "invalidated") {
+      if (stage === "ready" || stage === "failed" || stage === "invalidated") {
         enable(dom.btnDeliver);
+      } else {
+        disable(dom.btnDeliver);
       }
     }
 
@@ -1709,8 +874,125 @@
         consentConfirmed: checked && name.length > 0,
       });
 
+      // Enable/disable video consent checkbox based on audio consent (Req 1.1)
+      if (consentConfirmed) {
+        enable(dom.videoConsentCheckbox);
+      } else {
+        // If audio consent is revoked, also disable and uncheck video consent
+        disable(dom.videoConsentCheckbox);
+        if (videoConsentEnabled) {
+          dom.videoConsentCheckbox.checked = false;
+          videoConsentEnabled = false;
+          videoStreamReady = false;
+          releaseCamera();
+          hideVideoConsentError();
+        }
+      }
+
       // Update Start Speech button gating
       updateUI(currentState);
+    }
+
+    /**
+     * Called when the video consent checkbox changes.
+     * Acquires camera on enable, releases on disable.
+     * Sends set_video_consent and video_stream_ready messages. (Req 1.1, 1.2, 1.5)
+     */
+    async function onVideoConsentChange() {
+      const checked = dom.videoConsentCheckbox.checked;
+      hideVideoConsentError();
+
+      if (checked) {
+        // Attempt to acquire camera (Req 1.5)
+        const acquired = await acquireCamera();
+        if (acquired) {
+          videoConsentEnabled = true;
+          videoStreamReady = true;
+
+          // Send video consent to server (Req 1.2)
+          wsSend({
+            type: "set_video_consent",
+            consentGranted: true,
+            timestamp: new Date().toISOString(),
+          });
+
+          // Send video_stream_ready to server (Req 1.5)
+          const readyMsg = {
+            type: "video_stream_ready",
+            width: 0,
+            height: 0,
+          };
+          // Include dimensions and device label if available (Req 10.2)
+          if (videoStream) {
+            const tracks = videoStream.getVideoTracks();
+            if (tracks.length > 0) {
+              const settings = tracks[0].getSettings();
+              readyMsg.width = settings.width || 0;
+              readyMsg.height = settings.height || 0;
+              if (tracks[0].label) {
+                readyMsg.deviceLabel = tracks[0].label;
+              }
+            }
+          }
+          wsSend(readyMsg);
+        } else {
+          // Camera acquisition failed — revert toggle (Req 1.5)
+          dom.videoConsentCheckbox.checked = false;
+          videoConsentEnabled = false;
+          videoStreamReady = false;
+          showVideoConsentError("Camera access denied or unavailable. Video consent requires camera permission.");
+        }
+      } else {
+        // Video consent disabled — release camera
+        videoConsentEnabled = false;
+        videoStreamReady = false;
+        releaseCamera();
+      }
+
+      // Update UI to show/hide video preview and FPS config
+      updateUI(currentState);
+    }
+
+    /**
+     * Shows a video consent error message below the checkbox.
+     * @param {string} message - Error message to display
+     */
+    function showVideoConsentError(message) {
+      dom.videoConsentError.textContent = message;
+      dom.videoConsentError.classList.add("visible");
+    }
+
+    /**
+     * Hides the video consent error message.
+     */
+    function hideVideoConsentError() {
+      dom.videoConsentError.textContent = "";
+      dom.videoConsentError.classList.remove("visible");
+    }
+
+    /**
+     * Called when the video FPS slider changes.
+     * Sends set_video_config message to server. (Req 2.9)
+     */
+    function onVideoFpsChange() {
+      var fps = parseInt(dom.videoFpsSlider.value, 10);
+      if (isNaN(fps) || fps < 1 || fps > 5) return;
+
+      videoFpsConfig = fps;
+      dom.videoFpsValue.textContent = fps + " FPS";
+
+      // Send video config to server (Req 2.9)
+      wsSend({
+        type: "set_video_config",
+        frameRate: fps,
+      });
+    }
+
+    /**
+     * Updates the FPS slider display value on input (live feedback).
+     */
+    function onVideoFpsInput() {
+      dom.videoFpsValue.textContent = dom.videoFpsSlider.value + " FPS";
     }
 
     /**
@@ -1867,8 +1149,8 @@
       const text = dom.objectivesTextarea.value;
       // Parse objectives: one per line, filter out empty lines
       projectContext.objectives = text.split("\n")
-        .map(function(line) { return line.trim(); })
-        .filter(function(line) { return line.length > 0; });
+        .map(function (line) { return line.trim(); })
+        .filter(function (line) { return line.length > 0; });
       sendProjectContext();
     }
 
@@ -2264,7 +1546,7 @@
 
       ws.onclose = function () {
         dom.connectionStatus.textContent = "Disconnected";
-        dom.connectionStatus.style.color = "var(--color-text-muted)";
+        dom.connectionStatus.style.color = "var(--text-muted)";
 
         // Fail-safe: if WS drops during playback, deferred state, pending latch,
         // or any non-IDLE state, stop everything. The pendingIdleFromServer check
@@ -2380,6 +1662,10 @@
         case "vad_status":
           handleVADStatus(message);
           break;
+        case "video_status":
+          // Phase 4: Handle video processing status updates (Req 10.8)
+          handleVideoStatus(message);
+          break;
         default:
           console.warn("Unknown server message type:", message.type);
       }
@@ -2392,6 +1678,13 @@
      */
     function handleStateChange(newState) {
       const previousState = currentState;
+
+      // Phase 4: Stop video frame capture when leaving RECORDING state (Req 2.1, 2.2)
+      // This handles server-initiated transitions (auto-stop, errors) in addition to
+      // the explicit stopVideoCapture() calls in onStopSpeech() and onPanicMute().
+      if (previousState === SessionState.RECORDING && newState !== SessionState.RECORDING) {
+        stopVideoCapture();
+      }
 
       // Echo prevention: hard-stop mic when entering DELIVERING state
       if (newState === SessionState.DELIVERING) {
@@ -2800,6 +2093,7 @@
       hasTTSAudio = false;
       lastEvaluationScript = "";
       lastEvaluationData = null;
+      lastVideoQualityGrade = null;
       estimatedDuration = null;
       hide(dom.durationEstimate);
       forceStopTtsAndCancelDeferral();
@@ -2808,6 +2102,10 @@
       pipelineRunId = 0;
       // Clear evidence highlights (Phase 3)
       clearEvidenceHighlight();
+      // Hide video quality grade badge
+      if (videoDom.qualityGrade) {
+        videoDom.qualityGrade.className = "video-quality-grade";
+      }
 
       if (reason === "opt_out") {
         // Permanent purge — disable Save Outputs for this session
@@ -2817,6 +2115,17 @@
         consentConfirmed = false;
         dom.speakerNameInput.value = "";
         dom.consentCheckbox.checked = false;
+        // Reset video consent (Phase 4, Req 1.7)
+        videoConsentEnabled = false;
+        videoStreamReady = false;
+        dom.videoConsentCheckbox.checked = false;
+        disable(dom.videoConsentCheckbox);
+        hideVideoConsentError();
+        releaseCamera();
+        // Reset video FPS config to default
+        videoFpsConfig = 2;
+        dom.videoFpsSlider.value = 2;
+        dom.videoFpsValue.textContent = "2 FPS";
         // Reset VAD config to defaults (Phase 3, Req 3.1, 3.5)
         vadEnabled = true;
         vadSilenceThreshold = 5;
@@ -2831,6 +2140,17 @@
         dom.purgeBanner.className = "purge-banner visible opt-out";
       } else if (reason === "auto_purge") {
         // Auto-purge — informational
+        // Reset video consent (Phase 4)
+        videoConsentEnabled = false;
+        videoStreamReady = false;
+        dom.videoConsentCheckbox.checked = false;
+        disable(dom.videoConsentCheckbox);
+        hideVideoConsentError();
+        releaseCamera();
+        // Reset video FPS config to default
+        videoFpsConfig = 2;
+        dom.videoFpsSlider.value = 2;
+        dom.videoFpsValue.textContent = "2 FPS";
         // Reset VAD config to defaults (Phase 3)
         vadEnabled = true;
         vadSilenceThreshold = 5;
@@ -2962,6 +2282,9 @@
       // Stop the AudioWorklet first
       stopAudioCapture();
 
+      // Phase 4: Stop video frame capture (echo prevention — no video during delivery)
+      stopVideoCapture();
+
       // Hard-stop all MediaStream tracks (not just mute — fully release the mic)
       if (mediaStream) {
         mediaStream.getTracks().forEach(function (track) {
@@ -3041,6 +2364,7 @@
       pipelineRunId = 0;
       forceStopTtsAndCancelDeferral();
       dismissError();
+      hideVideoConsentError();
       clearEvidenceHighlight();
       hide(dom.interruptionBanner);
       hide(dom.savedConfirmation);
@@ -3061,8 +2385,15 @@
         return; // Error already shown by startAudioCapture
       }
 
+      // Phase 4: Camera is already acquired via video consent toggle (Req 1.5)
+      // Only start video capture if video consent is enabled and camera is ready
+
       // Send start_recording command to server
       wsSend({ type: "start_recording" });
+
+      if (videoConsentEnabled && videoStream) {
+        startVideoCapture();
+      }
 
       // Optimistic UI update (server will confirm via state_change)
       updateUI(SessionState.RECORDING);
@@ -3072,6 +2403,9 @@
     function onStopSpeech() {
       // Stop the AudioWorklet but keep MediaStream alive for potential restart
       stopAudioCapture();
+
+      // Phase 4: Stop video frame capture (camera stays alive for potential restart)
+      stopVideoCapture();
 
       // Send stop_recording command to server
       wsSend({ type: "stop_recording" });
@@ -3131,6 +2465,8 @@
 
       // Hard-stop mic if recording
       hardStopMic();
+      // Phase 4: Release camera on consent revocation
+      releaseCamera();
       // Atomic: cancel deferral + bump token + stop audio + clear ttsPlaying + clear latch
       forceStopTtsAndCancelDeferral();
       clearCooldown();
@@ -3145,6 +2481,8 @@
       // Panic mute: immediate action, no confirmation dialog
       // Hard-stop mic immediately
       hardStopMic();
+      // Phase 4: Stop video capture immediately
+      stopVideoCapture();
       // Atomic: cancel deferral + bump token + stop audio + clear ttsPlaying + clear latch
       forceStopTtsAndCancelDeferral();
       clearCooldown();
@@ -3210,6 +2548,272 @@
       return div.innerHTML;
     }
 
+    // ─── Phase 4: Video Frame Streaming State (Req 2.1, 2.2, 16.1) ──
+    /** @type {MediaStream|null} Camera video stream */
+    let videoStream = null;
+    /** @type {number|null} Interval ID for frame capture at 5 FPS */
+    let videoCaptureInterval = null;
+    /** Frame sequence number, reset per recording session */
+    let videoFrameSeq = 0;
+    /** performance.now() at recording start — shared time base with audio */
+    let recordingStartPerfNow = 0;
+    /** Total frames sent this session (for stats display) */
+    let videoFramesSent = 0;
+    /** Total frames skipped due to backpressure this session */
+    let videoFramesSkipped = 0;
+    /** Backpressure threshold: 2 MB */
+    const VIDEO_BACKPRESSURE_BYTES = 2 * 1024 * 1024;
+    /** Frame capture interval: 200ms = 5 FPS client cap */
+    const VIDEO_CAPTURE_INTERVAL_MS = 200;
+    /** JPEG quality for frame capture (0.0 - 1.0) */
+    const VIDEO_JPEG_QUALITY = 0.7;
+
+    // ─── Phase 4: Video DOM References ────────────────────────────────
+    const videoDom = {
+      previewContainer: document.getElementById("video-preview-container"),
+      preview: document.getElementById("video-preview"),
+      captureCanvas: document.getElementById("video-capture-canvas"),
+      frameStats: document.getElementById("video-frame-stats"),
+      qualityGrade: document.getElementById("video-quality-grade"),
+    };
+
+    /** Last video quality grade from final video_status message */
+    let lastVideoQualityGrade = null;
+
+    /**
+     * Encodes a video frame into the TM-prefixed wire format for browser.
+     * Format: [0x54 0x4D][0x56][uint24 header len][header JSON UTF-8][JPEG bytes]
+     *
+     * Uses ArrayBuffer/DataView/Uint8Array for browser compatibility (no Node.js Buffer).
+     *
+     * @param {Object} header - Frame header with timestamp, seq, width, height
+     * @param {Uint8Array} jpegBytes - JPEG image data
+     * @returns {ArrayBuffer} Encoded binary frame
+     */
+    function encodeVideoFrameBrowser(header, jpegBytes) {
+      var headerJson = JSON.stringify(header);
+      var encoder = new TextEncoder();
+      var headerBytes = encoder.encode(headerJson);
+      var headerLen = headerBytes.length;
+
+      // Total: 2 (magic) + 1 (type) + 3 (header len) + headerLen + jpegBytes.length
+      var totalLen = 6 + headerLen + jpegBytes.length;
+      var buf = new ArrayBuffer(totalLen);
+      var view = new DataView(buf);
+      var arr = new Uint8Array(buf);
+
+      // TM magic prefix
+      view.setUint8(0, 0x54); // 'T'
+      view.setUint8(1, 0x4D); // 'M'
+      // Type byte: video
+      view.setUint8(2, 0x56); // 'V'
+      // uint24 big-endian header length
+      view.setUint8(3, (headerLen >> 16) & 0xFF);
+      view.setUint8(4, (headerLen >> 8) & 0xFF);
+      view.setUint8(5, headerLen & 0xFF);
+      // Header JSON bytes
+      arr.set(headerBytes, 6);
+      // JPEG payload
+      arr.set(jpegBytes, 6 + headerLen);
+
+      return buf;
+    }
+
+    /**
+     * Acquires camera access via getUserMedia and sets up the video preview.
+     * @returns {Promise<boolean>} true if camera acquired successfully
+     */
+    async function acquireCamera() {
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 10 } }
+        });
+        videoDom.preview.srcObject = videoStream;
+        show(videoDom.previewContainer);
+        return true;
+      } catch (err) {
+        console.warn("[Video] Camera acquisition failed:", err.message);
+        videoStream = null;
+        return false;
+      }
+    }
+
+    /**
+     * Starts video frame capture at 5 FPS client cap.
+     * Captures JPEG frames from the video element via canvas,
+     * encodes them in TM-prefixed wire format, and sends over WebSocket.
+     */
+    function startVideoCapture() {
+      if (!videoStream || !videoDom.preview.videoWidth) {
+        console.warn("[Video] Cannot start capture — no video stream or video not ready");
+        return;
+      }
+
+      // Reset per-session counters
+      videoFrameSeq = 0;
+      videoFramesSent = 0;
+      videoFramesSkipped = 0;
+      lastVideoQualityGrade = null;
+      recordingStartPerfNow = performance.now();
+
+      // Hide video quality grade from previous session
+      if (videoDom.qualityGrade) {
+        videoDom.qualityGrade.className = "video-quality-grade";
+      }
+
+      var canvas = videoDom.captureCanvas;
+      var ctx = canvas.getContext("2d");
+
+      videoCaptureInterval = setInterval(function () {
+        // Guard: only send during RECORDING state with video consent (Req 2.1, 10.4)
+        if (currentState !== SessionState.RECORDING) return;
+        if (!videoConsentEnabled) return;
+        // Guard: need open WebSocket
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        // Guard: video element must have dimensions
+        if (!videoDom.preview.videoWidth || !videoDom.preview.videoHeight) return;
+
+        // Backpressure guard: skip frame if bufferedAmount > 2MB
+        if (ws.bufferedAmount > VIDEO_BACKPRESSURE_BYTES) {
+          videoFramesSkipped++;
+          updateVideoFrameStats();
+          return;
+        }
+
+        var vw = videoDom.preview.videoWidth;
+        var vh = videoDom.preview.videoHeight;
+
+        // Set canvas to match video dimensions
+        canvas.width = vw;
+        canvas.height = vh;
+
+        // Draw current video frame to canvas
+        ctx.drawImage(videoDom.preview, 0, 0, vw, vh);
+
+        // Convert to JPEG blob via toBlob for async, non-blocking encoding
+        canvas.toBlob(function (blob) {
+          if (!blob) return;
+          // Guard again — state or consent may have changed during async toBlob
+          if (currentState !== SessionState.RECORDING) return;
+          if (!videoConsentEnabled) return;
+          if (!ws || ws.readyState !== WebSocket.OPEN) return;
+          if (ws.bufferedAmount > VIDEO_BACKPRESSURE_BYTES) {
+            videoFramesSkipped++;
+            updateVideoFrameStats();
+            return;
+          }
+
+          // Read blob as ArrayBuffer
+          var reader = new FileReader();
+          reader.onload = function () {
+            // Final guard after async read — verify state and consent
+            if (currentState !== SessionState.RECORDING) return;
+            if (!videoConsentEnabled) return;
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+            var jpegBytes = new Uint8Array(reader.result);
+
+            // Build header with timestamp relative to recording start
+            var header = {
+              timestamp: (performance.now() - recordingStartPerfNow) / 1000,
+              seq: videoFrameSeq++,
+              width: vw,
+              height: vh
+            };
+
+            // Encode in TM-prefixed wire format and send as binary
+            var encoded = encodeVideoFrameBrowser(header, jpegBytes);
+            ws.send(encoded);
+
+            videoFramesSent++;
+            updateVideoFrameStats();
+          };
+          reader.readAsArrayBuffer(blob);
+        }, "image/jpeg", VIDEO_JPEG_QUALITY);
+      }, VIDEO_CAPTURE_INTERVAL_MS);
+    }
+
+    /**
+     * Stops video frame capture.
+     */
+    function stopVideoCapture() {
+      if (videoCaptureInterval !== null) {
+        clearInterval(videoCaptureInterval);
+        videoCaptureInterval = null;
+      }
+    }
+
+    /**
+     * Releases the camera stream and hides the preview.
+     */
+    function releaseCamera() {
+      stopVideoCapture();
+      if (videoStream) {
+        videoStream.getTracks().forEach(function (track) { track.stop(); });
+        videoStream = null;
+      }
+      if (videoDom.preview) {
+        videoDom.preview.srcObject = null;
+      }
+      hide(videoDom.previewContainer);
+    }
+
+    /**
+     * Updates the video frame stats display.
+     */
+    function updateVideoFrameStats() {
+      if (videoDom.frameStats) {
+        videoDom.frameStats.textContent = "Sent: " + videoFramesSent + " / Skipped: " + videoFramesSkipped;
+      }
+    }
+
+    /**
+     * Handles video_status messages from the server.
+     * Updates the video frame stats display during recording. (Req 10.8, 17.1)
+     * Shows frames processed/dropped, latency warning if >500ms,
+     * and captures video quality grade from final status after stop_recording.
+     * @param {Object} message - The video_status message
+     */
+    function handleVideoStatus(message) {
+      // Capture video quality grade from final status (present after stop_recording)
+      if (message.videoQualityGrade) {
+        lastVideoQualityGrade = message.videoQualityGrade;
+      }
+
+      // Show server-side frame stats during recording
+      if (videoDom.frameStats && currentState === SessionState.RECORDING) {
+        const processed = message.framesProcessed || 0;
+        const dropped = message.framesDropped || 0;
+        const latency = message.processingLatencyMs || 0;
+        let text = "Processed: " + processed + " / Dropped: " + dropped;
+        if (latency > 500) {
+          text += " ⚠️";
+        }
+        videoDom.frameStats.textContent = text;
+        if (latency > 500) {
+          videoDom.frameStats.title = "Processing latency: " + Math.round(latency) + "ms (high)";
+        } else {
+          videoDom.frameStats.title = "";
+        }
+      }
+
+      // Show video quality grade after evaluation (final status message)
+      if (message.videoQualityGrade) {
+        showVideoQualityGrade(message.videoQualityGrade);
+      }
+    }
+
+    /**
+     * Displays the video quality grade badge in the evaluation panel header.
+     * @param {"good"|"degraded"|"poor"} grade
+     */
+    function showVideoQualityGrade(grade) {
+      if (!videoDom.qualityGrade) return;
+      videoDom.qualityGrade.className = "video-quality-grade visible " + grade;
+      var labels = { good: "Video: Good", degraded: "Video: Degraded", poor: "Video: Poor" };
+      videoDom.qualityGrade.textContent = labels[grade] || "Video: " + grade;
+    }
+
     // ─── Initialize ───────────────────────────────────────────────────
     // Set initial UI state and establish WebSocket connection
     updateUI(SessionState.IDLE);
@@ -3219,6 +2823,17 @@
 
     // Check mic availability on load (non-blocking)
     checkMicPermission();
+
+    // Fetch and display app version in footer
+    fetch("/api/version")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.version) {
+          document.getElementById("app-footer").textContent =
+            "AI Toastmasters Evaluator \u2014 v" + data.version;
+        }
+      })
+      .catch(function () { /* footer stays as default text */ });
 
     // ─── Phase 2: Consent & Time Limit Event Listeners ────────────────
     // Listen for consent form changes
@@ -3237,6 +2852,12 @@
     dom.speechTitleInput.addEventListener("input", onSpeechTitleChange);
     dom.projectTypeSelect.addEventListener("change", onProjectTypeChange);
     dom.objectivesTextarea.addEventListener("input", onObjectivesChange);
+
+    // Phase 4: Listen for video consent and FPS config changes
+    dom.videoConsentCheckbox.addEventListener("change", onVideoConsentChange);
+    dom.videoFpsSlider.addEventListener("change", onVideoFpsChange);
+    dom.videoFpsSlider.addEventListener("input", onVideoFpsInput);
   </script>
 </body>
+
 </html>
