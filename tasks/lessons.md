@@ -15,6 +15,18 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-02-26 — Lesson 09: Stub Detectors Unblock Grading; Upload Pipeline Needs Direct Dep Injection
+
+**The Discovery**: `SessionManager` passes `{}` to `VideoProcessor` — no detectors → capabilities `{ face: false, pose: false }` → quality always "poor". Real ML requires heavy deps (tfjs-node, model files). Stub detectors unblock immediately.
+
+**The Scientific Proof**: Build + 1506 tests pass with stubs injected. `computeVideoQualityGrade` returns "good" when capabilities are `{ face: true, pose: true }`. For upload pipeline, `SessionManager.deps` is private — can't access pipeline from the handler. Direct dep injection in `index.ts` is cleaner than exposing internals.
+
+**The Farley Principle Applied**: Evolutionary Architecture — keep the system green and releasable at every step. Stub → real ML is a clean swap. Direct dep injection follows the Dependency Inversion Principle.
+
+**The Resulting Rule**: When a pipeline component requires heavy deps (ML models, native bindings), start with a stub that satisfies the interface contract. Use direct constructor injection for cross-cutting pipeline access instead of exposing internals.
+
+**Future Warning**: When implementing real ML detectors (#27), ensure they satisfy the same interface (`detect(buffer, w, h) → Detection|null`). The factory closure in `index.ts` will automatically use real detectors when they replace the stubs.
+
 ## 🗓️ 2026-02-25 — Lesson 08: Never Hardcode Version in Tests
 
 **The Discovery**: `index.test.ts` asserted `APP_VERSION === "0.1.0"` which broke when the version was bumped to 0.4.0. The test was validating a stale constant, not the versioning plumbing.
