@@ -1,5 +1,34 @@
 # AI Toastmasters Evaluator — Project Conventions
 
+Engineering principles are defined globally in `~/.gemini/GEMINI.md`.
+This file contains **project-specific** context only.
+
+---
+
+## Session Startup Protocol
+
+When beginning a new session or task in this project:
+
+1. **Read lessons**: Review the last 5 entries in `tasks/lessons.md`
+2. **Establish baseline**: Run `npx vitest run` and record the pass count (currently 1506)
+3. **Identify or create an issue**: Use `gh issue list` or `gh issue create` before writing code
+4. **If root cause is unknown**: Use `tasks/experiment_template.md` before implementing
+
+---
+
+## Available Tools
+
+### Always Available
+
+| Tool                    | Use Case                                                                         | Notes                     |
+| ----------------------- | -------------------------------------------------------------------------------- | ------------------------- |
+| `gh`                    | PR management, CI/CD monitoring (`gh run list`, `gh run watch`), issue tracking  | Permanently authenticated |
+| `git`                   | Version control                                                                  |                           |
+| `node` / `npm` / `npx`  | Runtime, package management, script execution                                    |                           |
+| `curl`                  | API health checks, endpoint testing                                              |                           |
+
+---
+
 ## Architecture
 
 ```
@@ -75,3 +104,14 @@ PORT=3004              # Optional, defaults to 3000
 - CSS custom properties follow taverns-red naming (`--red-primary`, `--bg-card`, etc.)
 - UI state managed via `SessionState` enum and `updateUI()` function
 - No framework — vanilla DOM manipulation via cached `dom.*` references
+
+## Quality Gates
+
+### Pre-push (every push)
+
+- Full test suite (vitest run)
+
+### CI/CD Pipeline (GitHub Actions)
+
+- Build verification (`npm run build`)
+- Full test suite (`npx vitest run`)
