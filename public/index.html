@@ -883,6 +883,8 @@
      * Called when the speaker name input or consent checkbox changes.
      * Sends set_consent message to server and updates local state.
      */
+    let consentDebounceTimer = null;
+
     function onConsentChange() {
       const name = dom.speakerNameInput.value.trim();
       const checked = dom.consentCheckbox.checked;
@@ -890,12 +892,15 @@
       consentSpeakerName = name;
       consentConfirmed = checked && name.length > 0;
 
-      // Send consent state to server
-      wsSend({
-        type: "set_consent",
-        speakerName: name,
-        consentConfirmed: checked && name.length > 0,
-      });
+      // Debounce consent messages to avoid per-keystroke chattiness (#31)
+      clearTimeout(consentDebounceTimer);
+      consentDebounceTimer = setTimeout(() => {
+        wsSend({
+          type: "set_consent",
+          speakerName: name,
+          consentConfirmed: checked && name.length > 0,
+        });
+      }, 350);
 
       // Enable/disable video consent checkbox based on audio consent (Req 1.1)
       if (consentConfirmed) {
@@ -2527,18 +2532,23 @@
     }
 
     async function onStartSpeech() {
+      // Guard: immediately disable to prevent double-click (#29)
+      disable(dom.btnStart);
+
       // Guard: don't start during cooldown
-      if (inCooldown) return;
+      if (inCooldown) { enable(dom.btnStart); return; }
 
       // Guard: consent must be confirmed (Req 2.3)
       if (!consentConfirmed || consentSpeakerName.trim().length === 0) {
         showError("Please enter the speaker's name and confirm consent before starting.", true);
+        enable(dom.btnStart);
         return;
       }
 
       // Guard: need WebSocket connection
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         showError("Not connected to server. Please wait for connection or refresh.", false);
+        enable(dom.btnStart);
         return;
       }
 
