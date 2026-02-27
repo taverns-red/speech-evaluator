@@ -150,3 +150,17 @@
 **Future Warning**: This pattern must be applied to any new async button handlers. The Upload Video button also triggers async work and should be reviewed for the same vulnerability.
 
 **rules.md**: none
+
+## 🗓️ 2026-02-27 — Lesson 12: commit-and-tag-version Treats feat as Patch in 0.x
+
+**The Discovery**: `commit-and-tag-version` auto-detected `0.4.1` (patch) despite having `feat:` commits since `v0.4.0`. Per strict semver, 0.x versions treat the minor number as the "breaking change" indicator and patch as the "feature" indicator. This is documented in semver.org §4: "Major version zero is for initial development. Anything MAY change at any time."
+
+**The Scientific Proof**: `npx commit-and-tag-version --dry-run` showed `0.4.1`. `npx commit-and-tag-version --dry-run --release-as minor` showed `0.5.0`. The auto-detect behavior is deliberate, not a bug.
+
+**The Farley Principle Applied**: Tools encode opinions. When a tool's default conflicts with project intent, configure it explicitly rather than hoping it "just works."
+
+**The Resulting Rule**: For 0.x projects using commit-and-tag-version, always use `--release-as minor` when feat commits are present, or `--release-as patch` for fix-only releases. Auto-detect is only reliable at 1.0+. The `/release` workflow documents this.
+
+**Future Warning**: Once the project reaches 1.0, auto-detect (`npm run release` with no flags) will correctly treat `feat:` as minor and `fix:` as patch.
+
+**rules.md**: none
