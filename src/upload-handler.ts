@@ -135,7 +135,7 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
      * - file: video/audio file
      * - speakerName: speaker's name (required for consent)
      * - speechTitle: optional speech title
-     * - projectType: optional Toastmasters project type
+     * - projectType: optional speech project type
      * - objectives: optional project objectives
      */
     router.post("/", uploadMiddleware.single("file"), async (req: Request, res: Response) => {

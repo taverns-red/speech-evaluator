@@ -5,7 +5,7 @@ fileMatchPattern: "{**/evaluation-generator*,**/*prompt*,**/*evaluation*}"
 
 # LLM Prompting and Style Guidelines
 
-This document standardizes the tone, structure, and phrasing rules for LLM-generated evaluations. The goal is a warm, specific, actionable evaluation that sounds like a skilled Toastmasters evaluator — not a robot, not a therapist, not a professor.
+This document standardizes the tone, structure, and phrasing rules for LLM-generated evaluations. The goal is a warm, specific, actionable evaluation that sounds like a skilled speech evaluator — not a robot, not a therapist, not a professor.
 
 ## Tone Rules
 

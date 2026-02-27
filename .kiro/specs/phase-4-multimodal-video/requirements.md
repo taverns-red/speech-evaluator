@@ -2,12 +2,12 @@
 
 ## Introduction
 
-Phase 4 — Multimodal (Video / Delivery Coaching) extends the AI Toastmasters Evaluator with visual observation capabilities. By adding camera input and a video processing pipeline that runs parallel to the existing audio pipeline, the system can provide richer, more human-like evaluations that include non-verbal communication feedback. All visual observations are strictly observational and quantitative — the system never infers psychology, emotion, or intent from visual signals. Video frames are processed in real-time and immediately discarded; no video data is stored.
+Phase 4 — Multimodal (Video / Delivery Coaching) extends the AI Speech Evaluator with visual observation capabilities. By adding camera input and a video processing pipeline that runs parallel to the existing audio pipeline, the system can provide richer, more human-like evaluations that include non-verbal communication feedback. All visual observations are strictly observational and quantitative — the system never infers psychology, emotion, or intent from visual signals. Video frames are processed in real-time and immediately discarded; no video data is stored.
 
 ## Glossary
 
-- **Operator**: The person controlling the system during a Toastmasters meeting via the Web_UI
-- **Speaker**: The Toastmasters club member delivering a speech being evaluated
+- **Operator**: The person controlling the system during a speech evaluation session via the Web_UI
+- **Speaker**: The speaking club member delivering a speech being evaluated
 - **Session**: A single end-to-end workflow covering one speech, from starting audio capture through delivering the evaluation
 - **Web_UI**: The browser-based control interface used by the Operator to manage a Session
 - **Session_Manager**: The server-side component that manages session state, transcription, metrics extraction, evaluation generation, and TTS synthesis

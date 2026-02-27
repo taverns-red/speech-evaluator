@@ -41,7 +41,7 @@ npm start
 The server logs all significant events to the console by default:
 
 ```
-AI Toastmasters Evaluator v0.1.0 running at http://localhost:3000
+AI Speech Evaluator v0.1.0 running at http://localhost:3000
 [INFO] New WebSocket connection, session abc-123
 [INFO] Audio format validated for session abc-123
 [INFO] Recording started for session abc-123

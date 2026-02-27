@@ -22,7 +22,7 @@ This document ties PRD exit criteria to automated checks and defines the quality
 | 10: Session Output File Round-Trip | FilePersistence | 100 | Req 6.1-6.3 |
 | 11: Output Directory Naming Convention | FilePersistence | 100 | Req 6.4 |
 
-All property tests use fast-check with Vitest as the runner. Tag format: `Feature: ai-toastmasters-evaluator, Property {N}: {title}`.
+All property tests use fast-check with Vitest as the runner. Tag format: `Feature: ai-speech-evaluator, Property {N}: {title}`.
 
 ## Golden Test Corpus
 

@@ -2,12 +2,12 @@
 
 ## Introduction
 
-Phase 2 — Stability & Credibility builds on the existing AI Toastmasters Evaluator MVP (Phase 1) to make the evaluator consistent, evidence-grounded, and safe for regular meeting use. This phase focuses on meeting evaluator credibility: human-like structure commentary, stable tone, minimal ungrounded content. All feedback remains descriptive — no scores, ratings, or numerical assessments. Phase 2 extends the existing codebase with six capability areas: evidence anchoring strengthening, speaker consent capture, tone guardrails, speech structure awareness, delivery metrics improvements, and meeting timing enforcement.
+Phase 2 — Stability & Credibility builds on the existing AI Speech Evaluator MVP (Phase 1) to make the evaluator consistent, evidence-grounded, and safe for regular meeting use. This phase focuses on meeting evaluator credibility: human-like structure commentary, stable tone, minimal ungrounded content. All feedback remains descriptive — no scores, ratings, or numerical assessments. Phase 2 extends the existing codebase with six capability areas: evidence anchoring strengthening, speaker consent capture, tone guardrails, speech structure awareness, delivery metrics improvements, and meeting timing enforcement.
 
 ## Glossary
 
-- **Operator**: The person controlling the system during a Toastmasters meeting via the Web_UI
-- **Speaker**: The Toastmasters club member delivering a speech being evaluated
+- **Operator**: The person controlling the system during a speech evaluation session via the Web_UI
+- **Speaker**: The speaking club member delivering a speech being evaluated
 - **Session**: A single end-to-end workflow covering one speech, from starting audio capture through delivering the evaluation
 - **Transcript**: A timestamped textual representation of the Speaker's speech produced by the Transcription_Engine
 - **Delivery_Metrics**: A structured JSON object containing measurements of speech delivery (WPM, filler words, duration, pauses, energy variation, pause classification)

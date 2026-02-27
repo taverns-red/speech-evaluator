@@ -1560,14 +1560,14 @@ describe("EvaluationGenerator", () => {
     it("should NOT redact places, organizations, or brands (conservative)", () => {
       const generator = new EvaluationGenerator(makeMockClient([]));
       const input = makeRedactionInput({
-        script: "The speech was given at the Toastmasters club on Monday in January.",
+        script: "The speech was given at the speaking club on Monday in January.",
         speakerName: "Sarah",
       });
 
       const result = generator.redact(input);
 
       // These should be preserved (non-name entities)
-      expect(result.scriptRedacted).toContain("Toastmasters");
+      expect(result.scriptRedacted).toContain("speaking club");
       expect(result.scriptRedacted).toContain("Monday");
       expect(result.scriptRedacted).toContain("January");
       expect(result.scriptRedacted).not.toContain("a fellow member");

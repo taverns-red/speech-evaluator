@@ -2,7 +2,7 @@
 
 ## Overview
 
-This feature extends the AI Toastmasters Evaluator with three capabilities:
+This feature extends the AI Speech Evaluator with three capabilities:
 
 1. **Server-side TTS audio caching** — After TTS synthesis, the audio buffer is stored in the session object so it can be replayed without re-calling OpenAI.
 2. **Replay via WebSocket** — A new `replay_tts` client message triggers the server to re-send the cached audio buffer using the existing `tts_audio`/`tts_complete` message sequence, with proper state transitions (IDLE → DELIVERING → IDLE).

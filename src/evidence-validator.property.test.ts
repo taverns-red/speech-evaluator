@@ -1,5 +1,5 @@
 // Property-Based Tests for EvidenceValidator
-// Feature: ai-toastmasters-evaluator, Property 7: Evidence Quote Validation
+// Feature: ai-speech-evaluator, Property 7: Evidence Quote Validation
 
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
@@ -236,7 +236,7 @@ const validator = new EvidenceValidator();
 
 // ─── Property Tests ─────────────────────────────────────────────────────────────
 
-describe("Feature: ai-toastmasters-evaluator, Property 7: Evidence Quote Validation", () => {
+describe("Feature: ai-speech-evaluator, Property 7: Evidence Quote Validation", () => {
   /**
    * **Validates: Requirements 4.3, 4.6**
    *

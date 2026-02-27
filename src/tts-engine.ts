@@ -70,7 +70,7 @@ export interface ScriptSection {
 
 /**
  * Patterns that indicate a commendation item is starting.
- * These are transition phrases commonly used in Toastmasters evaluations.
+ * These are transition phrases commonly used in speech evaluations.
  */
 const COMMENDATION_PATTERNS = [
   /\bone thing you did (?:really )?well\b/i,

@@ -215,7 +215,7 @@ Implement Phase 3 capabilities in order: types/data models first, then VAD monit
 - [x] 10. Implement frontend project context UI
   - [x] 10.1 Add project context form to the IDLE state UI
     - Add speech title input, project type dropdown, objectives textarea
-    - Populate `PROJECT_TYPES` lookup table with predefined Toastmasters project types and objectives
+    - Populate `PROJECT_TYPES` lookup table with predefined speech project types and objectives
     - Auto-populate objectives on project type selection
     - Wire form changes to send `set_project_context` message
     - Hide/disable form during RECORDING/PROCESSING/DELIVERING states

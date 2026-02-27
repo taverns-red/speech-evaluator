@@ -1,5 +1,5 @@
 // Property-Based Tests for Server - Audio Capture Inactive During Delivery
-// Feature: ai-toastmasters-evaluator, Property 9: Audio Capture Inactive During Delivery
+// Feature: ai-speech-evaluator, Property 9: Audio Capture Inactive During Delivery
 
 import { describe, it, expect, vi } from "vitest";
 import * as fc from "fast-check";
@@ -195,7 +195,7 @@ function arbitraryAudioChunkBatch(): fc.Arbitrary<Buffer[]> {
 
 // ─── Property Tests ─────────────────────────────────────────────────────────────
 
-describe("Feature: ai-toastmasters-evaluator, Property 9: Audio Capture Inactive During Delivery", () => {
+describe("Feature: ai-speech-evaluator, Property 9: Audio Capture Inactive During Delivery", () => {
   /**
    * **Validates: Requirements 5.3**
    *

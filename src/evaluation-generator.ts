@@ -615,7 +615,7 @@ export class EvaluationGenerator {
   }
 
   private buildSystemPrompt(qualityWarning: boolean, hasVisual: boolean = false): string {
-      let prompt = `You are an experienced Toastmasters speech evaluator. Your role is to provide supportive, evidence-based evaluations of speeches.
+      let prompt = `You are an experienced speech evaluator. Your role is to provide supportive, evidence-based evaluations of speeches.
 
   ## Output Format
   You MUST respond with a valid JSON object matching this exact structure:
@@ -830,7 +830,7 @@ ${config.objectives.map((o, i) => `${i + 1}. ${o}`).join("\n")}`;
 ### Instructions
 - Reference the project type and speech title in your opening.
 - Include at least one commendation or recommendation that directly addresses a project objective.
-- Balance project-specific feedback with general Toastmasters evaluation criteria.
+- Balance project-specific feedback with general speech evaluation criteria.
 - Project objectives supplement, not replace, evidence-based feedback.`;
     } else if (config?.objectives && config.objectives.length > 0) {
       // Edge case: objectives present but no projectType — preserve existing rendering (Req 5.3)
@@ -854,7 +854,7 @@ Please evaluate this speech following the instructions and output format specifi
     transcriptText: string,
     issues: string[],
   ): { system: string; user: string } {
-    const system = `You are an experienced Toastmasters speech evaluator. You need to fix an evaluation item whose evidence quote could not be verified against the transcript.
+    const system = `You are an experienced speech evaluator. You need to fix an evaluation item whose evidence quote could not be verified against the transcript.
 
 ## Output Format
 Respond with a valid JSON object matching this exact structure:

@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This feature adds TTS audio replay capability and audio file persistence to the AI Toastmasters Evaluator. Currently, the TTS evaluation audio is synthesized and streamed to the client in a single pass — once playback finishes, the audio is gone. This feature caches the synthesized audio buffer server-side in the session, exposes a replay mechanism so the operator can listen again without re-calling OpenAI, and includes the TTS audio file alongside existing outputs when "Save Outputs" is clicked.
+This feature adds TTS audio replay capability and audio file persistence to the AI Speech Evaluator. Currently, the TTS evaluation audio is synthesized and streamed to the client in a single pass — once playback finishes, the audio is gone. This feature caches the synthesized audio buffer server-side in the session, exposes a replay mechanism so the operator can listen again without re-calling OpenAI, and includes the TTS audio file alongside existing outputs when "Save Outputs" is clicked.
 
 ## Glossary
 
@@ -10,7 +10,7 @@ This feature adds TTS audio replay capability and audio file persistence to the 
 - **TTS_Audio_Cache**: The in-memory buffer on the server that stores the synthesized TTS audio for the duration of the session lifecycle.
 - **Replay_Handler**: The server-side handler that responds to replay requests by sending the cached TTS audio buffer to the client.
 - **File_Persistence**: The component responsible for writing session outputs to disk when the operator clicks "Save Outputs".
-- **Operator**: The person controlling the evaluator application during a Toastmasters meeting.
+- **Operator**: The person controlling the evaluator application during a speech evaluation session.
 - **Client_UI**: The browser-based user interface that the operator interacts with.
 
 ## Requirements

@@ -1,5 +1,5 @@
 // Property-Based Tests for EvaluationGenerator — Structured Evaluation Shape Invariant
-// Feature: ai-toastmasters-evaluator, Property 8: Structured Evaluation Shape Invariant
+// Feature: ai-speech-evaluator, Property 8: Structured Evaluation Shape Invariant
 
 import { describe, it, expect, vi } from "vitest";
 import * as fc from "fast-check";
@@ -256,7 +256,7 @@ function makeMockClient(responses: string[]): OpenAIClient {
 
 // ─── Property Tests ─────────────────────────────────────────────────────────────
 
-describe("Feature: ai-toastmasters-evaluator, Property 8: Structured Evaluation Shape Invariant", () => {
+describe("Feature: ai-speech-evaluator, Property 8: Structured Evaluation Shape Invariant", () => {
   /**
    * **Validates: Requirements 4.1, 4.2**
    *
@@ -2289,7 +2289,7 @@ describe("Feature: phase-3-semi-automation, CTX-P3: Project context included in 
   // ── Generators ──────────────────────────────────────────────────────────────
 
   /**
-   * Generate a non-empty project type string from realistic Toastmasters project types.
+   * Generate a non-empty project type string from realistic speech project types.
    */
   function arbitraryProjectType(): fc.Arbitrary<string> {
     return fc.constantFrom(
@@ -2308,7 +2308,7 @@ describe("Feature: phase-3-semi-automation, CTX-P3: Project context included in 
    */
   function arbitrarySpeechTitle(): fc.Arbitrary<string> {
     const TITLE_WORDS = [
-      "My", "Journey", "To", "Toastmasters", "Finding", "Voice", "The",
+      "My", "Journey", "To", "Excellence", "Finding", "Voice", "The",
       "Power", "Of", "Words", "Speaking", "Up", "A", "New", "Beginning",
       "Lessons", "From", "Life", "Growth", "Through", "Challenge",
     ];
@@ -2433,7 +2433,7 @@ describe("Feature: phase-3-semi-automation, CTX-P3: Project context included in 
           // The prompt SHALL contain instructions to reference project objectives
           expect(prompt).toContain("Reference the project type and speech title in your opening");
           expect(prompt).toContain("directly addresses a project objective");
-          expect(prompt).toContain("Balance project-specific feedback with general Toastmasters evaluation criteria");
+          expect(prompt).toContain("Balance project-specific feedback with general speech evaluation criteria");
           expect(prompt).toContain("Project objectives supplement, not replace, evidence-based feedback");
         },
       ),
@@ -2559,7 +2559,7 @@ describe("Feature: phase-3-semi-automation, CTX-P1: Absent project context produ
           // The prompt SHALL NOT contain project-specific instruction text
           expect(prompt).not.toContain("Reference the project type and speech title in your opening");
           expect(prompt).not.toContain("directly addresses a project objective");
-          expect(prompt).not.toContain("Balance project-specific feedback with general Toastmasters evaluation criteria");
+          expect(prompt).not.toContain("Balance project-specific feedback with general speech evaluation criteria");
           expect(prompt).not.toContain("Project objectives supplement, not replace, evidence-based feedback");
 
           // The prompt SHALL NOT contain the Evaluation Objectives section

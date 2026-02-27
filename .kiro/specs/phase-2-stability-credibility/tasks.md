@@ -2,7 +2,7 @@
 
 ## Overview
 
-Phase 2 extends the existing AI Toastmasters Evaluator with consent capture, tone guardrails, speech structure awareness, enhanced delivery metrics, meeting timing enforcement, and pipeline orchestration. All implementation is in TypeScript, extending existing source files. Tasks are ordered so each builds on the previous, with property tests close to their implementation.
+Phase 2 extends the existing AI Speech Evaluator with consent capture, tone guardrails, speech structure awareness, enhanced delivery metrics, meeting timing enforcement, and pipeline orchestration. All implementation is in TypeScript, extending existing source files. Tasks are ordered so each builds on the previous, with property tests close to their implementation.
 
 ## Tasks
 

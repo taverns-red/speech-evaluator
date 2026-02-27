@@ -1,4 +1,4 @@
-// AI Toastmasters Evaluator - File Persistence
+// AI Speech Evaluator - File Persistence
 // Opt-in saving of session outputs to disk.
 // Requirements: 6.1 (save transcript), 6.2 (save metrics), 6.3 (save evaluation), 6.4 (timestamp naming)
 //
@@ -59,7 +59,7 @@ export function formatEvaluation(session: Session): string {
   const lines: string[] = [];
 
   // Header
-  lines.push("=== Toastmasters Speech Evaluation ===");
+  lines.push("=== Speech Evaluation ===");
   lines.push("");
 
   const date = session.stoppedAt ?? session.startedAt ?? new Date();

@@ -1,8 +1,8 @@
-# Implementation Plan: AI Toastmasters Evaluator MVP (Phase 1)
+# Implementation Plan: AI Speech Evaluator MVP (Phase 1)
 
 ## Overview
 
-Build a Node.js/TypeScript web application that captures a live Toastmasters speech via microphone, transcribes it (Deepgram live + OpenAI post-pass), computes delivery metrics, generates a structured evidence-based evaluation via GPT-4o, and delivers it aloud via OpenAI TTS. The implementation follows the pipeline architecture defined in the design document.
+Build a Node.js/TypeScript web application that captures a live speech via microphone, transcribes it (Deepgram live + OpenAI post-pass), computes delivery metrics, generates a structured evidence-based evaluation via GPT-4o, and delivers it aloud via OpenAI TTS. The implementation follows the pipeline architecture defined in the design document.
 
 ## Tasks
 

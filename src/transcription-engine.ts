@@ -1,4 +1,4 @@
-// AI Toastmasters Evaluator - Transcription Engine
+// AI Speech Evaluator - Transcription Engine
 // Manages two transcription passes:
 //   1. Deepgram live captions (for UI display during recording) — implemented here
 //   2. OpenAI post-speech final transcript (for metrics/evaluation) — implemented in task 7.2

@@ -1,8 +1,8 @@
-# Design Document: AI Toastmasters Evaluator MVP (Phase 1)
+# Design Document: AI Speech Evaluator MVP (Phase 1)
 
 ## Overview
 
-The AI Toastmasters Evaluator is a web-based application that captures a live Toastmasters speech via microphone, transcribes it in real time, computes delivery metrics, generates an evidence-based evaluation using an LLM, and delivers it aloud via text-to-speech. The system runs on an internet-connected laptop with a USB/boundary microphone for input and a separate speaker for output.
+The AI Speech Evaluator is a web-based application that captures a live speech via microphone, transcribes it in real time, computes delivery metrics, generates an evidence-based evaluation using an LLM, and delivers it aloud via text-to-speech. The system runs on an internet-connected laptop with a USB/boundary microphone for input and a separate speaker for output.
 
 The architecture follows a pipeline pattern: Audio Capture → Transcription → Metrics Extraction → Evaluation Generation → TTS Delivery. A web-based UI provides manual controls for the Operator. All components communicate through well-defined interfaces to support future extensibility.
 
@@ -47,7 +47,7 @@ If validation fails, the server emits an `audio_format_error` and stops acceptin
 4. **Hardened echo prevention**: The mic MediaStream tracks are hard-stopped in DELIVERING state. A 2-3 second cooldown period after TTS completes prevents premature re-arming. A "panic mute" button is available at all times. No DSP-based echo cancellation needed for MVP.
 5. **Structured evaluation output**: The LLM produces a structured JSON response with explicit commendation/recommendation objects, each containing an `evidence_quote` and `evidence_timestamp`. Evidence quotes are validated against the transcript text before rendering the spoken script. This reduces hallucination more effectively than prompt-only controls.
 6. **Section-based evaluation length**: Instead of a raw word count target, the evaluation is structured into sections (opening, commendations, recommendations, closing) with per-section sentence limits. A hard playback time cap of 3m30s is enforced at the TTS level.
-7. **Opt-in persistence**: Session outputs are NOT saved to disk by default. The Operator must explicitly click "Save Outputs" after the evaluation is delivered. This respects privacy in a Toastmasters room setting.
+7. **Opt-in persistence**: Session outputs are NOT saved to disk by default. The Operator must explicitly click "Save Outputs" after the evaluation is delivered. This respects privacy in a meeting room setting.
 
 ## Architecture
 
@@ -639,7 +639,7 @@ Each property test references its design document property and runs a minimum of
 | Property 10: File Round-Trip | FilePersistence.saveSession() | Generate random session data, save to files, read back, compare |
 | Property 11: Directory Naming | FilePersistence.saveSession() | Generate random session IDs and timestamps, verify directory structure |
 
-**Tag format for each test**: `Feature: ai-toastmasters-evaluator, Property {N}: {property title}`
+**Tag format for each test**: `Feature: ai-speech-evaluator, Property {N}: {property title}`
 
 ### Integration Tests
 

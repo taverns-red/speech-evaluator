@@ -1,4 +1,4 @@
-// AI Toastmasters Evaluator - Entry point
+// AI Speech Evaluator - Entry point
 // Wires up all pipeline dependencies and starts the server.
 
 import "dotenv/config";

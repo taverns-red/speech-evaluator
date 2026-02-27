@@ -1,5 +1,5 @@
 // Property-Based Tests for MetricsExtractor
-// Feature: ai-toastmasters-evaluator, Property 2: Duration Computation Correctness
+// Feature: ai-speech-evaluator, Property 2: Duration Computation Correctness
 
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
@@ -74,7 +74,7 @@ function arbitraryNonEmptySegments(): fc.Arbitrary<TranscriptSegment[]> {
 
 // ─── Property Tests ─────────────────────────────────────────────────────────────
 
-describe("Feature: ai-toastmasters-evaluator, Property 2: Duration Computation Correctness", () => {
+describe("Feature: ai-speech-evaluator, Property 2: Duration Computation Correctness", () => {
   const extractor = new MetricsExtractor();
 
   /**
@@ -188,7 +188,7 @@ function arbitrarySegmentsForWPM(): fc.Arbitrary<{
     });
 }
 
-describe("Feature: ai-toastmasters-evaluator, Property 3: WPM Computation Correctness", () => {
+describe("Feature: ai-speech-evaluator, Property 3: WPM Computation Correctness", () => {
   const extractor = new MetricsExtractor();
 
   /**
@@ -309,7 +309,7 @@ function arbitrarySegmentsWithFillers(): fc.Arbitrary<TranscriptSegment[]> {
     });
 }
 
-describe("Feature: ai-toastmasters-evaluator, Property 4: Filler Word Metrics Internal Consistency", () => {
+describe("Feature: ai-speech-evaluator, Property 4: Filler Word Metrics Internal Consistency", () => {
   const extractor = new MetricsExtractor();
 
   /**
@@ -596,7 +596,7 @@ function arbitrarySegmentLevelOnlyWithKnownPauses(): fc.Arbitrary<{
     });
 }
 
-describe("Feature: ai-toastmasters-evaluator, Property 5: Pause Detection Correctness", () => {
+describe("Feature: ai-speech-evaluator, Property 5: Pause Detection Correctness", () => {
   const extractor = new MetricsExtractor();
 
   /**
