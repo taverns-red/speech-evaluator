@@ -1,4 +1,4 @@
-// AI Toastmasters Evaluator - Metrics Extractor
+// AI Speech Evaluator - Metrics Extractor
 // Requirements: 3.1 (duration), 3.2 (WPM), 3.3 (filler words), 3.4 (pauses), 3.5 (JSON output), 3.6 (contextual filler detection)
 // Phase 2: 5.1 (pause classification), 5.2 (intentional pauses), 5.3 (hesitation pauses)
 

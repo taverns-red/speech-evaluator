@@ -1,4 +1,4 @@
-// AI Toastmasters Evaluator - Shared TypeScript interfaces and types
+// AI Speech Evaluator - Shared TypeScript interfaces and types
 // Requirements: 8.1 (component separation), 8.2 (evaluation objectives extensibility),
 //               8.3 (voice config extensibility), 8.4 (multi-speaker extensibility)
 
@@ -51,7 +51,7 @@ export interface ConsentRecord {
 export interface ProjectContext {
   /** Speech title, free text. Max 200 characters (Req 4.8). */
   speechTitle: string | null;
-  /** Toastmasters Pathways project type. Max 100 characters (Req 4.8). */
+  /** Pathways project type. Max 100 characters (Req 4.8). */
   projectType: string | null;
   /** Project-specific evaluation objectives. Max 10 items, each max 500 characters (Req 4.8). */
   objectives: string[];
@@ -263,7 +263,7 @@ export interface ToneCheckResult {
 export interface EvaluationConfig {
   objectives?: string[]; // unused in Phase 1, extensibility hook (Req 8.2)
   speechTitle?: string;    // Phase 3: speech title from ProjectContext
-  projectType?: string;    // Phase 3: Toastmasters project type from ProjectContext
+  projectType?: string;    // Phase 3: speech project type from ProjectContext
 }
 
 export interface TTSConfig {

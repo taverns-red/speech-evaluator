@@ -10,7 +10,7 @@ const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf-
 
 describe("Project setup", () => {
   it("should export app name", () => {
-    expect(APP_NAME).toBe("AI Toastmasters Evaluator");
+    expect(APP_NAME).toBe("AI Speech Evaluator");
   });
 
   it("should export app version matching package.json", () => {

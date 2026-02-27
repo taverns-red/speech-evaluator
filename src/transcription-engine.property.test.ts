@@ -1,5 +1,5 @@
 // Property-Based Tests for TranscriptionEngine — Transcript Structural Invariant
-// Feature: ai-toastmasters-evaluator, Property 1: Transcript Structural Invariant
+// Feature: ai-speech-evaluator, Property 1: Transcript Structural Invariant
 
 import { describe, it, expect, vi } from "vitest";
 import * as fc from "fast-check";
@@ -363,7 +363,7 @@ function arbitraryDeepgramEvent(): fc.Arbitrary<{
 
 // ─── Property Tests ─────────────────────────────────────────────────────────────
 
-describe("Feature: ai-toastmasters-evaluator, Property 1: Transcript Structural Invariant", () => {
+describe("Feature: ai-speech-evaluator, Property 1: Transcript Structural Invariant", () => {
   // ─── finalize() path: OpenAI post-speech transcription ──────────────────────
 
   describe("finalize() — OpenAI post-speech transcription", () => {

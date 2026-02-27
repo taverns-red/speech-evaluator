@@ -2,11 +2,11 @@
 
 ## Overview
 
-Phase 3 extends the AI Toastmasters Evaluator with three capability areas that reduce operator workload while preserving human oversight:
+Phase 3 extends the AI Speech Evaluator with three capability areas that reduce operator workload while preserving human oversight:
 
 1. **Voice Activity Detection (VAD)** — A server-side `VADMonitor` component that analyzes audio chunks in real time during recording to detect sustained silence, emitting speech-end suggestions to the operator. The operator must still confirm before recording stops. The VAD reuses the same RMS energy computation pattern already established in `MetricsExtractor.computeEnergyProfile()`, adapted for streaming (per-chunk) rather than batch (post-recording) analysis.
 
-2. **Project Awareness** — A `ProjectContext` metadata object on the Session that carries speech title, Toastmasters project type, and project-specific objectives. The existing `EvaluationConfig.objectives` extensibility hook (Req 8.2 from Phase 1) is activated and extended. The LLM prompt is augmented to reference project goals alongside general feedback.
+2. **Project Awareness** — A `ProjectContext` metadata object on the Session that carries speech title, speech project type, and project-specific objectives. The existing `EvaluationConfig.objectives` extensibility hook (Req 8.2 from Phase 1) is activated and extended. The LLM prompt is augmented to reference project goals alongside general feedback.
 
 3. **Evidence Highlight UI (Optional)** — Client-side transcript navigation and metrics dashboard. Evidence quotes in the evaluation become clickable, scrolling to and highlighting the matching transcript passage. A compact metrics summary panel displays key delivery statistics.
 
@@ -35,7 +35,7 @@ Phase 3 extends the AI Toastmasters Evaluator with three capability areas that r
 
 6. **Evidence highlight is purely client-side.** The server already sends `evaluation_ready` with evidence quotes and timestamps, and `transcript_update` with segment data. The client has all the data it needs to match quotes to transcript segments using the same normalization rules as `EvidenceValidator`. No new server endpoints or messages are needed for this feature.
 
-7. **Predefined project types are a client-side lookup table.** The list of Toastmasters Pathways projects and their standard objectives is static data embedded in the frontend. The server receives the selected project type as a string — it doesn't need to know the full catalog.
+7. **Predefined project types are a client-side lookup table.** The list of Pathways projects and their standard objectives is static data embedded in the frontend. The server receives the selected project type as a string — it doesn't need to know the full catalog.
 
 8. **VAD status messages are throttled to 4/second.** Audio chunks arrive at ~20/second (50ms each). Sending a `vad_status` for every chunk would flood the WebSocket. The server accumulates chunks and sends status updates at most every 250ms.
 
@@ -248,7 +248,7 @@ function computeChunkRMS(chunk: Buffer): number {
 export interface ProjectContext {
   /** Speech title, free text. Max 200 characters (Req 4.8). */
   speechTitle: string | null;
-  /** Toastmasters Pathways project type. Max 100 characters (Req 4.8). */
+  /** Pathways project type. Max 100 characters (Req 4.8). */
   projectType: string | null;
   /** Project-specific evaluation objectives. Max 10 items, each max 500 characters (Req 4.8). */
   objectives: string[];
@@ -447,7 +447,7 @@ This speech is a {projectType} project titled "{speechTitle}".
 ### Instructions
 - Reference the project type and speech title in your opening.
 - Include at least one commendation or recommendation that directly addresses a project objective.
-- Balance project-specific feedback with general Toastmasters evaluation criteria.
+- Balance project-specific feedback with general speech evaluation criteria.
 - Project objectives supplement, not replace, evidence-based feedback.
 ```
 
@@ -461,7 +461,7 @@ Note: `buildSystemPrompt(qualityWarning: boolean)` signature is NOT changed. The
 export interface EvaluationConfig {
   objectives?: string[];
   speechTitle?: string;    // Phase 3: speech title from ProjectContext
-  projectType?: string;    // Phase 3: Toastmasters project type from ProjectContext
+  projectType?: string;    // Phase 3: speech project type from ProjectContext
 }
 ```
 
@@ -576,7 +576,7 @@ const PROJECT_TYPES = {
 
 ```typescript
 {
-  speechTitle: string | null;   // "My Journey to Toastmasters"
+  speechTitle: string | null;   // "My Path to Public Speaking"
   projectType: string | null;   // "Ice Breaker"
   objectives: string[];         // ["Introduce yourself...", "Organize your speech..."]
 }

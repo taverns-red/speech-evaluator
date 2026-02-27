@@ -1,5 +1,5 @@
 // Property-Based Tests for FilePersistence
-// Feature: ai-toastmasters-evaluator, Property 10: Session Output File Round-Trip
+// Feature: ai-speech-evaluator, Property 10: Session Output File Round-Trip
 
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
@@ -269,7 +269,7 @@ function parseTranscriptLine(line: string): { minutes: number; seconds: number; 
 
 // ─── Property Tests ─────────────────────────────────────────────────────────────
 
-describe("Feature: ai-toastmasters-evaluator, Property 10: Session Output File Round-Trip", () => {
+describe("Feature: ai-speech-evaluator, Property 10: Session Output File Round-Trip", () => {
 
   /**
    * **Validates: Requirements 6.1, 6.2, 6.3**
@@ -361,7 +361,7 @@ describe("Feature: ai-toastmasters-evaluator, Property 10: Session Output File R
         expect(content).toContain(`Session ID: ${session.id}`);
 
         // Header marker is present
-        expect(content).toContain("=== Toastmasters Speech Evaluation ===");
+        expect(content).toContain("=== Speech Evaluation ===");
 
         // If metrics are present, duration appears in the header
         if (session.metrics) {
@@ -455,7 +455,7 @@ describe("Feature: ai-toastmasters-evaluator, Property 10: Session Output File R
 
 // ─── Property 11 Tests ──────────────────────────────────────────────────────────
 
-describe("Feature: ai-toastmasters-evaluator, Property 11: Output Directory Naming Convention", () => {
+describe("Feature: ai-speech-evaluator, Property 11: Output Directory Naming Convention", () => {
 
   /**
    * **Validates: Requirements 6.4**

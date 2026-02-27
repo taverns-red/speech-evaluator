@@ -1,7 +1,7 @@
 {
-  "name": "ai-toastmasters-evaluator",
+  "name": "ai-speech-evaluator",
   "version": "0.4.0",
-  "description": "AI Toastmasters Evaluator MVP - captures live speech, transcribes, computes metrics, generates evaluation, and delivers via TTS",
+  "description": "AI Speech Evaluator MVP - captures live speech, transcribes, computes metrics, generates evaluation, and delivers via TTS",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -13,7 +13,7 @@
     "prepare": "husky"
   },
   "keywords": [
-    "toastmasters",
+    "speech-evaluator",
     "speech-evaluation",
     "ai",
     "transcription",

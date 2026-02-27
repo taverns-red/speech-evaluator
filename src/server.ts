@@ -1,4 +1,4 @@
-// AI Toastmasters Evaluator - WebSocket Handler and Express Server
+// AI Speech Evaluator - WebSocket Handler and Express Server
 // Requirements: 1.2 (start recording), 1.3 (elapsed time), 1.4 (stop recording),
 //               1.6 (deliver evaluation), 1.7 (panic mute), 2.5 (echo prevention)
 //

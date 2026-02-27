@@ -1,4 +1,4 @@
-# AI Toastmasters Evaluator — Product Requirements Document
+# AI Speech Evaluator — Product Requirements Document
 
 ## Vision
 

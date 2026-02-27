@@ -2,12 +2,12 @@
 
 ## Introduction
 
-Phase 3 — Semi-Automation builds on the existing AI Toastmasters Evaluator (Phase 1 MVP + Phase 2 Stability & Credibility + Eager Evaluation Pipeline) to reduce manual operator workload while preserving reliability and human oversight. This phase introduces three capability areas: Voice Activity Detection (VAD) for speech end detection with operator confirmation, project awareness for tailored evaluations, and an optional evidence highlight UI for transcript navigation. The core behavioral boundary — "the system never speaks unprompted" and "human confirmation still required" — is preserved throughout.
+Phase 3 — Semi-Automation builds on the existing AI Speech Evaluator (Phase 1 MVP + Phase 2 Stability & Credibility + Eager Evaluation Pipeline) to reduce manual operator workload while preserving reliability and human oversight. This phase introduces three capability areas: Voice Activity Detection (VAD) for speech end detection with operator confirmation, project awareness for tailored evaluations, and an optional evidence highlight UI for transcript navigation. The core behavioral boundary — "the system never speaks unprompted" and "human confirmation still required" — is preserved throughout.
 
 ## Glossary
 
-- **Operator**: The person controlling the system during a Toastmasters meeting via the Web_UI
-- **Speaker**: The Toastmasters club member delivering a speech being evaluated
+- **Operator**: The person controlling the system during a speech evaluation session via the Web_UI
+- **Speaker**: The speaking club member delivering a speech being evaluated
 - **Session**: A single end-to-end workflow covering one speech, from starting audio capture through delivering the evaluation
 - **Web_UI**: The browser-based control interface used by the Operator to manage a Session
 - **Session_Manager**: The server-side component that manages session state, transcription, metrics extraction, evaluation generation, and TTS synthesis
@@ -18,8 +18,8 @@ Phase 3 — Semi-Automation builds on the existing AI Toastmasters Evaluator (Ph
 - **VAD_Monitor**: The server-side component that analyzes audio chunks in real time to detect sustained silence, producing speech-end suggestions for the Operator
 - **Silence_Threshold**: The configurable duration of continuous silence (default 5 seconds) after which the VAD_Monitor suggests the speech has ended
 - **Speech_End_Suggestion**: A server-to-client notification indicating the VAD_Monitor has detected sustained silence, prompting the Operator to confirm whether to stop recording
-- **Project_Context**: Pre-speech metadata provided by the Operator including speech title, Toastmasters project type, and project-specific objectives
-- **Project_Type**: A Toastmasters Pathways project category (e.g., Ice Breaker, Vocal Variety, Persuasive Speaking) that defines specific evaluation objectives
+- **Project_Context**: Pre-speech metadata provided by the Operator including speech title, speech project type, and project-specific objectives
+- **Project_Type**: A Pathways project category (e.g., Ice Breaker, Vocal Variety, Persuasive Speaking) that defines specific evaluation objectives
 - **Evidence_Highlight**: An optional UI feature that links evaluation evidence quotes to their corresponding positions in the transcript with clickable navigation
 - **Consent_Record**: A metadata object capturing the Speaker's name and consent status for the current Session
 - **Eager_Pipeline**: The background process that automatically runs evaluation generation and TTS synthesis after recording stops
@@ -71,12 +71,12 @@ Phase 3 — Semi-Automation builds on the existing AI Toastmasters Evaluator (Ph
 
 ### Requirement 4: Project Awareness — Context Input
 
-**User Story:** As an Operator, I want to input the speech title, Toastmasters project type, and project-specific objectives before recording, so that the evaluation is tailored to the project goals.
+**User Story:** As an Operator, I want to input the speech title, speech project type, and project-specific objectives before recording, so that the evaluation is tailored to the project goals.
 
 #### Acceptance Criteria
 
 1. WHEN the Session is in IDLE state, THE Web_UI SHALL display input fields for speech title (free text), project type (dropdown selection), and project-specific objectives (multi-line text area)
-2. THE Web_UI SHALL provide a predefined list of common Toastmasters Pathways project types including but not limited to: Ice Breaker, Evaluation and Feedback, Researching and Presenting, Introduction to Vocal Variety, Connect with Storytelling, Persuasive Speaking, and a "Custom / Other" option
+2. THE Web_UI SHALL provide a predefined list of common Pathways project types including but not limited to: Ice Breaker, Evaluation and Feedback, Researching and Presenting, Introduction to Vocal Variety, Connect with Storytelling, Persuasive Speaking, and a "Custom / Other" option
 3. WHEN the Operator selects a predefined project type, THE Web_UI SHALL auto-populate the objectives field with the standard objectives for that project type, which the Operator can edit
 4. WHEN the Operator provides Project_Context, THE Web_UI SHALL send a `set_project_context` message to the Server containing the speech title, project type, and objectives
 5. THE Session_Manager SHALL store the Project_Context on the Session and make the context available to the Evaluation_Generator
@@ -99,7 +99,7 @@ Phase 3 — Semi-Automation builds on the existing AI Toastmasters Evaluator (Ph
 **Design Principles** (not machine-testable — enforced via LLM prompt instructions):
 
 - The LLM prompt SHALL instruct the model to include at least one commendation or recommendation that directly references a project objective
-- Project objectives SHALL supplement rather than replace evidence-based feedback; the LLM prompt SHALL instruct the model to balance project-specific feedback with general Toastmasters evaluation criteria
+- Project objectives SHALL supplement rather than replace evidence-based feedback; the LLM prompt SHALL instruct the model to balance project-specific feedback with general speech evaluation criteria
 
 ### Requirement 6: Project Awareness — WebSocket Protocol Extension
 

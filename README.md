@@ -1,6 +1,6 @@
-# AI Toastmasters Evaluator
+# AI Speech Evaluator
 
-An AI-powered speech evaluator for Toastmasters meetings. It listens to a live speech, transcribes it, computes delivery metrics, generates an evidence-based evaluation, and speaks it aloud — all from a browser-based control panel.
+An AI-powered speech evaluator for live speeches. It listens to a live speech, transcribes it, computes delivery metrics, generates an evidence-based evaluation, and speaks it aloud — all from a browser-based control panel.
 
 ## How It Works
 

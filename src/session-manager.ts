@@ -1,4 +1,4 @@
-// AI Toastmasters Evaluator - Session Manager
+// AI Speech Evaluator - Session Manager
 // Central orchestrator managing session state transitions and coordination.
 // Requirements: 1.1 (initial state), 1.2 (start recording), 1.4 (stop recording),
 //               1.6 (deliver evaluation), 1.8 (return to initial state), 7.1 (quality)
@@ -212,7 +212,7 @@ export class SessionManager {
   /**
    * Store project context on the session. Only valid in IDLE state.
    *
-   * Project context carries speech title, Toastmasters project type, and
+   * Project context carries speech title, speech project type, and
    * project-specific objectives. Once recording starts, the context becomes
    * immutable for that session (consistent with ConsentRecord immutability).
    *

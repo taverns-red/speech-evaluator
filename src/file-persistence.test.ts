@@ -342,7 +342,7 @@ describe("FilePersistence", () => {
       });
       const result = formatEvaluation(session);
 
-      expect(result).toContain("=== Toastmasters Speech Evaluation ===");
+      expect(result).toContain("=== Speech Evaluation ===");
       expect(result).toContain("Date: 2025-01-15");
       expect(result).toContain("Session ID: test-session-123");
       expect(result).toContain("Duration: 7:00");
@@ -615,7 +615,7 @@ describe("FilePersistence", () => {
       const paths = await persistence.saveSession(session);
       const content = await readFile(paths[2], "utf-8");
 
-      expect(content).toContain("=== Toastmasters Speech Evaluation ===");
+      expect(content).toContain("=== Speech Evaluation ===");
       expect(content).toContain("Session ID: test-session-123");
       expect(content).toContain("That was a wonderful speech about leadership!");
     });
@@ -674,7 +674,7 @@ describe("FilePersistence", () => {
       const paths = await persistence.saveSession(session);
       const content = await readFile(paths[2], "utf-8");
 
-      expect(content).toContain("=== Toastmasters Speech Evaluation ===");
+      expect(content).toContain("=== Speech Evaluation ===");
       expect(content).toContain("Session ID: test-session-123");
       // No evaluation body, just the header
     });
@@ -849,7 +849,7 @@ describe("FilePersistence", () => {
 
     it("writes project-context.json when projectContext is present", async () => {
       const projectContext: ProjectContext = {
-        speechTitle: "My Journey to Toastmasters",
+        speechTitle: "My Path to Public Speaking",
         projectType: "Ice Breaker",
         objectives: ["Introduce yourself", "Speak for 4-6 minutes"],
       };
@@ -869,7 +869,7 @@ describe("FilePersistence", () => {
       const content = await readFile(projectContextPath!, "utf-8");
       const parsed = JSON.parse(content);
 
-      expect(parsed.speechTitle).toBe("My Journey to Toastmasters");
+      expect(parsed.speechTitle).toBe("My Path to Public Speaking");
       expect(parsed.projectType).toBe("Ice Breaker");
       expect(parsed.objectives).toEqual(["Introduce yourself", "Speak for 4-6 minutes"]);
     });

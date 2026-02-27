@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This spec addresses a TTS playback glitch in the AI Toastmasters Evaluator. When the server delivers evaluation audio from the eager cache (`deliverFromCache`), the `tts_complete` and `state_change: idle` messages arrive at the client before the browser has started decoding/playing the audio. The premature IDLE transition triggers DOM mutations (hiding the speaking indicator, showing the Replay button, starting cooldown) that cause a brief audio pause/hickup. The Replay button appearing mid-playback confirms the UI is transitioning too early.
+This spec addresses a TTS playback glitch in the AI Speech Evaluator. When the server delivers evaluation audio from the eager cache (`deliverFromCache`), the `tts_complete` and `state_change: idle` messages arrive at the client before the browser has started decoding/playing the audio. The premature IDLE transition triggers DOM mutations (hiding the speaking indicator, showing the Replay button, starting cooldown) that cause a brief audio pause/hickup. The Replay button appearing mid-playback confirms the UI is transitioning too early.
 
 The root cause is a race condition: the server sends audio data, `tts_complete`, and `state_change: idle` synchronously with no delay, but `HTMLAudioElement.play()` is asynchronous. The fix is client-side: defer the visual IDLE transition until the audio element's `onended` event fires, while preserving panic mute's ability to force-stop immediately.
 

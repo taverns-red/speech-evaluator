@@ -1,4 +1,4 @@
-// Shared utilities for the AI Toastmasters Evaluator.
+// Shared utilities for the AI Speech Evaluator.
 //
 // This module contains deterministic helper functions used across multiple
 // components (ToneChecker, TTSEngine, EvaluationGenerator) to ensure

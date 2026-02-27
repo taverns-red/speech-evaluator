@@ -2,12 +2,12 @@
 
 ## Introduction
 
-The AI Toastmasters Evaluator MVP (Phase 1) is an audio-only, manually-controlled conversational AI system that listens to a live speech at an in-person Toastmasters meeting, generates a Toastmasters-style evaluation, and delivers it out loud via text-to-speech. The system handles a single speech per session, captures audio via USB or boundary microphone, transcribes the speech in real time, computes delivery metrics deterministically, and produces a supportive, evidence-based spoken evaluation. A web-based UI provides manual controls for the meeting operator. The system runs on an internet-connected laptop with a separate speaker for audio output.
+The AI Speech Evaluator MVP (Phase 1) is an audio-only, manually-controlled conversational AI system that listens to a live speech at an in-person speech evaluation session, generates a structured evaluation, and delivers it out loud via text-to-speech. The system handles a single speech per session, captures audio via USB or boundary microphone, transcribes the speech in real time, computes delivery metrics deterministically, and produces a supportive, evidence-based spoken evaluation. A web-based UI provides manual controls for the meeting operator. The system runs on an internet-connected laptop with a separate speaker for audio output.
 
 ## Glossary
 
-- **Operator**: The person controlling the system during a Toastmasters meeting via the web-based UI
-- **Speaker**: The Toastmasters club member delivering a speech being evaluated
+- **Operator**: The person controlling the system during a speech evaluation session via the web-based UI
+- **Speaker**: The speaking club member delivering a speech being evaluated
 - **Session**: A single end-to-end workflow covering one speech: from starting audio capture through delivering the evaluation
 - **Transcript**: A timestamped textual representation of the Speaker's speech produced by the Transcription_Engine
 - **Delivery_Metrics**: A structured JSON object containing deterministic measurements of speech delivery (WPM, filler words, duration, pauses)
@@ -27,7 +27,7 @@ The AI Toastmasters Evaluator MVP (Phase 1) is an audio-only, manually-controlle
 
 ### Requirement 1: Session Lifecycle Management
 
-**User Story:** As an Operator, I want to control the evaluation session through discrete manual steps, so that I can coordinate the AI evaluator with the flow of a live Toastmasters meeting.
+**User Story:** As an Operator, I want to control the evaluation session through discrete manual steps, so that I can coordinate the AI evaluator with the flow of a live speech evaluation session.
 
 #### Acceptance Criteria
 
@@ -67,7 +67,7 @@ The AI Toastmasters Evaluator MVP (Phase 1) is an audio-only, manually-controlle
 
 ### Requirement 4: Evaluation Generation
 
-**User Story:** As an Operator, I want the system to generate a supportive, evidence-based evaluation in a natural conversational style, so that the evaluation sounds like a skilled Toastmasters evaluator.
+**User Story:** As an Operator, I want the system to generate a supportive, evidence-based evaluation in a natural conversational style, so that the evaluation sounds like a skilled speech evaluator.
 
 #### Acceptance Criteria
 
@@ -80,12 +80,12 @@ The AI Toastmasters Evaluator MVP (Phase 1) is an audio-only, manually-controlle
 
 ### Requirement 5: Text-to-Speech Delivery
 
-**User Story:** As an Operator, I want the evaluation to be spoken aloud in a warm, conversational voice, so that the evaluation delivery feels natural in a Toastmasters meeting setting.
+**User Story:** As an Operator, I want the evaluation to be spoken aloud in a warm, conversational voice, so that the evaluation delivery feels natural in a speech evaluation session setting.
 
 #### Acceptance Criteria
 
 1. WHEN the Evaluation is ready, THE TTS_Engine SHALL convert the Evaluation text into spoken audio and play it through the configured output device
-2. THE TTS_Engine SHALL use a warm, conversational voice suitable for a Toastmasters meeting
+2. THE TTS_Engine SHALL use a warm, conversational voice suitable for a speech evaluation session
 3. WHILE the TTS_Engine is speaking, THE Audio_Capture_Module SHALL remain inactive to prevent audio feedback loops
 
 ### Requirement 6: Output Persistence

@@ -1,4 +1,4 @@
-// AI Toastmasters Evaluator - Server Unit Tests
+// AI Speech Evaluator - Server Unit Tests
 // Tests for WebSocket handler and Express server (Task 8.1)
 // Requirements: 1.2, 1.3, 1.4, 1.6, 1.7, 2.5
 

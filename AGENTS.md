@@ -1,4 +1,4 @@
-# AI Toastmasters Evaluator — Project Conventions
+# AI Speech Evaluator — Project Conventions
 
 Engineering principles are defined globally in `~/.gemini/GEMINI.md`.
 This file contains **project-specific** context only.

@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Toastmasters Evaluator</title>
+  <title>AI Speech Evaluator</title>
   <link rel="icon" href="data:,">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,7 +16,7 @@
   <div class="app">
     <!-- Header -->
     <header class="header">
-      <h1><span>AI</span> Toastmasters Evaluator</h1>
+      <h1><span>AI</span> Speech Evaluator</h1>
       <span id="connection-status" style="font-size: 0.8rem; color: var(--text-muted);">Disconnected</span>
     </header>
 
@@ -82,7 +82,7 @@
       <div class="project-context-form-title">Project Context</div>
       <div class="form-group">
         <label for="speech-title-input">Speech title</label>
-        <input type="text" id="speech-title-input" placeholder="e.g. My Journey to Toastmasters" maxlength="200"
+        <input type="text" id="speech-title-input" placeholder="e.g. My Path to Public Speaking" maxlength="200"
           autocomplete="off">
       </div>
       <div class="form-group">
@@ -257,7 +257,7 @@
 
     <!-- Footer -->
     <footer class="footer" id="app-footer">
-      AI Toastmasters Evaluator
+      AI Speech Evaluator
     </footer>
   </div>
 
@@ -310,7 +310,7 @@
     /** Configured video FPS (1-5, default 2) */
     let videoFpsConfig = 2;
 
-    /** Predefined Toastmasters Pathways project types and their standard objectives (Req 4.2) */
+    /** Predefined Pathways project types and their standard objectives (Req 4.2) */
     const PROJECT_TYPES = {
       "Ice Breaker": [
         "Introduce yourself and share your personal story",
@@ -3022,7 +3022,7 @@
       .then(function (data) {
         if (data.version) {
           document.getElementById("app-footer").textContent =
-            "AI Toastmasters Evaluator \u2014 v" + data.version;
+            "AI Speech Evaluator \u2014 v" + data.version;
         }
       })
       .catch(function () { /* footer stays as default text */ });

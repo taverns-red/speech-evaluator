@@ -2,7 +2,7 @@
 
 ## Overview
 
-Phase 2 extends the existing AI Toastmasters Evaluator MVP to make evaluations consistent, evidence-grounded, and safe for regular meeting use. The system already captures audio, transcribes, computes metrics, generates LLM-based evaluations with evidence validation, and delivers via TTS. Phase 2 adds six capability areas on top of this foundation:
+Phase 2 extends the existing AI Speech Evaluator MVP to make evaluations consistent, evidence-grounded, and safe for regular meeting use. The system already captures audio, transcribes, computes metrics, generates LLM-based evaluations with evidence validation, and delivers via TTS. Phase 2 adds six capability areas on top of this foundation:
 
 1. **Evidence anchoring strengthening** — explicit pass-rate reporting and tighter validation rules (extending existing `EvidenceValidator`)
 2. **Speaker consent capture** — `ConsentRecord` on `Session`, UI gating, immutability after recording starts

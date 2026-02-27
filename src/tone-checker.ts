@@ -1,4 +1,4 @@
-// AI Toastmasters Evaluator — Tone Checker
+// AI Speech Evaluator — Tone Checker
 // Deterministic, rule-based component that validates evaluation scripts
 // against prohibited content patterns. No LLM calls — pure regex and keyword matching.
 //

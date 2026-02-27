@@ -1,5 +1,5 @@
 /**
- * AudioWorklet processor for the AI Toastmasters Evaluator.
+ * AudioWorklet processor for the AI Speech Evaluator.
  *
  * Responsibilities:
  * 1. Downsample from the browser's native sample rate (e.g. 48 kHz) to 16 kHz

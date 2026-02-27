@@ -1,5 +1,5 @@
 // Property-Based Tests for TTSEngine — Evaluation Script Duration Compliance
-// Feature: ai-toastmasters-evaluator, Property 6: Evaluation Script Duration Compliance
+// Feature: ai-speech-evaluator, Property 6: Evaluation Script Duration Compliance
 
 import { describe, it, expect, vi } from "vitest";
 import * as fc from "fast-check";
@@ -208,7 +208,7 @@ function arbitraryOversizedEvaluation(): fc.Arbitrary<StructuredEvaluation> {
 
 // ─── Property Tests ─────────────────────────────────────────────────────────────
 
-describe("Feature: ai-toastmasters-evaluator, Property 6: Evaluation Script Duration Compliance", () => {
+describe("Feature: ai-speech-evaluator, Property 6: Evaluation Script Duration Compliance", () => {
   const ttsEngine = new TTSEngine(createMockTTSClient());
   const evalGenerator = new EvaluationGenerator(createMockOpenAIClient());
 
@@ -340,7 +340,7 @@ describe("Feature: ai-toastmasters-evaluator, Property 6: Evaluation Script Dura
 
 
 // ─── Property 13: Duration Estimation with Safety Margin ────────────────────────
-// Feature: ai-toastmasters-evaluator, Property 13
+// Feature: ai-speech-evaluator, Property 13
 // **Validates: Requirements 6.2**
 
 // ─── Generators for Property 13 ─────────────────────────────────────────────────

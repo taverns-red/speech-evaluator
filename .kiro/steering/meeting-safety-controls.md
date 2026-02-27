@@ -5,7 +5,7 @@ fileMatchPattern: "{**/session-manager*,**/server*,**/audio*,**/public/**}"
 
 # Meeting Safety Controls
 
-This document defines the safety controls that protect the live Toastmasters meeting environment. These controls must be consistently implemented across all components that touch session state, audio capture, or UI controls.
+This document defines the safety controls that protect the live speech evaluation session environment. These controls must be consistently implemented across all components that touch session state, audio capture, or UI controls.
 
 ## Panic Mute vs Speaker Opt-Out
 
