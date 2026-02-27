@@ -122,3 +122,17 @@
 **The Resulting Rule**: Always run the full test suite before making changes in a new codebase. The baseline count becomes the regression target.
 
 **Future Warning**: The test count (1506) should only increase. A decrease indicates deleted tests, which requires justification.
+
+## 🗓️ 2026-02-26 — Lesson 10: Bulk Rename Requires Multi-Pass Grep Verification
+
+**The Discovery**: Renaming "AI Toastmasters Evaluator" to "AI Speech Evaluator" initially appeared to be a simple 23-hit sed across 15 files. After the first sed pass, a comprehensive grep revealed 40+ additional references in test describe names (`Feature: ai-toastmasters-evaluator`), AI prompt strings, output format headers, `.kiro/specs/` design docs, `package-lock.json`, inline JS comments, and test fixture data. Three passes were needed to reach zero.
+
+**The Scientific Proof**: `grep -rni "Toastmasters" . | wc -l` returned 0 after the third pass. The first pass caught 23/~60 references, the second caught ~35 more, the third caught the final 5 in `.kiro/specs/`.
+
+**The Farley Principle Applied**: Rename operations have a long tail. The obvious hits (user-facing strings) are only the tip. Test assertions that validate prompt content, design docs, and auto-generated files (`package-lock.json`) all carry the old name.
+
+**The Resulting Rule**: After a brand/name rename, run `grep -rni "OLD_NAME" . | grep -v node_modules | grep -v dist` and iterate until the count is zero. Budget for 2-3 passes minimum. Include `.kiro/`, `package-lock.json`, test assertions that validate string content, and JS comments.
+
+**Future Warning**: The `package-lock.json` must be regenerated via `npm install --package-lock-only` — sed cannot reliably edit it. Test assertions that `toContain("old prompt text")` will fail silently if the source prompt was changed but the test expectation was not.
+
+**rules.md**: none
