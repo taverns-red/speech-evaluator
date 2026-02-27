@@ -1321,6 +1321,32 @@ body::before {
   .header h1 {
     font-size: 1rem;
   }
+
+  /* #30: Stack status bar elements on mobile */
+  .status-bar {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+  }
+
+  .status-text {
+    flex-basis: calc(100% - 2rem);
+    min-width: 0;
+  }
+
+  .consent-status {
+    font-size: 0.75rem;
+    flex-basis: 100%;
+    padding: 0;
+  }
+
+  .elapsed-time {
+    font-size: 1.1rem;
+  }
+
+  .audio-level {
+    width: 60px;
+  }
 }
 
 /* ─── Upload Button & Progress ───────────────────────────────────────── */
