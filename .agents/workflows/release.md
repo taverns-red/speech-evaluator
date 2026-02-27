@@ -4,10 +4,12 @@ description: How to create a new release with version bump, tag, and push
 
 # Release Workflow
 
+Uses `commit-and-tag-version` (conventional-commits-driven semver).
+
 ## Prerequisites
-- All tests pass (`npm run test`)
+- All tests pass (`npx vitest run`)
 - Working tree is clean (`git status`)
-- You are on the branch to release from
+- You are on `main`
 
 ## Steps
 
@@ -17,47 +19,44 @@ description: How to create a new release with version bump, tag, and push
 cd /Users/rservant/code/speech-evaluator && npx vitest run
 ```
 
-2. Determine the new version based on changes since the last tag:
+2. Preview what will happen (dry run):
 ```bash
-git log $(git describe --tags --abbrev=0)..HEAD --oneline
+npx commit-and-tag-version --dry-run
 ```
-- **Patch** (0.4.X): Bug fixes only
-- **Minor** (0.X.0): New features or PRD phase completion
-- **Major** (X.0.0): Breaking changes
+Review the computed version bump and changelog entries.
 
-3. Update the version in `package.json`:
+3. Run the release:
 ```bash
-# Replace NEW_VERSION with the determined version (e.g., 0.5.0)
-npm version NEW_VERSION --no-git-tag-version
+# Auto-detect from commits (recommended):
+npm run release
+
+# Or force a specific bump:
+npm run release:patch   # bug fixes only → 0.X.Y+1
+npm run release:minor   # new features   → 0.X+1.0
+npm run release:major   # breaking       → X+1.0.0
 ```
 
-4. Rebuild to verify the new version compiles:
-```bash
-npm run build
-```
+This will:
+- Bump `package.json` version
+- Update `CHANGELOG.md`
+- Create a commit: `chore(release): vX.Y.Z`
+- Create an annotated tag: `vX.Y.Z`
 
 // turbo
-5. Re-run tests to confirm nothing broke:
-```bash
-npx vitest run
-```
-
-6. Commit the version bump:
-```bash
-git add package.json package-lock.json
-git commit -m "chore: bump version to vNEW_VERSION"
-```
-
-7. Create an annotated git tag:
-```bash
-git tag -a vNEW_VERSION -m "vNEW_VERSION: [brief description of what's in this release]"
-```
-
-8. Push the commit and tag:
+4. Push the commit and tag:
 ```bash
 git push origin HEAD --follow-tags
 ```
 
+## Semver Rules (Conventional Commits)
+
+| Prefix | Bump | Example |
+|---|---|---|
+| `fix:` | PATCH | `fix: prevent double-click (#29)` |
+| `feat:` | MINOR | `feat: add upload endpoint (#24)` |
+| `feat!:` / `BREAKING CHANGE:` | MAJOR | `feat!: remove legacy API` |
+| `docs:`, `chore:`, `test:`, `refactor:` | none | Non-functional changes |
+
 ## Post-Release
-- Verify the tag appears on GitHub: `gh release list`
-- Update any tracking issues that are now resolved
+- Verify: `git tag -l | tail -3`
+- Check GitHub: `gh release list`

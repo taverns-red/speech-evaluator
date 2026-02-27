@@ -10,7 +10,11 @@
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepare": "husky"
+    "prepare": "husky",
+    "release": "commit-and-tag-version",
+    "release:patch": "commit-and-tag-version --release-as patch",
+    "release:minor": "commit-and-tag-version --release-as minor",
+    "release:major": "commit-and-tag-version --release-as major"
   },
   "keywords": [
     "speech-evaluator",
@@ -32,11 +36,14 @@
     "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.4.2",
+    "@commitlint/config-conventional": "^20.4.2",
     "@types/express": "^5.0.6",
     "@types/fluent-ffmpeg": "^2.1.28",
     "@types/multer": "^2.0.0",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.18.1",
+    "commit-and-tag-version": "^12.6.1",
     "fast-check": "^4.5.3",
     "husky": "^9.1.7",
     "vitest": "^4.0.18"
