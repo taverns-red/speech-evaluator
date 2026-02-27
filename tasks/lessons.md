@@ -136,3 +136,17 @@
 **Future Warning**: The `package-lock.json` must be regenerated via `npm install --package-lock-only` — sed cannot reliably edit it. Test assertions that `toContain("old prompt text")` will fail silently if the source prompt was changed but the test expectation was not.
 
 **rules.md**: none
+
+## 🗓️ 2026-02-26 — Lesson 11: Optimistic UI Button Guards Prevent Double-Submit
+
+**The Discovery**: The "Start Speech" button's `onclick` handler was async (it `await`s `startAudioCapture()`). During the await, the button remained clickable, allowing rapid double-clicks to send two `start_recording` messages. The server correctly rejected the second with an "Invalid state transition" error, but the error banner alarmed users.
+
+**The Scientific Proof**: Browser inspection reproduced the bug: triple-clicking Start Speech produced two server-side errors. After adding `disable(dom.btnStart)` as the first line of `onStartSpeech()`, the same triple-click produced zero errors.
+
+**The Farley Principle Applied**: Optimistic UI — disable interactive elements before async work begins, not after. Re-enable in early-return guard paths and on error.
+
+**The Resulting Rule**: Any button handler that triggers an async operation (network request, mic acquisition, etc.) must `disable()` the button as its first action. Guard clauses that return early must `enable()` it again. The "happy path" re-enable happens via `updateUI()` on state transition.
+
+**Future Warning**: This pattern must be applied to any new async button handlers. The Upload Video button also triggers async work and should be reviewed for the same vulnerability.
+
+**rules.md**: none
