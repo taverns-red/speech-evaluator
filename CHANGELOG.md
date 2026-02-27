@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.0](https://github.com/rservant/speech-evaluator/compare/v0.5.0...v0.6.0) (2026-02-27)
+
+
+### Features
+
+* replace stub detectors with real ML (BlazeFace + MoveNet via TF.js WASM) ([3acfc55](https://github.com/rservant/speech-evaluator/commit/3acfc55ebcd94ce8bf0c9789829e3bb6bbaad16a)), closes [#27](https://github.com/rservant/speech-evaluator/issues/27)
+
 ## [0.5.0](https://github.com/rservant/speech-evaluator/compare/v0.4.0...v0.5.0) (2026-02-27)
 
 
