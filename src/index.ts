@@ -19,6 +19,7 @@ import type { VADConfig, VADEventCallback } from "./vad-monitor.js";
 import { VideoProcessor } from "./video-processor.js";
 import type { VideoProcessorDeps } from "./video-processor.js";
 import type { VideoConfig } from "./types.js";
+import { createUploadRouter } from "./upload-handler.js";
 import { StubPoseDetector } from "./stub-pose-detector.js";
 import { StubFaceDetector } from "./stub-face-detector.js";
 
@@ -95,9 +96,19 @@ const sessionManager = new SessionManager({
     }),
 });
 
+// ─── Upload Router ──────────────────────────────────────────────────────────────
+
+logInit("Initializing upload endpoint...");
+const uploadRouter = createUploadRouter({
+  transcriptionEngine,
+  metricsExtractor,
+  evaluationGenerator,
+  ttsEngine,
+});
+
 // ─── Start server ───────────────────────────────────────────────────────────────
 
-const server = createAppServer({ sessionManager, version: APP_VERSION });
+const server = createAppServer({ sessionManager, uploadRouter, version: APP_VERSION });
 
 server.listen(port).then(() => {
   logInit(`${APP_NAME} v${APP_VERSION} running at http://localhost:${port}`);
