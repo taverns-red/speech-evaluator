@@ -178,6 +178,11 @@
       <button id="btn-start" class="btn btn-success" onclick="onStartSpeech()">
         ● Start Speech
       </button>
+      <button id="btn-upload" class="btn btn-upload" onclick="document.getElementById('upload-file-input').click()">
+        📁 Upload Video
+      </button>
+      <input type="file" id="upload-file-input" accept="video/*,audio/*,.mp4,.webm,.mov,.avi,.mkv,.mp3,.wav,.m4a"
+        style="display:none" onchange="onFileSelected(event)">
       <button id="btn-stop" class="btn btn-primary hidden" onclick="onStopSpeech()">
         ■ Stop Speech
       </button>
@@ -197,6 +202,18 @@
       <button id="btn-panic" class="btn btn-panic" onclick="onPanicMute()">
         🔇 Panic Mute
       </button>
+    </div>
+
+    <!-- Upload Progress (hidden until upload starts) -->
+    <div id="upload-progress" class="upload-progress hidden">
+      <div class="upload-progress-header">
+        <span class="upload-progress-label">Processing Upload</span>
+        <span id="upload-progress-stage" class="upload-progress-stage"></span>
+      </div>
+      <div class="upload-progress-bar-container">
+        <div id="upload-progress-bar" class="upload-progress-bar" style="width: 0%"></div>
+      </div>
+      <p id="upload-progress-message" class="upload-progress-message"></p>
     </div>
 
     <!-- Speaking Indicator -->
@@ -2350,6 +2367,163 @@
         btn.textContent = "⤢";
         btn.title = "Expand video preview";
       }
+    }
+
+    // ─── Upload Flow ──────────────────────────────────────────────────────
+
+    function onFileSelected(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      // Require consent before upload
+      if (!consentConfirmed || consentSpeakerName.trim().length === 0) {
+        showNotification("Please fill in the consent form before uploading.", "warning");
+        event.target.value = "";
+        return;
+      }
+
+      uploadVideo(file);
+      event.target.value = ""; // Reset input for re-uploads
+    }
+
+    function updateUploadProgress(stage, progress, message) {
+      const container = document.getElementById("upload-progress");
+      const bar = document.getElementById("upload-progress-bar");
+      const stageEl = document.getElementById("upload-progress-stage");
+      const msgEl = document.getElementById("upload-progress-message");
+
+      container.classList.remove("hidden");
+      bar.style.width = progress + "%";
+      stageEl.textContent = stage;
+      msgEl.textContent = message;
+    }
+
+    function hideUploadProgress() {
+      document.getElementById("upload-progress").classList.add("hidden");
+    }
+
+    async function uploadVideo(file) {
+      const btnUpload = document.getElementById("btn-upload");
+      const btnStart = document.getElementById("btn-start");
+
+      try {
+        // Disable buttons during upload
+        btnUpload.disabled = true;
+        btnStart.disabled = true;
+        btnUpload.textContent = "⏳ Processing...";
+
+        updateUploadProgress("Uploading", 10, `Sending ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`);
+
+        // Build form data
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("speakerName", consentSpeakerName);
+
+        // Include project context if set
+        const speechTitle = document.getElementById("speech-title")?.value;
+        const projectType = document.getElementById("project-type")?.value;
+        if (speechTitle) formData.append("speechTitle", speechTitle);
+        if (projectType) formData.append("projectType", projectType);
+
+        updateUploadProgress("Processing", 30, "Extracting audio and transcribing...");
+
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        updateUploadProgress("Analyzing", 70, "Generating evaluation...");
+
+        const result = await response.json();
+
+        if (!response.ok || result.status === "error") {
+          throw new Error(result.error || `Upload failed (HTTP ${response.status})`);
+        }
+
+        updateUploadProgress("Complete", 100, `Processed ${result.durationSeconds?.toFixed(0) || "?"}s of speech — ${result.transcript?.length || 0} segments`);
+
+        // ── Populate transcript panel ──
+        if (result.transcript && result.transcript.length > 0) {
+          const transcriptEl = document.getElementById("transcript");
+          if (transcriptEl) {
+            const text = result.transcript.map(s => s.text).join(" ");
+            transcriptEl.textContent = text;
+          }
+        }
+
+        // ── Populate evaluation panel ──
+        if (result.evaluation) {
+          const evalEl = document.getElementById("evaluation");
+          if (evalEl) {
+            evalEl.innerHTML = formatUploadedEvaluation(result.evaluation, result.metrics, result.passRate);
+          }
+        }
+
+        // ── Show metrics summary ──
+        if (result.metrics) {
+          const metricsEl = document.getElementById("metrics-summary");
+          if (metricsEl) {
+            metricsEl.innerHTML = formatUploadedMetrics(result.metrics);
+          }
+        }
+
+        // ── Play TTS if available ──
+        if (result.ttsAudio) {
+          try {
+            const audioData = Uint8Array.from(atob(result.ttsAudio), c => c.charCodeAt(0));
+            const audioBlob = new Blob([audioData], { type: "audio/mp3" });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+            // Don't auto-play; let user click replay
+            showNotification("Evaluation ready! Click 🔁 Replay to listen.", "success");
+          } catch (e) {
+            console.warn("TTS playback error:", e);
+          }
+        }
+
+        showNotification("Upload evaluation complete!", "success");
+
+        // Hide progress after 5s
+        setTimeout(hideUploadProgress, 5000);
+
+      } catch (err) {
+        updateUploadProgress("Error", 0, err.message);
+        showNotification("Upload failed: " + err.message, "error");
+        setTimeout(hideUploadProgress, 8000);
+      } finally {
+        btnUpload.disabled = false;
+        btnStart.disabled = false;
+        btnUpload.textContent = "📁 Upload Video";
+      }
+    }
+
+    function formatUploadedEvaluation(evaluation, metrics, passRate) {
+      let html = '<div class="evaluation-uploaded">';
+      if (evaluation.items && Array.isArray(evaluation.items)) {
+        for (const item of evaluation.items) {
+          const icon = item.type === "commendation" ? "✅" : "💡";
+          html += `<div class="eval-item"><strong>${icon} ${item.area || item.type}</strong><p>${item.observation || ""}</p>`;
+          if (item.recommendation) {
+            html += `<p class="eval-recommendation"><em>${item.recommendation}</em></p>`;
+          }
+          html += `</div>`;
+        }
+      }
+      if (passRate !== undefined) {
+        html += `<p class="eval-pass-rate">Evidence pass rate: ${(passRate * 100).toFixed(0)}%</p>`;
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function formatUploadedMetrics(metrics) {
+      return `<div class="metrics-uploaded">
+        <span><strong>${metrics.totalWords || 0}</strong> words</span> ·
+        <span><strong>${Math.round(metrics.wordsPerMinute || 0)}</strong> WPM</span> ·
+        <span><strong>${metrics.durationFormatted || "—"}</strong></span> ·
+        <span><strong>${metrics.fillerWordCount || 0}</strong> fillers</span> ·
+        <span><strong>${metrics.pauseCount || 0}</strong> pauses</span>
+      </div>`;
     }
 
     async function onStartSpeech() {

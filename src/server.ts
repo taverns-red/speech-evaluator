@@ -5,7 +5,7 @@
 // Privacy: Audio chunks are in-memory only, never written to disk.
 //          Session data lives in server memory only. No database, no temp files.
 
-import express, { type Express } from "express";
+import express, { type Express, type Router } from "express";
 import { createServer, type Server as HttpServer } from "node:http";
 import path from "node:path";
 import { WebSocketServer, WebSocket } from "ws";
@@ -98,6 +98,8 @@ export interface CreateServerOptions {
   sessionManager?: SessionManager;
   /** Application version string (from package.json). */
   version?: string;
+  /** Upload router for POST /api/upload. */
+  uploadRouter?: Router;
 }
 
 export interface AppServer {
@@ -124,6 +126,7 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
       vadMonitorFactory: (config, callbacks) => new VADMonitor(config, callbacks),
     }),
     version = "0.0.0",
+    uploadRouter,
   } = options;
 
   const app = express();
@@ -141,6 +144,12 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
   app.get("/api/version", (_req, res) => {
     res.json({ version });
   });
+
+  // Upload endpoint (issues #24-26)
+  if (uploadRouter) {
+    app.use("/api/upload", uploadRouter);
+    logger.info("Upload endpoint mounted at /api/upload");
+  }
 
   // WebSocket server attached to the HTTP server
   const wss = new WebSocketServer({ server: httpServer });

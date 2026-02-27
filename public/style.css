@@ -1322,3 +1322,69 @@ body::before {
     font-size: 1rem;
   }
 }
+
+/* ─── Upload Button & Progress ───────────────────────────────────────── */
+
+.btn-upload {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.btn-upload:hover {
+  border-color: var(--red-primary);
+  color: var(--text-primary);
+  background: hsla(0, 70%, 50%, 0.08);
+}
+
+.upload-progress {
+  padding: var(--space-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-md);
+}
+
+.upload-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.upload-progress-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.upload-progress-stage {
+  font-size: 0.8rem;
+  color: var(--red-primary);
+  font-weight: 500;
+}
+
+.upload-progress-bar-container {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-body);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.upload-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--red-primary), var(--red-glow));
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.upload-progress-message {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: var(--space-sm);
+  margin-bottom: 0;
+}
