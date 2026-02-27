@@ -164,3 +164,17 @@
 **Future Warning**: Once the project reaches 1.0, auto-detect (`npm run release` with no flags) will correctly treat `feat:` as minor and `fix:` as patch.
 
 **rules.md**: none
+
+## 🗓️ 2026-02-27 — Lesson 13: @tensorflow/tfjs-node vs WASM Backend on Node.js v25
+
+**The Discovery**: `@tensorflow/tfjs-node` native bindings use `util.isNullOrUndefined()` and `util.isNull()`, both removed in Node.js v25. The `util` module is now frozen — polyfilling is impossible (`Object is not extensible`).
+
+**The Scientific Proof**: `npx tsx experiment_canary.ts` with tfjs-node crashed on `cast()`. Switching to `@tensorflow/tfjs` + `@tensorflow/tfjs-backend-wasm` worked: BlazeFace face detection at 5-8ms/frame, MoveNet pose at 18-21ms/frame (total 25-34ms, well under 500ms budget).
+
+**The Farley Principle Applied**: When a native dependency breaks on a new runtime, check for WASM/pure-JS alternatives before downgrading Node.js. WASM backends are portable and avoid native compilation issues.
+
+**The Resulting Rule**: For TF.js on Node.js v25+, use `@tensorflow/tfjs` + `@tensorflow/tfjs-backend-wasm`. Do NOT use `@tensorflow/tfjs-node`. Call `setWasmPaths()` with the dist/ directory before `setBackend("wasm")`. Point at `node_modules/@tensorflow/tfjs-backend-wasm/dist/` relative to the importing file.
+
+**Future Warning**: When Node.js v26 ships, re-test WASM backend compatibility. Also test `@tensorflow/tfjs-node` in case they fix the `util` polyfill.
+
+**rules.md**: Should add R12 — TF.js must use WASM backend on Node.js v25+
