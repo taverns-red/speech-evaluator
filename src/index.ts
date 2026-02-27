@@ -22,6 +22,10 @@ import type { VideoConfig } from "./types.js";
 import { createUploadRouter } from "./upload-handler.js";
 import { StubPoseDetector } from "./stub-pose-detector.js";
 import { StubFaceDetector } from "./stub-face-detector.js";
+import { TfjsFaceDetector } from "./tfjs-face-detector.js";
+import { TfjsPoseDetector } from "./tfjs-pose-detector.js";
+import { initTfjsWasm } from "./tfjs-setup.js";
+import type { FaceDetector, PoseDetector } from "./video-processor.js";
 
 export { APP_NAME, APP_VERSION } from "./version.js";
 import { APP_NAME, APP_VERSION } from "./version.js";
@@ -74,11 +78,34 @@ const ttsEngine = new TTSEngine(openaiClient as unknown as OpenAITTSClient);
 logInit("Initializing FilePersistence (output/)...");
 const filePersistence = new FilePersistence("output");
 
-// ─── Create SessionManager with all dependencies ────────────────────────────────
+// ─── Initialize ML detectors (with graceful fallback to stubs) ──────────────────
 
-logInit("Initializing stub detectors (replace with real ML per issue #27)...");
-const stubPoseDetector = new StubPoseDetector();
-const stubFaceDetector = new StubFaceDetector();
+let faceDetector: FaceDetector;
+let poseDetector: PoseDetector;
+
+try {
+  logInit("Initializing TF.js WASM backend...");
+  await initTfjsWasm();
+  logInit("TF.js WASM backend ready");
+
+  logInit("Loading BlazeFace (face detection)...");
+  const tfjsFace = new TfjsFaceDetector();
+  await tfjsFace.init();
+  faceDetector = tfjsFace;
+  logInit("BlazeFace loaded ✓");
+
+  logInit("Loading MoveNet Lightning (pose estimation)...");
+  const tfjsPose = new TfjsPoseDetector();
+  await tfjsPose.init();
+  poseDetector = tfjsPose;
+  logInit("MoveNet Lightning loaded ✓");
+} catch (err) {
+  logInit(`ML detector init failed, using stubs: ${err}`);
+  faceDetector = new StubFaceDetector();
+  poseDetector = new StubPoseDetector();
+}
+
+// ─── Create SessionManager with all dependencies ────────────────────────────────
 
 logInit("Wiring SessionManager pipeline...");
 const sessionManager = new SessionManager({
@@ -91,8 +118,8 @@ const sessionManager = new SessionManager({
     new VADMonitor(config, callbacks),
   videoProcessorFactory: (config: VideoConfig, deps: VideoProcessorDeps) =>
     new VideoProcessor(config, {
-      poseDetector: deps.poseDetector ?? stubPoseDetector,
-      faceDetector: deps.faceDetector ?? stubFaceDetector,
+      poseDetector: deps.poseDetector ?? poseDetector,
+      faceDetector: deps.faceDetector ?? faceDetector,
     }),
 });
 
