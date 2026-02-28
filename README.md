@@ -1,3 +1,5 @@
+![CI & Deploy](https://github.com/rservant/speech-evaluator/actions/workflows/ci.yml/badge.svg?branch=main)
+
 # AI Speech Evaluator
 
 An AI-powered speech evaluator for live speeches. It listens to a live speech, transcribes it, computes delivery metrics, generates an evidence-based evaluation, and speaks it aloud — all from a browser-based control panel.
