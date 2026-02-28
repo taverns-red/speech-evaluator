@@ -21,6 +21,11 @@ const PUBLIC_PATHS = [
   "/login.js",
   "/style.css",
   "/favicon.ico",
+  "/manifest.json",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/apple-touch-icon.png",
+  "/logo-taverns.png",
 ];
 
 /** Prefixes that bypass authentication (fonts, Firebase SDK, etc.) */
