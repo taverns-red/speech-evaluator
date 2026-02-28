@@ -178,3 +178,17 @@
 **Future Warning**: When Node.js v26 ships, re-test WASM backend compatibility. Also test `@tensorflow/tfjs-node` in case they fix the `util` polyfill.
 
 **rules.md**: Should add R12 — TF.js must use WASM backend on Node.js v25+
+
+## 🗓️ 2026-02-27 — Lesson 14: WIF Credentials Cannot Generate Identity Tokens for Cloud Run Health Checks
+
+**The Discovery**: `gcloud auth print-identity-token --audiences=$URL` fails with WIF federated credentials ("Invalid account type for `--audiences`"). Using `--impersonate-service-account` also fails because the service account can't impersonate itself without `roles/iam.serviceAccountTokenCreator` on itself (circular dependency).
+
+**The Scientific Proof**: Three CI/CD deploy runs failed at the verify step. Run 1: WIF identity missing `workloadIdentityUser`. Run 2: Artifact Registry `uploadArtifacts` denied. Run 3: `--audiences` not supported for WIF. Run 4: `--impersonate-service-account` self-impersonation denied. Run 5: Switched to `gcloud run services describe` readiness check → ✅ passed.
+
+**The Farley Principle Applied**: When a tool's API doesn't support your auth model, change the approach rather than fighting the auth chain. GCP Cloud Run readiness conditions provide the same signal as an HTTP health check without requiring an identity token.
+
+**The Resulting Rule**: For CI/CD deploy verification on authenticated Cloud Run services using WIF, use `gcloud run services describe --format='value(status.conditions[0].status)'` to check readiness instead of HTTP health checks. This avoids the WIF identity token limitation entirely.
+
+**Future Warning**: If the service is ever made public (`allUsers` invoker), switch back to `curl $URL/health` for a stronger end-to-end check. The WIF deployer service account also needs: `roles/iam.workloadIdentityUser` (on itself), `roles/artifactregistry.writer`, `roles/run.admin`, `roles/iam.serviceAccountUser` (project-level).
+
+**rules.md**: none (GCP-specific, not generalizable)
