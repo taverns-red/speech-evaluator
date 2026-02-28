@@ -5,9 +5,10 @@
 // Privacy: Audio chunks are in-memory only, never written to disk.
 //          Session data lives in server memory only. No database, no temp files.
 
-import express, { type Express, type Router } from "express";
-import { createServer, type Server as HttpServer } from "node:http";
+import express, { type Express, type RequestHandler, type Router } from "express";
+import { createServer, type Server as HttpServer, type IncomingMessage } from "node:http";
 import path from "node:path";
+import cookieParser from "cookie-parser";
 import { WebSocketServer, WebSocket } from "ws";
 import { SessionManager } from "./session-manager.js";
 import {
@@ -100,6 +101,10 @@ export interface CreateServerOptions {
   version?: string;
   /** Upload router for POST /api/upload. */
   uploadRouter?: Router;
+  /** Optional auth middleware (mounted before all routes). */
+  authMiddleware?: RequestHandler;
+  /** Optional function to verify WebSocket upgrade requests. Returns true if allowed. */
+  wsAuthVerify?: (req: IncomingMessage) => Promise<boolean>;
 }
 
 export interface AppServer {
@@ -127,18 +132,29 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
     }),
     version = "0.0.0",
     uploadRouter,
+    authMiddleware,
+    wsAuthVerify,
   } = options;
 
   const app = express();
   const httpServer = createServer(app);
 
-  // Serve static files from public/ directory
-  app.use(express.static(staticDir));
+  // Parse cookies for auth middleware
+  app.use(cookieParser());
 
-  // Health check endpoint
+  // Health check endpoint (unauthenticated — CI/CD readiness checks)
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
   });
+
+  // Mount auth middleware before static files and all other routes
+  if (authMiddleware) {
+    app.use(authMiddleware);
+    logger.info("Auth middleware mounted");
+  }
+
+  // Serve static files from public/ directory
+  app.use(express.static(staticDir));
 
   // Version endpoint — serves package.json version for the UI footer
   app.get("/api/version", (_req, res) => {
@@ -151,12 +167,33 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
     logger.info("Upload endpoint mounted at /api/upload");
   }
 
-  // WebSocket server attached to the HTTP server
-  const wss = new WebSocketServer({ server: httpServer });
+  // WebSocket server — noServer mode when auth is enabled for manual upgrade
+  const wss = new WebSocketServer(wsAuthVerify ? { noServer: true } : { server: httpServer });
 
   wss.on("connection", (ws: WebSocket) => {
     handleConnection(ws, sessionManager, logger);
   });
+
+  // WebSocket upgrade with auth verification
+  if (wsAuthVerify) {
+    httpServer.on("upgrade", async (req, socket, head) => {
+      try {
+        const allowed = await wsAuthVerify(req);
+        if (!allowed) {
+          socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          wss.emit("connection", ws, req);
+        });
+      } catch (err) {
+        logger.error(`WebSocket upgrade auth error: ${err}`);
+        socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+        socket.destroy();
+      }
+    });
+  }
 
   return {
     app,

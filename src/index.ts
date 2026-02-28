@@ -4,6 +4,7 @@
 import "dotenv/config";
 import { createClient as createDeepgramClient } from "@deepgram/sdk";
 import OpenAI from "openai";
+import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { createAppServer } from "./server.js";
 import { SessionManager } from "./session-manager.js";
 import { TranscriptionEngine } from "./transcription-engine.js";
@@ -26,6 +27,8 @@ import { TfjsFaceDetector } from "./tfjs-face-detector.js";
 import { TfjsPoseDetector } from "./tfjs-pose-detector.js";
 import { initTfjsWasm } from "./tfjs-setup.js";
 import type { FaceDetector, PoseDetector } from "./video-processor.js";
+import { createAuthMiddleware, verifyAndAuthorize } from "./auth-middleware.js";
+import { parse as parseCookie } from "cookie";
 
 export { APP_NAME, APP_VERSION } from "./version.js";
 import { APP_NAME, APP_VERSION } from "./version.js";
@@ -133,9 +136,42 @@ const uploadRouter = createUploadRouter({
   ttsEngine,
 });
 
+// ─── Firebase Auth & Authorization ──────────────────────────────────────────────
+
+const allowedEmailsRaw = process.env.ALLOWED_EMAILS || "";
+const allowedEmails = new Set(
+  allowedEmailsRaw
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+let authMiddleware;
+let wsAuthVerify;
+
+if (allowedEmails.size > 0) {
+  logInit(`Auth enabled: ${allowedEmails.size} allowed email(s)`);
+  const firebaseApp = initializeApp({
+    credential: applicationDefault(),
+  });
+
+  authMiddleware = createAuthMiddleware({ firebaseApp, allowedEmails });
+
+  wsAuthVerify = async (req: import("node:http").IncomingMessage) => {
+    const cookieHeader = req.headers.cookie || "";
+    const cookies = parseCookie(cookieHeader);
+    const token = cookies.__session;
+    if (!token) return false;
+    const decoded = await verifyAndAuthorize(token, firebaseApp, allowedEmails);
+    return decoded !== null;
+  };
+} else {
+  logInit("Auth disabled: ALLOWED_EMAILS not set (dev mode)");
+}
+
 // ─── Start server ───────────────────────────────────────────────────────────────
 
-const server = createAppServer({ sessionManager, uploadRouter, version: APP_VERSION });
+const server = createAppServer({ sessionManager, uploadRouter, version: APP_VERSION, authMiddleware, wsAuthVerify });
 
 server.listen(port).then(() => {
   logInit(`${APP_NAME} v${APP_VERSION} running at http://localhost:${port}`);
