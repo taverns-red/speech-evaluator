@@ -1376,18 +1376,25 @@
      */
     function renderEvaluationWithEvidence(text, evaluationData) {
       if (!text || text.trim().length === 0) {
-        dom.evaluationContent.innerHTML =
-          '<div class="evaluation-empty">Evaluation will appear here after delivery...</div>';
+        var emptyDiv = document.createElement("div");
+        emptyDiv.className = "evaluation-empty";
+        emptyDiv.textContent = "Evaluation will appear here after delivery...";
+        dom.evaluationContent.textContent = "";
+        dom.evaluationContent.appendChild(emptyDiv);
         return;
       }
 
       // If no evaluation data with items, fall back to plain text rendering
       if (!evaluationData || !evaluationData.items || evaluationData.items.length === 0) {
-        dom.evaluationContent.innerHTML = '<div>' + escapeHtml(text) + '</div>';
+        var plainDiv = document.createElement("div");
+        plainDiv.textContent = text;
+        dom.evaluationContent.textContent = "";
+        dom.evaluationContent.appendChild(plainDiv);
         return;
       }
 
-      // Build a list of evidence quotes with their match status
+      // Build a list of evidence quotes with their match status.
+      // Matching is done on the raw (unescaped) text.
       var evidenceQuotes = [];
       for (var i = 0; i < evaluationData.items.length; i++) {
         var item = evaluationData.items[i];
@@ -1407,29 +1414,24 @@
         return b.quote.length - a.quote.length;
       });
 
-      // Escape the full text first, then replace evidence quotes with clickable spans
-      var escapedText = escapeHtml(text);
-
-      // Track which portions of the text have already been replaced to avoid
-      // double-replacement when one quote is a substring of another
-      var replacedRanges = [];
+      // Find evidence quote positions in the raw text, tracking occupied ranges
+      // to prevent overlapping replacements
+      var quotePositions = []; // { start, end, quoteIndex }
+      var occupiedRanges = [];
 
       for (var q = 0; q < evidenceQuotes.length; q++) {
         var ev = evidenceQuotes[q];
-        var escapedQuote = escapeHtml(ev.quote);
-
-        // Find the quote in the escaped text, respecting already-replaced ranges
         var searchStart = 0;
         var foundIndex = -1;
 
-        while (searchStart < escapedText.length) {
-          var idx = escapedText.indexOf(escapedQuote, searchStart);
+        while (searchStart < text.length) {
+          var idx = text.indexOf(ev.quote, searchStart);
           if (idx === -1) break;
 
-          // Check if this range overlaps with any already-replaced range
+          // Check overlap with occupied ranges
           var overlaps = false;
-          for (var r = 0; r < replacedRanges.length; r++) {
-            if (idx < replacedRanges[r].end && idx + escapedQuote.length > replacedRanges[r].start) {
+          for (var r = 0; r < occupiedRanges.length; r++) {
+            if (idx < occupiedRanges[r].end && idx + ev.quote.length > occupiedRanges[r].start) {
               overlaps = true;
               break;
             }
@@ -1439,39 +1441,60 @@
             foundIndex = idx;
             break;
           }
-
           searchStart = idx + 1;
         }
 
         if (foundIndex === -1) continue;
 
-        // Build the replacement span
-        var spanHtml;
-        if (ev.hasMatch) {
-          // Clickable evidence link (Req 7.1)
-          var safeQuote = ev.quote.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-          spanHtml = '<span class="evidence-link" data-quote="' + safeQuote +
-            '" data-timestamp="' + ev.timestamp +
-            '" onclick="onEvidenceLinkClick(this.dataset.quote)" title="Click to navigate to transcript">' +
-            escapedQuote + '</span>';
-        } else {
-          // No match — display without clickable navigation (Req 7.4)
-          spanHtml = '<span class="evidence-no-match">' + escapedQuote + '</span>';
-        }
-
-        // Replace in the escaped text
-        var before = escapedText.substring(0, foundIndex);
-        var after = escapedText.substring(foundIndex + escapedQuote.length);
-        escapedText = before + spanHtml + after;
-
-        // Track the replaced range (using the new span length)
-        replacedRanges.push({
-          start: foundIndex,
-          end: foundIndex + spanHtml.length
-        });
+        quotePositions.push({ start: foundIndex, end: foundIndex + ev.quote.length, quoteIndex: q });
+        occupiedRanges.push({ start: foundIndex, end: foundIndex + ev.quote.length });
       }
 
-      dom.evaluationContent.innerHTML = '<div>' + escapedText + '</div>';
+      // Sort positions by start offset for left-to-right DOM assembly
+      quotePositions.sort(function (a, b) { return a.start - b.start; });
+
+      // Build DOM: interleave text nodes with evidence span elements
+      var container = document.createElement("div");
+      var cursor = 0;
+
+      for (var p = 0; p < quotePositions.length; p++) {
+        var pos = quotePositions[p];
+        var evData = evidenceQuotes[pos.quoteIndex];
+
+        // Text before this quote
+        if (pos.start > cursor) {
+          container.appendChild(document.createTextNode(text.substring(cursor, pos.start)));
+        }
+
+        // Evidence span (created via DOM — no innerHTML)
+        var span = document.createElement("span");
+        span.textContent = evData.quote;
+
+        if (evData.hasMatch) {
+          // Clickable evidence link (Req 7.1)
+          span.className = "evidence-link";
+          span.dataset.quote = evData.quote;
+          span.dataset.timestamp = evData.timestamp;
+          span.title = "Click to navigate to transcript";
+          span.addEventListener("click", (function (quote) {
+            return function () { onEvidenceLinkClick(quote); };
+          })(evData.quote));
+        } else {
+          // No match — display without clickable navigation (Req 7.4)
+          span.className = "evidence-no-match";
+        }
+
+        container.appendChild(span);
+        cursor = pos.end;
+      }
+
+      // Remaining text after the last quote
+      if (cursor < text.length) {
+        container.appendChild(document.createTextNode(text.substring(cursor)));
+      }
+
+      dom.evaluationContent.textContent = "";
+      dom.evaluationContent.appendChild(container);
     }
 
     // ─── UI Update: Evaluation ────────────────────────────────────────
