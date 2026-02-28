@@ -242,3 +242,13 @@
 **The Resulting Rule**: Property test arbitraries must replicate the exact computation used in production code. When testing derived thresholds, compute the expected outcome using the same algorithm as the SUT, not a simplified version.
 
 **rules.md**: none (testing pattern)
+
+## 🗓️ 2026-02-28 — Lesson 19: Always .trim() API Keys from Environment Variables
+
+**The Discovery**: `DEEPGRAM_API_KEY` from Google Cloud Secret Manager contained a trailing newline. The Deepgram SDK passed it as the `Authorization` header value when opening a WebSocket. Node.js's `ClientRequest.setHeader` rejects headers with control characters (`ERR_INVALID_CHAR`), crashing the server with exit code 7.
+
+**The Scientific Proof**: Server logs showed `TypeError [ERR_INVALID_CHAR]: Invalid character in header content ["Authorization"]` at `AbstractLiveClient.js:165` (Deepgram SDK), traced to `ws/lib/websocket.js:88`. The crash killed WebSocket connections mid-session, causing the client to show "Audio playback failed."
+
+**The Resulting Rule**: Always `.trim()` API keys loaded from `process.env`. Secret Manager, dotenv, and dashboard copy-paste frequently introduce trailing newlines. Also: add `uncaughtException`/`unhandledRejection` handlers to prevent individual errors from crashing the entire server.
+
+**rules.md**: none (ops hygiene)
