@@ -206,3 +206,15 @@
 **Future Warning**: Firebase Auth compat SDK (v9 compat) is in maintenance mode. The modular v10+ SDK requires a bundler. If adding a build step later, migrate to modular imports.
 
 **rules.md**: none (GCP-specific)
+
+## 🗓️ 2026-02-27 — Lesson 16: Cloud Run GCLB Ingress and IAM Compatibility
+
+**The Discovery**: When org policy blocks `allUsers` as Cloud Run invoker, use `--no-invoker-iam-check` to disable IAM auth at the service level. Combined with `ingress=all`, this lets the GCLB route unauthenticated traffic to the app, which handles auth itself via Firebase Auth.
+
+**The Scientific Proof**: `ingress=internal-and-cloud-load-balancing` returned persistent 404 from Google infrastructure — the LB traffic was being rejected before reaching the container. The `EXTERNAL_MANAGED` LB scheme also returned 404. Classic `EXTERNAL` scheme with `ingress=all` + `--no-invoker-iam-check` is the working combination.
+
+**The Farley Principle Applied**: When multiple infrastructure layers can handle auth (Cloud Run IAM, Cloud Run ingress, app middleware), pick ONE authoritative layer and disable the others. Trying to layer all three creates hard-to-debug interactions.
+
+**The Resulting Rule**: For Cloud Run behind a GCLB with app-level auth: use `ingress=all` + `--no-invoker-iam-check` + classic `EXTERNAL` scheme. Don't use `internal-and-cloud-load-balancing` ingress — it may not recognize GCLB traffic correctly. Serverless NEGs don't support `portName` so avoid `--protocol=HTTPS` on the backend service.
+
+**rules.md**: none (GCP-specific)
