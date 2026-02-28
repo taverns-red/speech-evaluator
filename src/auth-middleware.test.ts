@@ -180,6 +180,49 @@ describe("Auth Middleware", () => {
             expect(req.user).toEqual({ email: "alice@example.com", uid: "user-alice" });
         });
 
+        it("includes name and picture from decoded token", async () => {
+            mockVerifyIdToken.mockResolvedValueOnce({
+                uid: "user-alice",
+                email: "alice@example.com",
+                name: "Alice Smith",
+                picture: "https://example.com/photo.jpg",
+            });
+            const req = mockRequest({ path: "/", cookies: { __session: "valid-token" } });
+            const res = mockResponse();
+            const next = vi.fn();
+
+            await middleware(req, res, next);
+
+            expect(next).toHaveBeenCalled();
+            expect(req.user).toEqual({
+                email: "alice@example.com",
+                uid: "user-alice",
+                name: "Alice Smith",
+                picture: "https://example.com/photo.jpg",
+            });
+        });
+
+        it("handles missing name and picture gracefully", async () => {
+            mockVerifyIdToken.mockResolvedValueOnce({
+                uid: "user-bob",
+                email: "bob@example.com",
+                // no name or picture
+            });
+            const req = mockRequest({ path: "/", cookies: { __session: "valid-token" } });
+            const res = mockResponse();
+            const next = vi.fn();
+
+            await middleware(req, res, next);
+
+            expect(next).toHaveBeenCalled();
+            expect(req.user).toEqual({
+                email: "bob@example.com",
+                uid: "user-bob",
+            });
+            expect(req.user?.name).toBeUndefined();
+            expect(req.user?.picture).toBeUndefined();
+        });
+
         it("handles case-insensitive email matching", async () => {
             mockVerifyIdToken.mockResolvedValueOnce({
                 uid: "user-alice",

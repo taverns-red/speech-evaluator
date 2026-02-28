@@ -7,37 +7,37 @@ import { getAuth, type DecodedIdToken } from "firebase-admin/auth";
 
 // Extend Express Request to carry authenticated user info
 declare global {
-    namespace Express {
-        interface Request {
-            user?: { email: string; uid: string };
-        }
+  namespace Express {
+    interface Request {
+      user?: { email: string; uid: string; name?: string; picture?: string };
     }
+  }
 }
 
 /** Routes that bypass authentication entirely */
 const PUBLIC_PATHS = [
-    "/health",
-    "/login.html",
-    "/login.js",
-    "/style.css",
-    "/favicon.ico",
+  "/health",
+  "/login.html",
+  "/login.js",
+  "/style.css",
+  "/favicon.ico",
 ];
 
 /** Prefixes that bypass authentication (fonts, Firebase SDK, etc.) */
 const PUBLIC_PREFIXES = [
-    "/fonts/",
+  "/fonts/",
 ];
 
 function isPublicPath(path: string): boolean {
-    if (PUBLIC_PATHS.includes(path)) return true;
-    return PUBLIC_PREFIXES.some((prefix) => path.startsWith(prefix));
+  if (PUBLIC_PATHS.includes(path)) return true;
+  return PUBLIC_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
 export interface AuthMiddlewareOptions {
-    /** Firebase Admin app instance */
-    firebaseApp: FirebaseApp;
-    /** Set of allowed email addresses (lowercase) */
-    allowedEmails: Set<string>;
+  /** Firebase Admin app instance */
+  firebaseApp: FirebaseApp;
+  /** Set of allowed email addresses (lowercase) */
+  allowedEmails: Set<string>;
 }
 
 /**
@@ -49,45 +49,50 @@ export interface AuthMiddlewareOptions {
  * 5. Attaches req.user on success, redirects to /login.html on failure
  */
 export function createAuthMiddleware(options: AuthMiddlewareOptions) {
-    const { firebaseApp, allowedEmails } = options;
-    const auth = getAuth(firebaseApp);
+  const { firebaseApp, allowedEmails } = options;
+  const auth = getAuth(firebaseApp);
 
-    return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-        // Skip auth for public paths
-        if (isPublicPath(req.path)) {
-            next();
-            return;
-        }
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // Skip auth for public paths
+    if (isPublicPath(req.path)) {
+      next();
+      return;
+    }
 
-        const token = req.cookies?.__session;
+    const token = req.cookies?.__session;
 
-        if (!token) {
-            // No session cookie — redirect to login
-            res.redirect("/login.html");
-            return;
-        }
+    if (!token) {
+      // No session cookie — redirect to login
+      res.redirect("/login.html");
+      return;
+    }
 
-        let decoded: DecodedIdToken;
-        try {
-            decoded = await auth.verifyIdToken(token);
-        } catch {
-            // Invalid/expired token — redirect to login
-            res.redirect("/login.html");
-            return;
-        }
+    let decoded: DecodedIdToken;
+    try {
+      decoded = await auth.verifyIdToken(token);
+    } catch {
+      // Invalid/expired token — redirect to login
+      res.redirect("/login.html");
+      return;
+    }
 
-        const email = decoded.email?.toLowerCase();
+    const email = decoded.email?.toLowerCase();
 
-        if (!email || !allowedEmails.has(email)) {
-            // Valid Firebase user but not on the allowlist
-            res.status(403).send(accessDeniedHTML(email));
-            return;
-        }
+    if (!email || !allowedEmails.has(email)) {
+      // Valid Firebase user but not on the allowlist
+      res.status(403).send(accessDeniedHTML(email));
+      return;
+    }
 
-        // Attach user info to request
-        req.user = { email, uid: decoded.uid };
-        next();
+    // Attach user info to request
+    req.user = {
+      email,
+      uid: decoded.uid,
+      ...(decoded.name ? { name: decoded.name as string } : {}),
+      ...(decoded.picture ? { picture: decoded.picture as string } : {}),
     };
+    next();
+  };
 }
 
 /**
@@ -96,23 +101,23 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions) {
  * Returns the decoded token if valid and allowed, null otherwise.
  */
 export async function verifyAndAuthorize(
-    token: string,
-    firebaseApp: FirebaseApp,
-    allowedEmails: Set<string>,
+  token: string,
+  firebaseApp: FirebaseApp,
+  allowedEmails: Set<string>,
 ): Promise<DecodedIdToken | null> {
-    try {
-        const auth = getAuth(firebaseApp);
-        const decoded = await auth.verifyIdToken(token);
-        const email = decoded.email?.toLowerCase();
-        if (!email || !allowedEmails.has(email)) return null;
-        return decoded;
-    } catch {
-        return null;
-    }
+  try {
+    const auth = getAuth(firebaseApp);
+    const decoded = await auth.verifyIdToken(token);
+    const email = decoded.email?.toLowerCase();
+    if (!email || !allowedEmails.has(email)) return null;
+    return decoded;
+  } catch {
+    return null;
+  }
 }
 
 function accessDeniedHTML(email?: string): string {
-    return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
