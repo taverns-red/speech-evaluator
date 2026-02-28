@@ -192,3 +192,17 @@
 **Future Warning**: If the service is ever made public (`allUsers` invoker), switch back to `curl $URL/health` for a stronger end-to-end check. The WIF deployer service account also needs: `roles/iam.workloadIdentityUser` (on itself), `roles/artifactregistry.writer`, `roles/run.admin`, `roles/iam.serviceAccountUser` (project-level).
 
 **rules.md**: none (GCP-specific, not generalizable)
+
+## 🗓️ 2026-02-27 — Lesson 15: Cloud Run Cookie Stripping and Firebase Auth Design
+
+**The Discovery**: Cloud Run strips all cookies from incoming requests except `__session`. This means standard session cookies (e.g., `connect.sid`, custom names) are invisible to the server. Firebase Auth tokens must be stored in a cookie named `__session`.
+
+**The Scientific Proof**: Firebase Auth compat SDK sets the token client-side. The `cookie-parser` middleware reads `req.cookies.__session` server-side. The `createAuthMiddleware` extracts, verifies via `firebase-admin`, and checks the email against `ALLOWED_EMAILS`. WebSocket upgrade uses `cookie` module to parse the raw `Cookie` header from the upgrade request.
+
+**The Farley Principle Applied**: When deploying behind a managed proxy that strips cookies, use the one cookie name the proxy preserves rather than fighting the proxy configuration.
+
+**The Resulting Rule**: For Cloud Run with Firebase Auth, always use `__session` as the cookie name. Auth should be opt-in via `ALLOWED_EMAILS`: when empty, auth is disabled (dev mode). Mount the auth middleware after `/health` but before `express.static()` so login assets are accessible but the app is protected.
+
+**Future Warning**: Firebase Auth compat SDK (v9 compat) is in maintenance mode. The modular v10+ SDK requires a bundler. If adding a build step later, migrate to modular imports.
+
+**rules.md**: none (GCP-specific)
