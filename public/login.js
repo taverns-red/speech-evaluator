@@ -28,10 +28,10 @@ const btnGitHub = document.getElementById("btn-github");
 // Handle sign-out action from main app
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get("action") === "signout") {
+    // Sign out of Firebase (clears IndexedDB session), then reload clean
     auth.signOut().then(() => {
         document.cookie = "__session=;path=/;max-age=0";
-        // Remove the query param to prevent re-triggering on refresh
-        window.history.replaceState({}, "", "/login.html");
+        window.location.replace("/login.html");
     });
 } else {
     // If already signed in, redirect to app
