@@ -1,10 +1,20 @@
-name: CI
+name: CI & Deploy
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: toast-stats-prod-6d64a
+  REGION: us-east1
+  SERVICE: speech-evaluator
+  IMAGE: us-east1-docker.pkg.dev/toast-stats-prod-6d64a/speech-evaluator/app
 
 jobs:
   quality:
@@ -29,3 +39,53 @@ jobs:
 
       - name: Test
         run: npx vitest run
+
+  deploy:
+    name: Deploy to Cloud Run
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/736334703361/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider
+          service_account: speech-evaluator-deployer@toast-stats-prod-6d64a.iam.gserviceaccount.com
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Authenticate Docker to Artifact Registry
+        run: gcloud auth configure-docker us-east1-docker.pkg.dev --quiet
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ${{ env.IMAGE }}:${{ github.sha }} \
+            -t ${{ env.IMAGE }}:latest \
+            .
+
+      - name: Push Docker image
+        run: |
+          docker push ${{ env.IMAGE }}:${{ github.sha }}
+          docker push ${{ env.IMAGE }}:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE }} \
+            --image=${{ env.IMAGE }}:${{ github.sha }} \
+            --region=${{ env.REGION }} \
+            --platform=managed \
+            --quiet
+
+      - name: Verify deployment
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE }} --region=${{ env.REGION }} --format='value(status.url)')
+          TOKEN=$(gcloud auth print-identity-token --audiences=$URL)
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$URL/health")
+          echo "Health check: $STATUS"
+          [ "$STATUS" = "200" ] || exit 1
