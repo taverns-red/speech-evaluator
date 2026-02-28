@@ -41,8 +41,8 @@ const port = parseInt(process.env.PORT || "3000", 10);
 
 // ─── Validate API keys ─────────────────────────────────────────────────────────
 
-const deepgramKey = process.env.DEEPGRAM_API_KEY;
-const openaiKey = process.env.OPENAI_API_KEY;
+const deepgramKey = process.env.DEEPGRAM_API_KEY?.trim();
+const openaiKey = process.env.OPENAI_API_KEY?.trim();
 
 if (!deepgramKey) {
   logFatal("DEEPGRAM_API_KEY is not set. Add it to your .env file.");
@@ -55,6 +55,14 @@ if (!openaiKey) {
 }
 
 logInit("API keys loaded");
+
+// ─── Prevent uncaught exceptions from crashing the server ──────────────────────
+process.on("uncaughtException", (err) => {
+  console.error(`[FATAL] [${ts()}] Uncaught exception:`, err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error(`[FATAL] [${ts()}] Unhandled rejection:`, reason);
+});
 
 // ─── Initialize API clients ─────────────────────────────────────────────────────
 
