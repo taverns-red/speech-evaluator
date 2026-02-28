@@ -19,6 +19,14 @@
       <h1><span>AI</span> Speech Evaluator</h1>
       <div style="display:flex;align-items:center;gap:0.75rem;">
         <span id="connection-status" style="font-size: 0.8rem; color: var(--text-muted);">Disconnected</span>
+        <div id="user-info" style="display:none;align-items:center;gap:0.5rem;">
+          <img id="user-avatar" alt=""
+            style="width:28px;height:28px;border-radius:50%;object-fit:cover;display:none;" />
+          <span id="user-initials"
+            style="display:none;width:28px;height:28px;border-radius:50%;background:var(--red-primary);color:#fff;font-size:0.7rem;font-weight:600;font-family:'Outfit',sans-serif;line-height:28px;text-align:center;flex-shrink:0;"></span>
+          <span id="user-name"
+            style="font-size:0.8rem;color:var(--text-secondary);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+        </div>
         <button id="btn-signout" class="btn-signout" onclick="signOut()" title="Sign out"
           style="background:none;border:1px solid var(--border-subtle);border-radius:8px;padding:0.3rem 0.6rem;color:var(--text-muted);font-family:'Outfit',sans-serif;font-size:0.75rem;cursor:pointer;">Sign
           Out</button>
@@ -280,6 +288,49 @@
       document.cookie = "__session=;path=/;max-age=0";
       window.location.href = "/login.html";
     }
+
+    // ─── Load User Info (Issue #41) ──────────────────────────────────
+    function loadUserInfo() {
+      fetch("/api/me")
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (data) {
+          if (!data) return;
+
+          var userInfoEl = document.getElementById("user-info");
+          var avatarEl = document.getElementById("user-avatar");
+          var initialsEl = document.getElementById("user-initials");
+          var nameEl = document.getElementById("user-name");
+
+          // Show display name or email
+          nameEl.textContent = data.name || data.email;
+
+          // Show avatar photo or initials fallback
+          if (data.picture) {
+            avatarEl.src = data.picture;
+            avatarEl.style.display = "block";
+            avatarEl.onerror = function () {
+              avatarEl.style.display = "none";
+              showInitials(initialsEl, data.name || data.email);
+            };
+          } else {
+            showInitials(initialsEl, data.name || data.email);
+          }
+
+          userInfoEl.style.display = "flex";
+        })
+        .catch(function () { /* silently ignore — user info is non-critical */ });
+    }
+
+    function showInitials(el, nameOrEmail) {
+      var parts = nameOrEmail.split(/[\s@]/);
+      var initials = parts.length >= 2
+        ? (parts[0][0] + parts[1][0]).toUpperCase()
+        : nameOrEmail.substring(0, 2).toUpperCase();
+      el.textContent = initials;
+      el.style.display = "inline-block";
+    }
+
+    loadUserInfo();
 
     // ─── Application State ────────────────────────────────────────────
     let currentState = SessionState.IDLE;

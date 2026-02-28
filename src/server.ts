@@ -161,6 +161,19 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
     res.json({ version });
   });
 
+  // User info endpoint (issue #41)
+  app.get("/api/me", (req, res) => {
+    if (!req.user) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+    res.json({
+      email: req.user.email,
+      name: req.user.name ?? null,
+      picture: req.user.picture ?? null,
+    });
+  });
+
   // Upload endpoint (issues #24-26)
   if (uploadRouter) {
     app.use("/api/upload", uploadRouter);
