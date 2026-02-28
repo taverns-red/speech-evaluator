@@ -1096,6 +1096,17 @@ body::before {
   color: var(--text-primary);
 }
 
+.video-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-camera-flip:active {
+  transform: rotate(180deg);
+  transition: transform 0.3s ease;
+}
+
 .video-preview {
   width: 320px;
   height: auto;

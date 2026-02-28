@@ -183,8 +183,12 @@
     <div id="video-preview-container" class="video-preview-container" aria-label="Camera preview">
       <div class="video-preview-header">
         <span class="video-preview-label">Camera</span>
-        <button id="btn-video-toggle" class="btn-video-toggle" onclick="toggleVideoSize()"
-          title="Expand/collapse video preview">⤢</button>
+        <div class="video-preview-actions">
+          <button id="btn-camera-flip" class="btn-video-toggle btn-camera-flip" onclick="onCameraFlip()"
+            title="Switch camera" style="display:none;">🔄</button>
+          <button id="btn-video-toggle" class="btn-video-toggle" onclick="toggleVideoSize()"
+            title="Expand/collapse video preview">⤢</button>
+        </div>
       </div>
       <video id="video-preview" class="video-preview" autoplay muted playsinline></video>
       <canvas id="video-capture-canvas" style="display:none;"></canvas>
@@ -2919,7 +2923,13 @@
       captureCanvas: document.getElementById("video-capture-canvas"),
       frameStats: document.getElementById("video-frame-stats"),
       qualityGrade: document.getElementById("video-quality-grade"),
+      btnCameraFlip: document.getElementById("btn-camera-flip"),
     };
+
+    /** Current camera facing mode: "user" (front) or "environment" (rear) */
+    let currentFacingMode = "user";
+    /** Whether multiple cameras are detected (shows flip button) */
+    let hasMultipleCameras = false;
 
     /** Last video quality grade from final video_status message */
     let lastVideoQualityGrade = null;
@@ -2965,20 +2975,104 @@
 
     /**
      * Acquires camera access via getUserMedia and sets up the video preview.
+     * Uses the current facingMode ("user" for front, "environment" for rear).
+     * @param {string} [facingMode] - Optional facing mode override
      * @returns {Promise<boolean>} true if camera acquired successfully
      */
-    async function acquireCamera() {
+    async function acquireCamera(facingMode) {
+      var mode = facingMode || currentFacingMode;
       try {
         videoStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 10 } }
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            frameRate: { ideal: 10 },
+            facingMode: { ideal: mode },
+          }
         });
         videoDom.preview.srcObject = videoStream;
         show(videoDom.previewContainer);
+        // Check for multiple cameras and show/hide flip button
+        checkMultipleCameras();
         return true;
       } catch (err) {
         console.warn("[Video] Camera acquisition failed:", err.message);
         videoStream = null;
         return false;
+      }
+    }
+
+    /**
+     * Checks for multiple video input devices and shows/hides the camera
+     * flip button accordingly. Called after camera acquisition.
+     */
+    async function checkMultipleCameras() {
+      try {
+        var devices = await navigator.mediaDevices.enumerateDevices();
+        var videoInputs = devices.filter(function (d) { return d.kind === "videoinput"; });
+        hasMultipleCameras = videoInputs.length > 1;
+        if (hasMultipleCameras && videoDom.btnCameraFlip) {
+          videoDom.btnCameraFlip.style.display = "";
+        } else if (videoDom.btnCameraFlip) {
+          videoDom.btnCameraFlip.style.display = "none";
+        }
+      } catch (err) {
+        // If enumerateDevices fails, hide the flip button
+        console.warn("[Video] Could not enumerate devices:", err.message);
+        hasMultipleCameras = false;
+        if (videoDom.btnCameraFlip) {
+          videoDom.btnCameraFlip.style.display = "none";
+        }
+      }
+    }
+
+    /**
+     * Handles camera flip button click.
+     * Toggles between front ("user") and rear ("environment") cameras.
+     * Preserves video consent state and does not interrupt audio recording.
+     */
+    async function onCameraFlip() {
+      if (!videoConsentEnabled) return;
+
+      // Toggle facing mode
+      currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+
+      // Release current camera stream (does NOT release audio)
+      if (videoStream) {
+        videoStream.getTracks().forEach(function (track) { track.stop(); });
+        videoStream = null;
+      }
+      if (videoDom.preview) {
+        videoDom.preview.srcObject = null;
+      }
+
+      // Acquire new camera with toggled facing mode
+      var acquired = await acquireCamera(currentFacingMode);
+      if (!acquired) {
+        // If the new camera fails, revert to the previous mode
+        currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+        acquired = await acquireCamera(currentFacingMode);
+        if (!acquired) {
+          showVideoConsentError("Failed to switch camera. Camera access may have been lost.");
+        }
+        return;
+      }
+
+      // Re-send video_stream_ready with updated dimensions/device label
+      if (videoStream) {
+        var tracks = videoStream.getVideoTracks();
+        if (tracks.length > 0) {
+          var settings = tracks[0].getSettings();
+          var readyMsg = {
+            type: "video_stream_ready",
+            width: settings.width || 0,
+            height: settings.height || 0,
+          };
+          if (tracks[0].label) {
+            readyMsg.deviceLabel = tracks[0].label;
+          }
+          wsSend(readyMsg);
+        }
       }
     }
 
@@ -3100,6 +3194,12 @@
         videoDom.preview.srcObject = null;
       }
       hide(videoDom.previewContainer);
+      // Reset camera toggle state (#51)
+      currentFacingMode = "user";
+      hasMultipleCameras = false;
+      if (videoDom.btnCameraFlip) {
+        videoDom.btnCameraFlip.style.display = "none";
+      }
     }
 
     /**
