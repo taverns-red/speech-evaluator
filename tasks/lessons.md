@@ -218,3 +218,17 @@
 **The Resulting Rule**: For Cloud Run behind a GCLB with app-level auth: use `ingress=all` + `--no-invoker-iam-check` + classic `EXTERNAL` scheme. Don't use `internal-and-cloud-load-balancing` ingress — it may not recognize GCLB traffic correctly. Serverless NEGs don't support `portName` so avoid `--protocol=HTTPS` on the backend service.
 
 **rules.md**: none (GCP-specific)
+
+## 🗓️ 2026-02-28 — Lesson 17: Firebase Auth API Key Must Match Hosting init.json
+
+**The Discovery**: `signInWithPopup` opens the auth handler at `{authDomain}/__/auth/handler?apiKey={key}`. The handler validates the API key against its own `/__/firebase/init.json`. If the key doesn't match, it returns "The requested action is invalid." — a misleading error that doesn't mention the key mismatch.
+
+**The Scientific Proof**: The web app registration created a second API key (`AIzaSyDq...`), different from the browser key in `init.json` (`AIzaSyCqc...`). Using the web app key → "The requested action is invalid." Switching to the browser key → sign-in works. The URL bar in the failing popup visibly showed `apiKey=AIzaSyDq...`.
+
+**The Farley Principle Applied**: When a Firebase project has multiple API keys (auto-created browser key, web app key), use the one from `https://{project}.firebaseapp.com/__/firebase/init.json`. The auth handler page on `firebaseapp.com` validates against THIS key specifically, regardless of which keys are valid for the project.
+
+**The Resulting Rule**: For Firebase Auth with `signInWithPopup`/`signInWithRedirect`, always use the API key from the Firebase Hosting `init.json` endpoint (the browser key), not the web app SDK config key. Verify with: `curl https://{project}.firebaseapp.com/__/firebase/init.json`.
+
+**Future Warning**: `signInWithRedirect` has additional issues — the auth result can be lost in the cross-origin redirect chain (origin → firebaseapp.com → Google → firebaseapp.com → origin). Prefer `signInWithPopup` unless popups are blocked by browser policy.
+
+**rules.md**: none (Firebase-specific)
