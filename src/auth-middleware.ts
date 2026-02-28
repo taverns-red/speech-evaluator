@@ -26,6 +26,7 @@ const PUBLIC_PATHS = [
   "/icon-512.png",
   "/apple-touch-icon.png",
   "/logo-taverns.png",
+  "/api/config",
 ];
 
 /** Prefixes that bypass authentication (fonts, Firebase SDK, etc.) */

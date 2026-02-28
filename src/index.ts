@@ -177,9 +177,26 @@ if (allowedEmails.size > 0) {
   logInit("Auth disabled: ALLOWED_EMAILS not set (dev mode)");
 }
 
+// ─── Firebase client config (served at /api/config for login page) ───────────
+const firebaseApiKey = process.env.FIREBASE_API_KEY?.trim();
+const firebaseConfig = firebaseApiKey
+  ? {
+    apiKey: firebaseApiKey,
+    authDomain: "toast-stats-prod-6d64a.firebaseapp.com",
+    projectId: "toast-stats-prod-6d64a",
+    appId: "1:736334703361:web:b7174dfd26dab25cf2c900",
+    messagingSenderId: "736334703361",
+    measurementId: "G-LLLNH352T3",
+  }
+  : undefined;
+
+if (!firebaseConfig) {
+  logInit("WARNING: FIREBASE_API_KEY not set — /api/config will not be available");
+}
+
 // ─── Start server ───────────────────────────────────────────────────────────────
 
-const server = createAppServer({ sessionManager, uploadRouter, version: APP_VERSION, authMiddleware, wsAuthVerify });
+const server = createAppServer({ sessionManager, uploadRouter, version: APP_VERSION, authMiddleware, wsAuthVerify, firebaseConfig });
 
 server.listen(port).then(() => {
   logInit(`${APP_NAME} v${APP_VERSION} running at http://localhost:${port}`);

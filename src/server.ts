@@ -105,6 +105,8 @@ export interface CreateServerOptions {
   authMiddleware?: RequestHandler;
   /** Optional function to verify WebSocket upgrade requests. Returns true if allowed. */
   wsAuthVerify?: (req: IncomingMessage) => Promise<boolean>;
+  /** Firebase client-side config served at /api/config (no auth required). */
+  firebaseConfig?: Record<string, string>;
 }
 
 export interface AppServer {
@@ -134,6 +136,7 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
     uploadRouter,
     authMiddleware,
     wsAuthVerify,
+    firebaseConfig,
   } = options;
 
   const app = express();
@@ -146,6 +149,13 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
   });
+
+  // Firebase client config endpoint (unauthenticated — needed by login page)
+  if (firebaseConfig) {
+    app.get("/api/config", (_req, res) => {
+      res.json(firebaseConfig);
+    });
+  }
 
   // Mount auth middleware before static files and all other routes
   if (authMiddleware) {

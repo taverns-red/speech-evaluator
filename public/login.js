@@ -4,53 +4,12 @@
 
 /* global firebase */
 
-// Firebase config — uses the existing toast-stats-prod project
-const firebaseConfig = {
-    apiKey: "REDACTED_FIREBASE_API_KEY",
-    authDomain: "toast-stats-prod-6d64a.firebaseapp.com",
-    projectId: "toast-stats-prod-6d64a",
-    appId: "1:736334703361:web:b7174dfd26dab25cf2c900",
-    messagingSenderId: "736334703361",
-    measurementId: "G-LLLNH352T3",
-};
-
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-
 // DOM elements
 const errorEl = document.getElementById("login-error");
 const loadingEl = document.getElementById("login-loading");
 const btnGoogle = document.getElementById("btn-google");
 const btnApple = document.getElementById("btn-apple");
 const btnGitHub = document.getElementById("btn-github");
-
-// Handle sign-out action from main app
-const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.get("action") === "signout") {
-    // Sign out of Firebase (clears IndexedDB session), then reload clean
-    auth.signOut().then(() => {
-        document.cookie = "__session=;path=/;max-age=0";
-        window.location.replace("/login.html");
-    });
-} else {
-    // If already signed in, redirect to app
-    auth.onAuthStateChanged(async (user) => {
-        if (user) {
-            const token = await user.getIdToken();
-            setSessionCookie(token);
-            window.location.href = "/";
-        }
-    });
-}
-
-// Auto-refresh token before expiry
-auth.onIdTokenChanged(async (user) => {
-    if (user) {
-        const token = await user.getIdToken();
-        setSessionCookie(token);
-    }
-});
 
 function setSessionCookie(token) {
     // __session is the only cookie name Cloud Run preserves
@@ -104,13 +63,58 @@ async function handleSignIn(provider) {
     }
 }
 
+// ─── Fetch Firebase config from server and initialize ─────────────────────────
+let auth;
+
+(async function init() {
+    try {
+        const res = await fetch("/api/config");
+        if (!res.ok) throw new Error(`Config endpoint returned ${res.status}`);
+        const firebaseConfig = await res.json();
+
+        firebase.initializeApp(firebaseConfig);
+        auth = firebase.auth();
+
+        // Handle sign-out action from main app
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get("action") === "signout") {
+            auth.signOut().then(() => {
+                document.cookie = "__session=;path=/;max-age=0";
+                window.location.replace("/login.html");
+            });
+        } else {
+            // If already signed in, redirect to app
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    const token = await user.getIdToken();
+                    setSessionCookie(token);
+                    window.location.href = "/";
+                }
+            });
+        }
+
+        // Auto-refresh token before expiry
+        auth.onIdTokenChanged(async (user) => {
+            if (user) {
+                const token = await user.getIdToken();
+                setSessionCookie(token);
+            }
+        });
+    } catch (err) {
+        console.error("Failed to load Firebase config:", err);
+        showError("Unable to load authentication configuration. Please try again later.");
+    }
+})();
+
 // Exported to window for onclick handlers
 window.signInWithGoogle = function () {
+    if (!auth) return showError("Authentication not ready. Please reload.");
     const provider = new firebase.auth.GoogleAuthProvider();
     handleSignIn(provider);
 };
 
 window.signInWithApple = function () {
+    if (!auth) return showError("Authentication not ready. Please reload.");
     const provider = new firebase.auth.OAuthProvider("apple.com");
     provider.addScope("email");
     provider.addScope("name");
@@ -118,6 +122,7 @@ window.signInWithApple = function () {
 };
 
 window.signInWithGitHub = function () {
+    if (!auth) return showError("Authentication not ready. Please reload.");
     const provider = new firebase.auth.GithubAuthProvider();
     provider.addScope("read:user");
     provider.addScope("user:email");
