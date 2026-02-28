@@ -232,3 +232,13 @@
 **Future Warning**: `signInWithRedirect` has additional issues — the auth result can be lost in the cross-origin redirect chain (origin → firebaseapp.com → Google → firebaseapp.com → origin). Prefer `signInWithPopup` unless popups are blocked by browser policy.
 
 **rules.md**: none (Firebase-specific)
+
+## 🗓️ 2026-02-28 — Lesson 18: Property Test Arbitraries Must Mirror Production Logic
+
+**The Discovery**: The `gestureDisplacementArb` computed `normalizedDisplacement` as `maxDisplacement / bodyBboxHeight`, where `bodyBboxHeight` was the nose-to-hip distance. But `extractBodyBboxHeight` in production uses `max(y) - min(y)` over ALL confident keypoints — including wrists and elbows. When wrist Y values exceeded `hipY`, the actual bbox height was larger than assumed, making the normalized displacement smaller, causing a false expectation.
+
+**The Scientific Proof**: Counterexample: threshold=0.05, bodyBboxHeight=50, wrist at y=176→179. Test expected normalized displacement = 3/50 = 0.06 > threshold → gesture. Production: actual bbox = 179-100 = 79, normalized = 3/79 = 0.038 < threshold → no gesture. Mismatch → flaky test.
+
+**The Resulting Rule**: Property test arbitraries must replicate the exact computation used in production code. When testing derived thresholds, compute the expected outcome using the same algorithm as the SUT, not a simplified version.
+
+**rules.md**: none (testing pattern)
