@@ -512,28 +512,28 @@ const deterministicScenarioArb = fc
     const faceResult: FaceDetection | null =
       faceConfidence > 0
         ? {
-            landmarks: faceLandmarks,
-            boundingBox: { x: 80, y: 80, width: 160, height: 160 },
-            confidence: faceConfidence,
-          }
+          landmarks: faceLandmarks,
+          boundingBox: { x: 80, y: 80, width: 160, height: 160 },
+          confidence: faceConfidence,
+        }
         : null;
 
     const poseResult: PoseDetection | null =
       poseConfidence > 0
         ? {
-            keypoints: [
-              { x: 150, y: 100, confidence: poseConfidence, name: "nose" },
-              { x: 130, y: 120, confidence: poseConfidence, name: "left_shoulder" },
-              { x: 170, y: 120, confidence: poseConfidence, name: "right_shoulder" },
-              { x: 120, y: 200 + wristYOffset, confidence: poseConfidence, name: "left_wrist" },
-              { x: 180, y: 200 + wristYOffset, confidence: poseConfidence, name: "right_wrist" },
-              { x: 125, y: 160, confidence: poseConfidence, name: "left_elbow" },
-              { x: 175, y: 160, confidence: poseConfidence, name: "right_elbow" },
-              { x: 140, y: 300, confidence: poseConfidence, name: "left_hip" },
-              { x: 160, y: 300, confidence: poseConfidence, name: "right_hip" },
-            ],
-            confidence: poseConfidence,
-          }
+          keypoints: [
+            { x: 150, y: 100, confidence: poseConfidence, name: "nose" },
+            { x: 130, y: 120, confidence: poseConfidence, name: "left_shoulder" },
+            { x: 170, y: 120, confidence: poseConfidence, name: "right_shoulder" },
+            { x: 120, y: 200 + wristYOffset, confidence: poseConfidence, name: "left_wrist" },
+            { x: 180, y: 200 + wristYOffset, confidence: poseConfidence, name: "right_wrist" },
+            { x: 125, y: 160, confidence: poseConfidence, name: "left_elbow" },
+            { x: 175, y: 160, confidence: poseConfidence, name: "right_elbow" },
+            { x: 140, y: 300, confidence: poseConfidence, name: "left_hip" },
+            { x: 160, y: 300, confidence: poseConfidence, name: "right_hip" },
+          ],
+          confidence: poseConfidence,
+        }
         : null;
 
     return { frames, faceResult, poseResult };
@@ -1926,6 +1926,21 @@ const gestureDisplacementArb = fc
       params.rightElbow2,
     ];
 
+    // Compute the ACTUAL body bbox height the way extractBodyBboxHeight does:
+    // max(y) - min(y) over ALL confident keypoints in both frames.
+    // The test sets nose at y=100 and hips at y=100+bodyBboxHeight.
+    // Shoulders are at y=120, elbows and wrists vary.
+    const noseY = 100;
+    const hipY = noseY + params.bodyBboxHeight;
+    const fixedYs = [noseY, 120, 120, hipY, hipY]; // nose, shoulders, hips
+
+    // Frame 2 determines the bbox height for gesture detection on that frame
+    const frame2AllYs = [
+      ...fixedYs,
+      ...frame2Keypoints.map((kp) => kp.y),
+    ];
+    const actualBboxHeight = Math.max(...frame2AllYs) - Math.min(...frame2AllYs);
+
     // Compute expected max displacement
     let maxDisp = 0;
     for (let i = 0; i < 4; i++) {
@@ -1934,7 +1949,8 @@ const gestureDisplacementArb = fc
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > maxDisp) maxDisp = dist;
     }
-    const normalizedDisplacement = maxDisp / params.bodyBboxHeight;
+    const normalizedDisplacement =
+      actualBboxHeight > 0 ? maxDisp / actualBboxHeight : 0;
     const expectGesture = normalizedDisplacement > params.threshold;
 
     return {
