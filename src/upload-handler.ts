@@ -13,8 +13,9 @@ import multer from "multer";
 import ffmpeg from "fluent-ffmpeg";
 import { promises as fs } from "fs";
 import { tmpdir } from "os";
-import { join } from "path";
+import { join, resolve, normalize } from "path";
 import { randomUUID } from "crypto";
+import rateLimit from "express-rate-limit";
 import type { TranscriptionEngine } from "./transcription-engine.js";
 import type { MetricsExtractor } from "./metrics-extractor.js";
 import type { EvaluationGenerator } from "./evaluation-generator.js";
@@ -111,7 +112,14 @@ export function getMediaDuration(inputPath: string): Promise<number> {
 
 async function cleanupFile(filePath: string): Promise<void> {
     try {
-        await fs.unlink(filePath);
+        // Guard against path traversal — only delete files within tmpdir()
+        const resolvedPath = resolve(normalize(filePath));
+        const tmpRoot = resolve(tmpdir());
+        if (!resolvedPath.startsWith(tmpRoot)) {
+            console.warn(`[UPLOAD] Refusing to delete file outside tmpdir: ${filePath}`);
+            return;
+        }
+        await fs.unlink(resolvedPath);
     } catch {
         // Ignore cleanup errors
     }
@@ -124,6 +132,15 @@ function log(msg: string): void {
 }
 
 // ─── Router Factory ──────────────────────────────────────────────────────────────
+
+// Rate limiter: 10 uploads per 15-minute window per IP
+const uploadRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { status: "error", error: "Too many uploads. Please try again later." },
+});
 
 export function createUploadRouter(deps: UploadPipelineDeps): Router {
     const router = Router();
@@ -138,7 +155,7 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
      * - projectType: optional speech project type
      * - objectives: optional project objectives
      */
-    router.post("/", uploadMiddleware.single("file"), async (req: Request, res: Response) => {
+    router.post("/", uploadRateLimiter, uploadMiddleware.single("file"), async (req: Request, res: Response) => {
         const uploadedPath = req.file?.path;
         let audioPath: string | undefined;
 
