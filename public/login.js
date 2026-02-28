@@ -85,24 +85,31 @@ function enableButtons() {
 async function handleSignIn(provider) {
     showLoading();
     try {
-        const result = await auth.signInWithPopup(provider);
-        const token = await result.user.getIdToken();
-        setSessionCookie(token);
-        window.location.href = "/";
+        // Use redirect instead of popup — popups fail cross-origin
+        // (eval.taverns.red → toast-stats-prod-6d64a.firebaseapp.com)
+        await auth.signInWithRedirect(provider);
     } catch (err) {
-        if (err.code === "auth/popup-closed-by-user") {
-            enableButtons();
-            loadingEl.classList.remove("visible");
-            return;
-        }
-        if (err.code === "auth/account-exists-with-different-credential") {
-            showError("An account already exists with this email using a different sign-in method. Try another provider.");
-            return;
-        }
         console.error("Sign-in error:", err);
         showError(err.message || "Sign-in failed. Please try again.");
     }
 }
+
+// Handle redirect result on page load
+auth.getRedirectResult().then(async (result) => {
+    if (result && result.user) {
+        showLoading();
+        const token = await result.user.getIdToken();
+        setSessionCookie(token);
+        window.location.href = "/";
+    }
+}).catch((err) => {
+    if (err.code === "auth/account-exists-with-different-credential") {
+        showError("An account already exists with this email using a different sign-in method. Try another provider.");
+    } else {
+        console.error("Redirect sign-in error:", err);
+        showError(err.message || "Sign-in failed. Please try again.");
+    }
+});
 
 // Exported to window for onclick handlers
 window.signInWithGoogle = function () {
