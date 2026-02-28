@@ -15,6 +15,20 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-02-28 — Lesson 20: Use `ideal` Not `exact` for facingMode on Mobile Cameras
+
+**The Discovery**: `getUserMedia({ video: { facingMode: { exact: "environment" } } })` throws `OverconstrainedError` on devices that can't match the constraint exactly (e.g., desktop with a single webcam). Using `{ ideal: "environment" }` allows the browser to fall back gracefully to the available camera.
+
+**The Scientific Proof**: The `ideal` constraint is documented in the W3C Media Capture spec as "preferentially selecting a value closest to the ideal." Combined with `enumerateDevices()` to detect multiple cameras, the flip button is only shown when switching is possible, while `ideal` prevents hard failures.
+
+**The Farley Principle Applied**: Graceful degradation — don't gate on hardware capabilities that vary across devices. Let the constraint system handle fallbacks.
+
+**The Resulting Rule**: When requesting specific hardware capabilities via `getUserMedia`, use `{ ideal: value }` instead of `{ exact: value }` unless the feature absolutely cannot function without the exact constraint. Pair with `enumerateDevices()` to gate UI affordances (e.g., flip button visibility).
+
+**Future Warning**: `enumerateDevices()` may return empty labels until the user grants camera permission (privacy restriction). The flip button detection should be called AFTER `getUserMedia` succeeds, not before.
+
+**rules.md**: none (browser API pattern)
+
 ## 🗓️ 2026-02-26 — Lesson 09: Stub Detectors Unblock Grading; Upload Pipeline Needs Direct Dep Injection
 
 **The Discovery**: `SessionManager` passes `{}` to `VideoProcessor` — no detectors → capabilities `{ face: false, pose: false }` → quality always "poor". Real ML requires heavy deps (tfjs-node, model files). Stub detectors unblock immediately.
