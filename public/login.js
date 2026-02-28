@@ -6,10 +6,12 @@
 
 // Firebase config — uses the existing toast-stats-prod project
 const firebaseConfig = {
-    apiKey: "AIzaSyCIgfpT_v-WpW1jJCJBFwOBHN5qlUC9C4A",
+    apiKey: "AIzaSyDqtviRQWAehHDiG4G2AIHHRHehH1bObPI",
     authDomain: "toast-stats-prod-6d64a.firebaseapp.com",
     projectId: "toast-stats-prod-6d64a",
-    appId: "1:736334703361:web:speech-evaluator",
+    appId: "1:736334703361:web:b7174dfd26dab25cf2c900",
+    messagingSenderId: "736334703361",
+    measurementId: "G-LLLNH352T3",
 };
 
 // Initialize Firebase
