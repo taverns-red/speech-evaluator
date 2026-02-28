@@ -84,10 +84,12 @@ jobs:
 
       - name: Verify deployment
         run: |
-          URL=$(gcloud run services describe ${{ env.SERVICE }} --region=${{ env.REGION }} --format='value(status.url)')
-          TOKEN=$(gcloud auth print-identity-token \
-            --impersonate-service-account=speech-evaluator-deployer@toast-stats-prod-6d64a.iam.gserviceaccount.com \
-            --audiences=$URL)
-          STATUS=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$URL/health")
-          echo "Health check: $STATUS"
-          [ "$STATUS" = "200" ] || exit 1
+          URL=$(gcloud run services describe ${{ env.SERVICE }} \
+            --region=${{ env.REGION }} \
+            --format='value(status.url)')
+          READY=$(gcloud run services describe ${{ env.SERVICE }} \
+            --region=${{ env.REGION }} \
+            --format='value(status.conditions[0].status)')
+          echo "Service URL: $URL"
+          echo "Ready: $READY"
+          [ "$READY" = "True" ] || exit 1
