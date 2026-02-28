@@ -25,14 +25,24 @@ const btnGoogle = document.getElementById("btn-google");
 const btnApple = document.getElementById("btn-apple");
 const btnGitHub = document.getElementById("btn-github");
 
-// If already signed in, redirect to app
-auth.onAuthStateChanged(async (user) => {
-    if (user) {
-        const token = await user.getIdToken();
-        setSessionCookie(token);
-        window.location.href = "/";
-    }
-});
+// Handle sign-out action from main app
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get("action") === "signout") {
+    auth.signOut().then(() => {
+        document.cookie = "__session=;path=/;max-age=0";
+        // Remove the query param to prevent re-triggering on refresh
+        window.history.replaceState({}, "", "/login.html");
+    });
+} else {
+    // If already signed in, redirect to app
+    auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            const token = await user.getIdToken();
+            setSessionCookie(token);
+            window.location.href = "/";
+        }
+    });
+}
 
 // Auto-refresh token before expiry
 auth.onIdTokenChanged(async (user) => {

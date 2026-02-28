@@ -286,7 +286,7 @@
     // ─── Sign Out ──────────────────────────────────────────────────────
     function signOut() {
       document.cookie = "__session=;path=/;max-age=0";
-      window.location.href = "/login.html";
+      window.location.href = "/login.html?action=signout";
     }
 
     // ─── Load User Info (Issue #41) ──────────────────────────────────
