@@ -290,3 +290,13 @@
 **The Resulting Rule**: Any "save" operation on Cloud Run must deliver data to the client (download, email, external storage), not to the container's local filesystem. Server-side disk persistence is acceptable only as a secondary/debug mechanism, never as the primary user-facing path. For this app: serialize files in the WebSocket `outputs_saved` response and trigger a client-side ZIP download.
 
 **rules.md**: none (infrastructure pattern)
+
+## 🗓️ 2026-03-14 — Lesson 23: Multer Middleware Errors Escape to Express Default 500 Handler
+
+**The Discovery**: When `uploadMiddleware.single("file")` is passed as Express middleware in `router.post("/", ..., uploadMiddleware.single("file"), handler)`, errors thrown by multer (e.g., `LIMIT_FILE_SIZE`) are passed to Express's `next()` callback, bypassing the route handler's `try/catch` entirely. Express's default error handler returns HTTP 500 with no JSON body. The client receives a generic 500 and the browser's `fetch().json()` throws "The string did not match the expected pattern" because the body isn't valid JSON.
+
+**The Scientific Proof**: Server logs showed `MulterError: File too large` stack trace (not caught by route handler), HTTP 500 returned. Client console showed `ReferenceError: Can't find variable: showNotification` at line 2781 (a secondary bug masking the real error). The upload never even reached the route handler.
+
+**The Resulting Rule**: Wrap multer invocation inside the route handler using `await new Promise((resolve, reject) => { multerMiddleware(req, res, (err) => err ? reject(err) : resolve()); })`. This keeps multer errors within the handler's control, allowing proper HTTP status codes (413 for file-too-large, 415 for unsupported type).
+
+**rules.md**: none (Express middleware pattern)
