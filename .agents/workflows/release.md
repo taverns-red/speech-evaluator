@@ -1,52 +1,21 @@
 ---
-description: How to create a new release with version bump, tag, and push
+description: How releases are created using Google's release-please
 ---
 
 # Release Workflow
 
-Uses `commit-and-tag-version` (conventional-commits-driven semver).
+Releases are fully automated via [release-please](https://github.com/googleapis/release-please).
 
-## Prerequisites
-- All tests pass (`npx vitest run`)
-- Working tree is clean (`git status`)
-- You are on `main`
+## How It Works
 
-## Steps
-
-// turbo
-1. Run the test suite to confirm green state:
-```bash
-cd /Users/rservant/code/speech-evaluator && npx vitest run
-```
-
-2. Preview what will happen (dry run):
-```bash
-npx commit-and-tag-version --dry-run
-```
-Review the computed version bump and changelog entries.
-
-3. Run the release:
-```bash
-# Auto-detect from commits (recommended):
-npm run release
-
-# Or force a specific bump:
-npm run release:patch   # bug fixes only → 0.X.Y+1
-npm run release:minor   # new features   → 0.X+1.0
-npm run release:major   # breaking       → X+1.0.0
-```
-
-This will:
-- Bump `package.json` version
-- Update `CHANGELOG.md`
-- Create a commit: `chore(release): vX.Y.Z`
-- Create an annotated tag: `vX.Y.Z`
-
-// turbo
-4. Push the commit and tag:
-```bash
-git push origin HEAD --follow-tags
-```
+1. On every push to `main`, the `release-please` GitHub Action scans conventional commits.
+2. It opens (or updates) a **Release PR** with:
+   - Bumped `package.json` version
+   - Updated `CHANGELOG.md`
+   - A descriptive title like `chore(main): release 0.7.0`
+3. **When you merge the Release PR**, release-please:
+   - Creates an annotated git tag (`v0.7.0`)
+   - Creates a GitHub Release with release notes
 
 ## Semver Rules (Conventional Commits)
 
@@ -56,6 +25,18 @@ git push origin HEAD --follow-tags
 | `feat:` | MINOR | `feat: add upload endpoint (#24)` |
 | `feat!:` / `BREAKING CHANGE:` | MAJOR | `feat!: remove legacy API` |
 | `docs:`, `chore:`, `test:`, `refactor:` | none | Non-functional changes |
+
+## Manual Steps
+
+None required! Just keep writing conventional commits. To release:
+
+// turbo
+1. Check for an open Release PR:
+```bash
+gh pr list --label "autorelease: pending"
+```
+
+2. Review and merge the Release PR when ready.
 
 ## Post-Release
 - Verify: `git tag -l | tail -3`
