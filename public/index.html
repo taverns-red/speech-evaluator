@@ -2848,6 +2848,72 @@
           }
         }
 
+        // ── Download button ──
+        {
+          const evalEl = document.getElementById("evaluation-content");
+          if (evalEl) {
+            const dlBtn = document.createElement("button");
+            dlBtn.className = "btn";
+            dlBtn.style.cssText = "margin-top: 8px; width: 100%;";
+            dlBtn.innerHTML = "💾 Download Evaluation";
+            dlBtn.onclick = () => {
+              const speakerName = (consentSpeakerName || "speaker").replace(/[^a-zA-Z0-9_-]/g, "_");
+              const dateStr = new Date().toISOString().slice(0, 10);
+              const zipName = `speech-evaluation_${speakerName}_${dateStr}.zip`;
+
+              // Build file contents
+              const files = [];
+
+              // Transcript
+              if (result.transcript && result.transcript.length > 0) {
+                const text = result.transcript.map(s => s.text).join("\n\n");
+                files.push({ name: "transcript.txt", content: text });
+              }
+
+              // Evaluation
+              if (result.evaluation) {
+                let evalText = "";
+                if (result.evaluation.opening) evalText += result.evaluation.opening + "\n\n";
+                for (const item of (result.evaluation.items || [])) {
+                  evalText += `[${item.type.toUpperCase()}] ${item.summary}\n`;
+                  if (item.explanation) evalText += `  ${item.explanation}\n`;
+                  if (item.evidence_quote) evalText += `  Quote: "${item.evidence_quote}"\n`;
+                  evalText += "\n";
+                }
+                if (result.evaluation.closing) evalText += result.evaluation.closing + "\n";
+                if (result.passRate !== undefined) evalText += `\nEvidence pass rate: ${(result.passRate * 100).toFixed(0)}%\n`;
+                files.push({ name: "evaluation.txt", content: evalText });
+              }
+
+              // Metrics
+              if (result.metrics) {
+                let metricsText = "Speech Metrics\n==============\n\n";
+                metricsText += `Total words: ${result.metrics.totalWords || 0}\n`;
+                metricsText += `WPM: ${Math.round(result.metrics.wordsPerMinute || 0)}\n`;
+                metricsText += `Duration: ${result.durationSeconds?.toFixed(0) || "?"}s\n`;
+                if (result.metrics.fillerWordCount !== undefined) metricsText += `Filler words: ${result.metrics.fillerWordCount}\n`;
+                files.push({ name: "metrics.txt", content: metricsText });
+              }
+
+              if (files.length === 0) {
+                showNotification("No data to download.", "warning");
+                return;
+              }
+
+              // Reuse existing buildZip
+              const zipBlob = buildZip(files.map(f => ({ name: f.name, content: new TextEncoder().encode(f.content) })));
+              const url = URL.createObjectURL(zipBlob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = zipName;
+              a.click();
+              URL.revokeObjectURL(url);
+              showNotification("Evaluation downloaded!", "success");
+            };
+            evalEl.appendChild(dlBtn);
+          }
+        }
+
         showNotification("Upload evaluation complete!", "success");
 
         // Hide progress after 5s
