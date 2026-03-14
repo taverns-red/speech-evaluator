@@ -280,3 +280,13 @@
 **The Resulting Rule**: Always `.trim()` API keys loaded from `process.env`. Secret Manager, dotenv, and dashboard copy-paste frequently introduce trailing newlines. Also: add `uncaughtException`/`unhandledRejection` handlers to prevent individual errors from crashing the entire server.
 
 **rules.md**: none (ops hygiene)
+
+## 🗓️ 2026-03-14 — Lesson 22: Cloud Run Container Disk is Ephemeral — Never Rely on It for User Data
+
+**The Discovery**: `FilePersistence.saveSession()` wrote evaluation outputs (transcript, metrics, evaluation, audio) to the container's `output/` directory. Users clicked "Save Outputs" and got a confirmation message, but the files were invisible and lost on the next deploy, scale event, or container restart. The user's latest evaluation was irrecoverably deleted when we deployed the timeout fix (#53).
+
+**The Scientific Proof**: After deploying commit `969dfa2` (Cloud Run timeout fix), the user reported their saved evaluation was gone. Cloud Run documentation confirms: container filesystem is in-memory tmpfs, cleared on every new instance.
+
+**The Resulting Rule**: Any "save" operation on Cloud Run must deliver data to the client (download, email, external storage), not to the container's local filesystem. Server-side disk persistence is acceptable only as a secondary/debug mechanism, never as the primary user-facing path. For this app: serialize files in the WebSocket `outputs_saved` response and trigger a client-side ZIP download.
+
+**rules.md**: none (infrastructure pattern)
