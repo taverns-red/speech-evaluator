@@ -15,6 +15,20 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-14 — Lesson 24: gpt-4o-transcribe Returns Text-Only — No Segments, Words, or Duration
+
+**The Discovery**: `gpt-4o-transcribe` with `response_format: "json"` returns only `{ text: "..." }` — no `segments`, `words`, or `duration` fields. The `parseTranscriptionResponse()` fallback created a single segment with `endTime: 0` (since `duration` was `undefined`), causing WPM = 0 for all uploaded videos. The bug was silent — no errors, no warnings, just degraded output.
+
+**The Scientific Proof**: OpenAI API docs confirm `gpt-4o-transcribe` doesn't support `verbose_json` or `timestamp_granularities`. Only `whisper-1` returns word/segment timestamps. Added 3 unit tests proving the fix (model override + chunking), all pass.
+
+**The Farley Principle Applied**: Different API models with the same endpoint can return structurally different responses. Always verify the response shape per model, not per endpoint.
+
+**The Resulting Rule**: For transcription requiring temporal data (segments, words, duration), use `whisper-1` with `response_format: "verbose_json"` and `timestamp_granularities: ["word", "segment"]`. `gpt-4o-transcribe` is only suitable when raw text is sufficient.
+
+**Future Warning**: `whisper-1` has a 25MB file limit. Long recordings need chunking with timestamp offsets. The `finalizeChunked()` method handles this but chunk boundaries may split words mid-sentence.
+
+**rules.md**: none (API-specific)
+
 ## 🗓️ 2026-03-14 — Lesson 21: Cloud Run timeoutSeconds Applies to WebSocket Upgrade Requests
 
 **The Discovery**: Cloud Run's `timeoutSeconds` (default 300s = 5 minutes) applies to the HTTP upgrade request that initiates a WebSocket connection. Once the timeout elapses, the entire WebSocket connection is silently killed — no error, no close frame, no server-side log. The client sees a sudden `onclose` event.
