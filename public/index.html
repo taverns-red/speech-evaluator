@@ -23,6 +23,7 @@
     <header class="header">
       <h1><span>AI</span> Speech Evaluator</h1>
       <div style="display:flex;align-items:center;gap:0.75rem;">
+        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">🌙</button>
         <span id="connection-status" style="font-size: 0.8rem; color: var(--text-muted);">Disconnected</span>
         <button id="btn-reconnect" onclick="window.__reconnectWS && window.__reconnectWS()"
           style="display:none;font-size:0.7rem;padding:0.2rem 0.5rem;background:var(--color-danger);color:#fff;border:none;border-radius:4px;cursor:pointer;">Reconnect</button>
@@ -3671,6 +3672,23 @@
 
     // Restore form state from localStorage (#58)
     restoreFormState();
+
+    // ─── Theme Toggle (#56) ──────────────────────────────────────────
+    const themeToggleBtn = document.getElementById("theme-toggle");
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      themeToggleBtn.textContent = theme === "light" ? "☀️" : "🌙";
+      themeToggleBtn.title = theme === "light" ? "Switch to dark theme" : "Switch to light theme";
+      try { localStorage.setItem("speech-evaluator-theme", theme); } catch (e) { /* ignore */ }
+    }
+    // Initialize: localStorage > prefers-color-scheme > dark default
+    const savedTheme = (() => { try { return localStorage.getItem("speech-evaluator-theme"); } catch (e) { return null; } })();
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    applyTheme(savedTheme || (prefersDark ? "dark" : "light"));
+    themeToggleBtn.addEventListener("click", function () {
+      const current = document.documentElement.getAttribute("data-theme");
+      applyTheme(current === "dark" ? "light" : "dark");
+    });
 
     // WebSocket is connected on demand when "Start Speech" is clicked (#59)
     dom.connectionStatus.textContent = "Ready";
