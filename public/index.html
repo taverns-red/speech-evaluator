@@ -2900,8 +2900,9 @@
                 return;
               }
 
-              // Reuse existing buildZip
-              const zipBlob = buildZip(files.map(f => ({ name: f.name, content: new TextEncoder().encode(f.content) })));
+              // Reuse existing buildZip (expects {name, content} with content as string)
+              const zipBytes = buildZip(files);
+              const zipBlob = new Blob([zipBytes], { type: "application/zip" });
               const url = URL.createObjectURL(zipBlob);
               const a = document.createElement("a");
               a.href = url;
