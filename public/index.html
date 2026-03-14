@@ -2895,6 +2895,11 @@
                 files.push({ name: "metrics.txt", content: metricsText });
               }
 
+              // TTS audio
+              if (result.ttsAudio) {
+                files.push({ name: "evaluation_audio.mp3", content: result.ttsAudio, encoding: "base64" });
+              }
+
               if (files.length === 0) {
                 showNotification("No data to download.", "warning");
                 return;
