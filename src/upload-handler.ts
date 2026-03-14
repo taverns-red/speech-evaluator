@@ -211,7 +211,7 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
 
             // ── Transcribe ──
             log("Transcribing...");
-            const transcript: TranscriptSegment[] = await deps.transcriptionEngine.finalize(audioBuffer);
+            const transcript: TranscriptSegment[] = await deps.transcriptionEngine.finalize(audioBuffer, { model: "whisper-1" });
             log(`Transcription: ${transcript.length} segments`);
 
             if (transcript.length === 0) {

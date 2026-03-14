@@ -669,6 +669,121 @@ describe("TranscriptionEngine", () => {
     });
   });
 
+  describe("finalize with model override", () => {
+    it("should use the override model instead of the default when options.model is provided", async () => {
+      const { client, createSpy } = createMockOpenAIClient({
+        text: "Hello everyone. Today I want to talk about leadership.",
+        duration: 8.0,
+        segments: [
+          { id: 0, start: 0.0, end: 2.0, text: "Hello everyone." },
+          { id: 1, start: 2.5, end: 6.0, text: "Today I want to talk about leadership." },
+        ],
+        words: [
+          { word: "Hello", start: 0.0, end: 0.4 },
+          { word: "everyone.", start: 0.5, end: 1.0 },
+          { word: "Today", start: 2.5, end: 2.9 },
+          { word: "I", start: 3.0, end: 3.1 },
+          { word: "want", start: 3.2, end: 3.5 },
+          { word: "to", start: 3.6, end: 3.7 },
+          { word: "talk", start: 3.8, end: 4.1 },
+          { word: "about", start: 4.2, end: 4.5 },
+          { word: "leadership.", start: 4.6, end: 5.5 },
+        ],
+      });
+      // Engine defaults to gpt-4o-transcribe, but override to whisper-1
+      const engineWithOpenAI = new TranscriptionEngine(mock.client, client);
+
+      const result = await engineWithOpenAI.finalize(Buffer.alloc(3200), { model: "whisper-1" });
+
+      // Should have called API with whisper-1 and verbose_json
+      const callArgs = createSpy.mock.calls[0][0];
+      expect(callArgs.model).toBe("whisper-1");
+      expect(callArgs.response_format).toBe("verbose_json");
+      expect(callArgs.timestamp_granularities).toEqual(["word", "segment"]);
+
+      // Result should have multiple segments with word timestamps
+      expect(result).toHaveLength(2);
+      expect(result[0].words.length).toBeGreaterThan(0);
+      expect(result[1].words.length).toBeGreaterThan(0);
+    });
+
+    it("should use the default model when no override is provided", async () => {
+      const { client, createSpy } = createMockOpenAIClient({
+        text: "Hello everyone.",
+      });
+      const engineWithOpenAI = new TranscriptionEngine(mock.client, client);
+
+      await engineWithOpenAI.finalize(Buffer.alloc(3200));
+
+      const callArgs = createSpy.mock.calls[0][0];
+      expect(callArgs.model).toBe("gpt-4o-transcribe");
+      expect(callArgs.response_format).toBe("json");
+    });
+
+    it("should split large audio into chunks and merge results with adjusted timestamps", async () => {
+      // Create a buffer larger than 25MB (the Whisper API limit)
+      // 25MB = 25 * 1024 * 1024 = 26,214,400 bytes
+      // Create a buffer slightly over 25MB to trigger chunking
+      const chunkSize = 25 * 1024 * 1024;
+      const largeBuffer = Buffer.alloc(chunkSize + 1000);
+
+      // The mock should be called twice (two chunks)
+      const createSpy = vi.fn()
+        .mockResolvedValueOnce({
+          text: "First chunk of speech.",
+          duration: 400.0,
+          segments: [
+            { id: 0, start: 0.0, end: 200.0, text: "First chunk" },
+            { id: 1, start: 200.0, end: 400.0, text: "of speech." },
+          ],
+          words: [
+            { word: "First", start: 0.0, end: 0.5 },
+            { word: "chunk", start: 0.5, end: 1.0 },
+            { word: "of", start: 200.0, end: 200.3 },
+            { word: "speech.", start: 200.3, end: 201.0 },
+          ],
+        } as OpenAITranscriptionResponse)
+        .mockResolvedValueOnce({
+          text: "Second chunk here.",
+          duration: 2.0,
+          segments: [
+            { id: 0, start: 0.0, end: 2.0, text: "Second chunk here." },
+          ],
+          words: [
+            { word: "Second", start: 0.0, end: 0.5 },
+            { word: "chunk", start: 0.5, end: 1.0 },
+            { word: "here.", start: 1.0, end: 2.0 },
+          ],
+        } as OpenAITranscriptionResponse);
+
+      const client: OpenAITranscriptionClient = {
+        audio: {
+          transcriptions: { create: createSpy },
+        },
+      };
+      const engineWithOpenAI = new TranscriptionEngine(mock.client, client);
+
+      const result = await engineWithOpenAI.finalize(largeBuffer, { model: "whisper-1" });
+
+      // Should have called API twice (once per chunk)
+      expect(createSpy).toHaveBeenCalledTimes(2);
+
+      // Should have 3 total segments (2 from first chunk + 1 from second chunk)
+      expect(result).toHaveLength(3);
+
+      // First chunk segments should have original timestamps
+      expect(result[0].startTime).toBe(0.0);
+      expect(result[0].endTime).toBe(200.0);
+
+      // Second chunk segments should have timestamps offset by first chunk's duration
+      expect(result[2].startTime).toBeCloseTo(400.0); // 0.0 + 400.0 offset
+      expect(result[2].endTime).toBeCloseTo(402.0);   // 2.0 + 400.0 offset
+
+      // Words in second chunk should also be offset
+      expect(result[2].words[0].startTime).toBeCloseTo(400.0);
+    });
+  });
+
   describe("custom config", () => {
     it("should merge custom config with defaults", () => {
       const customEngine = new TranscriptionEngine(mock.client, undefined, {

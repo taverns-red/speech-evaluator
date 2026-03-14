@@ -214,7 +214,7 @@ export class TranscriptionEngine {
    * @returns Finalized transcript segments, all with `isFinal: true`.
    * @throws Error if no OpenAI client was provided.
    */
-  async finalize(fullAudio: Buffer): Promise<TranscriptSegment[]> {
+  async finalize(fullAudio: Buffer, options?: { model?: string }): Promise<TranscriptSegment[]> {
     if (!this.openaiClient) {
       throw new Error(
         "No OpenAI client configured. Provide an OpenAI client in the constructor for post-speech transcription.",
@@ -225,45 +225,26 @@ export class TranscriptionEngine {
       return [];
     }
 
-    // Convert raw PCM to a proper WAV file for the OpenAI API.
-    // The audio is mono LINEAR16 16kHz PCM — we prepend a 44-byte WAV header
-    // so the API can identify the format correctly.
-    const sampleRate = 16000;
-    const numChannels = 1;
-    const bitsPerSample = 16;
-    const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
-    const blockAlign = numChannels * (bitsPerSample / 8);
-    const dataSize = fullAudio.byteLength;
-    const wavHeader = Buffer.alloc(44);
-    wavHeader.write("RIFF", 0);                          // ChunkID
-    wavHeader.writeUInt32LE(36 + dataSize, 4);            // ChunkSize
-    wavHeader.write("WAVE", 8);                           // Format
-    wavHeader.write("fmt ", 12);                          // Subchunk1ID
-    wavHeader.writeUInt32LE(16, 16);                      // Subchunk1Size (PCM)
-    wavHeader.writeUInt16LE(1, 20);                       // AudioFormat (1 = PCM)
-    wavHeader.writeUInt16LE(numChannels, 22);             // NumChannels
-    wavHeader.writeUInt32LE(sampleRate, 24);              // SampleRate
-    wavHeader.writeUInt32LE(byteRate, 28);                // ByteRate
-    wavHeader.writeUInt16LE(blockAlign, 32);              // BlockAlign
-    wavHeader.writeUInt16LE(bitsPerSample, 34);           // BitsPerSample
-    wavHeader.write("data", 36);                          // Subchunk2ID
-    wavHeader.writeUInt32LE(dataSize, 40);                // Subchunk2Size
+    // Use override model if provided, otherwise fall back to the constructor default
+    const model = options?.model ?? this.openaiModel;
+    const useVerboseJson = model === "whisper-1";
 
-    const wavBuffer = Buffer.concat([wavHeader, fullAudio]);
-    const audioFile = new File([new Uint8Array(wavBuffer.buffer as ArrayBuffer, wavBuffer.byteOffset, wavBuffer.byteLength)], "speech.wav", {
-      type: "audio/wav",
-    });
+    // Whisper API has a 25MB file limit. If the WAV exceeds that, chunk the audio.
+    const MAX_CHUNK_BYTES = 25 * 1024 * 1024 - 44; // 25MB minus WAV header
+    if (fullAudio.length > MAX_CHUNK_BYTES) {
+      return this.finalizeChunked(fullAudio, model, useVerboseJson);
+    }
 
-    // Call OpenAI audio transcription API.
-    // gpt-4o-transcribe only supports "json" response format (text only).
-    // whisper-1 supports "verbose_json" with timestamp_granularities.
-    // We request verbose_json with word+segment timestamps when using whisper-1,
-    // and fall back to json for gpt-4o-transcribe.
-    const useVerboseJson = this.openaiModel === "whisper-1";
+    const wavBuffer = this.createWavBuffer(fullAudio);
+    const audioFile = new File(
+      [new Uint8Array(wavBuffer.buffer as ArrayBuffer, wavBuffer.byteOffset, wavBuffer.byteLength)],
+      "speech.wav",
+      { type: "audio/wav" },
+    );
 
     const response = await this.openaiClient.audio.transcriptions.create({
       file: audioFile,
-      model: this.openaiModel,
+      model,
       language: "en",
       ...(useVerboseJson
         ? {
@@ -276,6 +257,94 @@ export class TranscriptionEngine {
     });
 
     return this.parseTranscriptionResponse(response);
+  }
+
+  /**
+   * Transcribe audio in chunks when it exceeds the 25MB Whisper API limit.
+   * Each chunk is transcribed independently, then segments are merged with
+   * timestamp offsets based on the cumulative duration of previous chunks.
+   */
+  private async finalizeChunked(
+    fullAudio: Buffer,
+    model: string,
+    useVerboseJson: boolean,
+  ): Promise<TranscriptSegment[]> {
+    const MAX_CHUNK_BYTES = 25 * 1024 * 1024 - 44; // 25MB minus WAV header
+    const allSegments: TranscriptSegment[] = [];
+    let timeOffset = 0;
+
+    for (let offset = 0; offset < fullAudio.length; offset += MAX_CHUNK_BYTES) {
+      const chunkEnd = Math.min(offset + MAX_CHUNK_BYTES, fullAudio.length);
+      const chunkAudio = fullAudio.subarray(offset, chunkEnd);
+
+      const wavBuffer = this.createWavBuffer(chunkAudio);
+      const audioFile = new File(
+        [new Uint8Array(wavBuffer.buffer as ArrayBuffer, wavBuffer.byteOffset, wavBuffer.byteLength)],
+        "speech.wav",
+        { type: "audio/wav" },
+      );
+
+      const response = await this.openaiClient!.audio.transcriptions.create({
+        file: audioFile,
+        model,
+        language: "en",
+        ...(useVerboseJson
+          ? {
+              response_format: "verbose_json",
+              timestamp_granularities: ["word", "segment"],
+            }
+          : {
+              response_format: "json",
+            }),
+      });
+
+      const chunkSegments = this.parseTranscriptionResponse(response);
+
+      // Offset timestamps for all segments after the first chunk
+      for (const seg of chunkSegments) {
+        seg.startTime += timeOffset;
+        seg.endTime += timeOffset;
+        for (const word of seg.words) {
+          word.startTime += timeOffset;
+          word.endTime += timeOffset;
+        }
+        allSegments.push(seg);
+      }
+
+      // Advance the time offset by this chunk's duration
+      const chunkDuration = response.duration ?? 0;
+      timeOffset += chunkDuration;
+    }
+
+    return allSegments;
+  }
+
+  /**
+   * Creates a WAV buffer from raw PCM audio data.
+   * Audio must be mono LINEAR16 16kHz PCM.
+   */
+  private createWavBuffer(pcmAudio: Buffer): Buffer {
+    const sampleRate = 16000;
+    const numChannels = 1;
+    const bitsPerSample = 16;
+    const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+    const blockAlign = numChannels * (bitsPerSample / 8);
+    const dataSize = pcmAudio.byteLength;
+    const wavHeader = Buffer.alloc(44);
+    wavHeader.write("RIFF", 0);
+    wavHeader.writeUInt32LE(36 + dataSize, 4);
+    wavHeader.write("WAVE", 8);
+    wavHeader.write("fmt ", 12);
+    wavHeader.writeUInt32LE(16, 16);
+    wavHeader.writeUInt16LE(1, 20);
+    wavHeader.writeUInt16LE(numChannels, 22);
+    wavHeader.writeUInt32LE(sampleRate, 24);
+    wavHeader.writeUInt32LE(byteRate, 28);
+    wavHeader.writeUInt16LE(blockAlign, 32);
+    wavHeader.writeUInt16LE(bitsPerSample, 34);
+    wavHeader.write("data", 36);
+    wavHeader.writeUInt32LE(dataSize, 40);
+    return Buffer.concat([wavHeader, pcmAudio]);
   }
 
   /**
