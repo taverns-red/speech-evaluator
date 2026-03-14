@@ -11,7 +11,7 @@
 
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse") as (buffer: Buffer) => Promise<{ text: string }>;
+const { PDFParse: pdfParse } = require("pdf-parse") as { PDFParse: (buffer: Buffer) => Promise<{ text: string }> };
 import mammoth from "mammoth";
 
 // ─── Types ───────────────────────────────────────────────────────────────────────
