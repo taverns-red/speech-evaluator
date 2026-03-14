@@ -478,6 +478,14 @@
     let sourceNode = null;
     /** Whether the audio_format handshake has been sent for this connection */
     let audioFormatSent = false;
+
+    // ─── Speech Recording (MediaRecorder) (#60) ──────────────────────
+    /** @type {MediaRecorder|null} */
+    let speechRecorder = null;
+    /** @type {Blob[]} Collected recording chunks */
+    let speechRecordingChunks = [];
+    /** @type {Blob|null} Final assembled recording blob */
+    let speechRecordingBlob = null;
     /** Whether we are in the post-TTS cooldown period */
     let inCooldown = false;
     /** Cooldown timer ID */
@@ -1695,6 +1703,23 @@
      * @param {Array<{name: string, content: string, encoding: string}>} files
      */
     function downloadOutputsAsZip(files) {
+      // Include original speech recording if available (#60)
+      if (speechRecordingBlob && speechRecordingBlob.size > 0) {
+        // Convert blob to base64 for buildZip
+        const reader = new FileReader();
+        reader.onloadend = function () {
+          const base64 = reader.result.split(",")[1]; // strip data:...;base64,
+          const ext = speechRecordingBlob.type.includes("mp4") ? "mp4" : "webm";
+          files.push({ name: "speech_recording." + ext, content: base64, encoding: "base64" });
+          finishZipDownload(files);
+        };
+        reader.readAsDataURL(speechRecordingBlob);
+      } else {
+        finishZipDownload(files);
+      }
+    }
+
+    function finishZipDownload(files) {
       // Build ZIP file bytes
       const zipBytes = buildZip(files);
       const blob = new Blob([zipBytes], { type: "application/zip" });
@@ -2655,6 +2680,33 @@
         // (AudioWorklet needs to be connected to process)
         workletNode.connect(audioContext.destination);
 
+        // Start MediaRecorder to capture original speech (#60)
+        speechRecordingChunks = [];
+        speechRecordingBlob = null;
+        try {
+          const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+            ? "audio/webm;codecs=opus"
+            : MediaRecorder.isTypeSupported("audio/webm")
+              ? "audio/webm"
+              : ""; // browser default
+          const recorderOptions = mimeType ? { mimeType } : {};
+          speechRecorder = new MediaRecorder(mediaStream, recorderOptions);
+          speechRecorder.ondataavailable = function (e) {
+            if (e.data && e.data.size > 0) speechRecordingChunks.push(e.data);
+          };
+          speechRecorder.onstop = function () {
+            if (speechRecordingChunks.length > 0) {
+              speechRecordingBlob = new Blob(speechRecordingChunks, { type: speechRecorder.mimeType });
+            }
+            speechRecorder = null;
+          };
+          speechRecorder.start(1000); // 1-second chunks for memory efficiency
+          console.log("[MediaRecorder] Started:", speechRecorder.mimeType);
+        } catch (recErr) {
+          console.warn("[MediaRecorder] Could not start recording:", recErr);
+          // Non-fatal — the session still works, just without recording
+        }
+
         return true;
       } catch (err) {
         if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
@@ -2674,6 +2726,12 @@
      * Keeps the MediaStream alive for potential restart.
      */
     function stopAudioCapture() {
+      // Stop MediaRecorder (#60)
+      if (speechRecorder && speechRecorder.state !== "inactive") {
+        speechRecorder.stop();
+        console.log("[MediaRecorder] Stopped");
+      }
+
       if (workletNode) {
         // Tell the worklet processor to stop
         workletNode.port.postMessage({ type: "stop" });
@@ -3223,6 +3281,9 @@
       hardStopMic();
       // Phase 4: Release camera on consent revocation
       releaseCamera();
+      // Clear speech recording (#60)
+      speechRecordingChunks = [];
+      speechRecordingBlob = null;
       // Atomic: cancel deferral + bump token + stop audio + clear ttsPlaying + clear latch
       forceStopTtsAndCancelDeferral();
       clearCooldown();
@@ -3239,6 +3300,9 @@
       hardStopMic();
       // Phase 4: Stop video capture immediately
       stopVideoCapture();
+      // Clear speech recording (#60)
+      speechRecordingChunks = [];
+      speechRecordingBlob = null;
       // Atomic: cancel deferral + bump token + stop audio + clear ttsPlaying + clear latch
       forceStopTtsAndCancelDeferral();
       clearCooldown();
