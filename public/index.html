@@ -2659,6 +2659,50 @@
       }
     }
 
+    // ─── Notification Toast ──────────────────────────────────────────
+
+    const MAX_UPLOAD_SIZE_MB = 2048;
+
+    /**
+     * Shows a toast notification banner.
+     * @param {string} message - Text to display
+     * @param {string} type - 'error' | 'warning' | 'success' | 'info'
+     * @param {number} durationMs - Auto-dismiss after this many ms (default 5000)
+     */
+    function showNotification(message, type = "info", durationMs = 5000) {
+      let toast = document.getElementById("notification-toast");
+      if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "notification-toast";
+        toast.style.cssText = `
+          position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+          padding: 12px 24px; border-radius: 8px; z-index: 10000;
+          font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 500;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.4); transition: opacity 0.3s;
+          max-width: 90vw; text-align: center;
+        `;
+        document.body.appendChild(toast);
+      }
+
+      const colors = {
+        error: { bg: "#3a1c1c", border: "#e74c3c", text: "#ff8a80" },
+        warning: { bg: "#3a2e1c", border: "#f39c12", text: "#ffe0b2" },
+        success: { bg: "#1c3a1c", border: "#27ae60", text: "#a5d6a7" },
+        info: { bg: "#1c2a3a", border: "#3498db", text: "#90caf9" },
+      };
+      const c = colors[type] || colors.info;
+      toast.style.background = c.bg;
+      toast.style.border = `1px solid ${c.border}`;
+      toast.style.color = c.text;
+      toast.textContent = message;
+      toast.style.opacity = "1";
+
+      clearTimeout(toast._dismissTimer);
+      toast._dismissTimer = setTimeout(() => {
+        toast.style.opacity = "0";
+      }, durationMs);
+    }
+
     // ─── Upload Flow ──────────────────────────────────────────────────────
 
     function onFileSelected(event) {
@@ -2668,6 +2712,18 @@
       // Require consent before upload
       if (!consentConfirmed || consentSpeakerName.trim().length === 0) {
         showNotification("Please fill in the consent form before uploading.", "warning");
+        event.target.value = "";
+        return;
+      }
+
+      // Client-side file size pre-check
+      const fileSizeMB = file.size / 1024 / 1024;
+      if (fileSizeMB > MAX_UPLOAD_SIZE_MB) {
+        showNotification(
+          `File too large (${fileSizeMB.toFixed(0)}MB). Maximum: ${MAX_UPLOAD_SIZE_MB}MB.`,
+          "error",
+          8000
+        );
         event.target.value = "";
         return;
       }

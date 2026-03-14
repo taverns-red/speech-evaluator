@@ -24,7 +24,7 @@ import type { TranscriptSegment, DeliveryMetrics } from "./types.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────────
 
-const MAX_FILE_SIZE_MB = 500;
+const MAX_FILE_SIZE_MB = 2048;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 const ALLOWED_MIME_TYPES = [
     "video/mp4",
@@ -155,7 +155,27 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
      * - projectType: optional speech project type
      * - objectives: optional project objectives
      */
-    router.post("/", uploadRateLimiter, uploadMiddleware.single("file"), async (req: Request, res: Response) => {
+    router.post("/", uploadRateLimiter, async (req: Request, res: Response) => {
+        // Wrap multer to catch MulterErrors (file too large, unsupported type)
+        // before they escape to Express's default 500 handler.
+        try {
+            await new Promise<void>((resolve, reject) => {
+                uploadMiddleware.single("file")(req, res, (err: unknown) => {
+                    if (err) reject(err);
+                    else resolve();
+                });
+            });
+        } catch (multerErr) {
+            if (multerErr instanceof multer.MulterError && multerErr.code === "LIMIT_FILE_SIZE") {
+                res.status(413).json({ status: "error", error: `File too large. Maximum: ${MAX_FILE_SIZE_MB}MB.` });
+                return;
+            }
+            const errMsg = multerErr instanceof Error ? multerErr.message : String(multerErr);
+            log(`Multer error: ${errMsg}`);
+            res.status(415).json({ status: "error", error: errMsg });
+            return;
+        }
+
         const uploadedPath = req.file?.path;
         let audioPath: string | undefined;
 
@@ -255,12 +275,6 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
         } catch (err) {
             const errMsg = err instanceof Error ? err.message : String(err);
             log(`Error: ${errMsg}`);
-
-            if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
-                res.status(413).json({ status: "error", error: `File too large. Maximum: ${MAX_FILE_SIZE_MB}MB.` });
-                return;
-            }
-
             res.status(500).json({ status: "error", error: errMsg });
         } finally {
             if (uploadedPath) await cleanupFile(uploadedPath);
