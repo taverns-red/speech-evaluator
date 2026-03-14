@@ -1,14 +1,18 @@
 /**
- * Video Upload Handler — REST endpoint for uploading pre-recorded videos.
+ * Video Upload Handler — REST endpoints for uploading pre-recorded videos.
  *
- * Accepts a video file via multipart POST, extracts audio using ffmpeg,
- * runs it through the transcription → metrics → evaluation → TTS pipeline,
- * and returns the complete evaluation result.
+ * Two-phase upload flow via GCS signed URLs:
+ *   1. POST /init    — validates metadata, returns a signed GCS upload URL
+ *   2. POST /process — downloads from GCS, runs pipeline, returns evaluation
  *
- * Implements issues #24, #25, #26.
+ * The direct multipart POST / endpoint is kept as a legacy fallback for
+ * files under the Cloud Run 32 MiB limit.
+ *
+ * Implements issues #24, #25, #26, #66.
  */
 
 import { Router, type Request, type Response } from "express";
+import express from "express";
 import multer from "multer";
 import ffmpeg from "fluent-ffmpeg";
 import { promises as fs } from "fs";
@@ -21,11 +25,12 @@ import type { MetricsExtractor } from "./metrics-extractor.js";
 import type { EvaluationGenerator } from "./evaluation-generator.js";
 import type { TTSEngine } from "./tts-engine.js";
 import type { TranscriptSegment, DeliveryMetrics } from "./types.js";
+import { type GCSUploadService } from "./gcs-upload.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────────
 
-const MAX_FILE_SIZE_MB = 32; // Cloud Run HTTP/1.1 body limit is 32 MiB
-const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const LEGACY_MAX_FILE_SIZE_MB = 32; // Legacy direct upload: Cloud Run HTTP/1.1 limit
+const LEGACY_MAX_FILE_SIZE_BYTES = LEGACY_MAX_FILE_SIZE_MB * 1024 * 1024;
 const ALLOWED_MIME_TYPES = [
     "video/mp4",
     "video/webm",
@@ -47,9 +52,11 @@ export interface UploadPipelineDeps {
     metricsExtractor: MetricsExtractor;
     evaluationGenerator: EvaluationGenerator;
     ttsEngine?: TTSEngine;
+    /** GCS upload service — when provided, enables the /init + /process endpoints. */
+    gcsUploadService?: GCSUploadService;
 }
 
-// ─── Multer Config ───────────────────────────────────────────────────────────────
+// ─── Multer Config (legacy direct upload) ────────────────────────────────────────
 
 const storage = multer.diskStorage({
     destination: (_req, _file, cb) => {
@@ -62,7 +69,7 @@ const storage = multer.diskStorage({
 
 const uploadMiddleware = multer({
     storage,
-    limits: { fileSize: MAX_FILE_SIZE_BYTES },
+    limits: { fileSize: LEGACY_MAX_FILE_SIZE_BYTES },
     fileFilter: (_req, file, cb) => {
         if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
             cb(null, true);
@@ -131,9 +138,105 @@ function log(msg: string): void {
     console.log(`[UPLOAD] ${msg}`);
 }
 
-// ─── Router Factory ──────────────────────────────────────────────────────────────
+// ─── Shared Pipeline ─────────────────────────────────────────────────────────────
 
-// Rate limiter: 10 uploads per 15-minute window per IP
+/**
+ * Runs the common evaluation pipeline on a local file path.
+ * Used by both the legacy direct upload and the GCS two-phase flow.
+ */
+async function runEvaluationPipeline(
+    uploadedPath: string,
+    formData: { speakerName: string; speechTitle?: string; projectType?: string; objectives?: string },
+    deps: UploadPipelineDeps,
+): Promise<{
+    durationSeconds: number;
+    transcript: TranscriptSegment[];
+    metrics: DeliveryMetrics;
+    evaluation: ReturnType<EvaluationGenerator["generate"]> extends Promise<infer R> ? R : never;
+    script: string;
+    ttsAudioBase64?: string;
+}> {
+    let audioPath: string | undefined;
+
+    try {
+        // ── Duration ──
+        let durationSeconds = 0;
+        try {
+            durationSeconds = await getMediaDuration(uploadedPath);
+            log(`Duration: ${durationSeconds.toFixed(1)}s`);
+        } catch {
+            log("Could not determine duration");
+        }
+
+        // ── Extract audio ──
+        log("Extracting audio...");
+        audioPath = await extractAudio(uploadedPath);
+        const audioBuffer = await fs.readFile(audioPath);
+        log(`Audio extracted: ${(audioBuffer.length / 1024 / 1024).toFixed(1)}MB PCM`);
+
+        // ── Transcribe ──
+        log("Transcribing...");
+        const transcript: TranscriptSegment[] = await deps.transcriptionEngine.finalize(audioBuffer, { model: "whisper-1" });
+        log(`Transcription: ${transcript.length} segments`);
+
+        if (transcript.length === 0) {
+            throw Object.assign(new Error("No speech detected in the uploaded file."), { statusCode: 422 });
+        }
+
+        // ── Extract metrics ──
+        log("Extracting metrics...");
+        const metrics: DeliveryMetrics = deps.metricsExtractor.extract(transcript);
+        log(`Metrics: ${metrics.totalWords} words, ${Math.round(metrics.wordsPerMinute)} WPM`);
+
+        // ── Generate evaluation ──
+        log("Generating evaluation...");
+        const evalConfig = formData.speechTitle || formData.projectType
+            ? {
+                speechTitle: formData.speechTitle,
+                projectType: formData.projectType,
+                objectives: formData.objectives ? [formData.objectives] : undefined,
+            }
+            : undefined;
+
+        const evalResult = await deps.evaluationGenerator.generate(
+            transcript,
+            metrics,
+            evalConfig,
+            null, // no visual observations for uploaded video (yet)
+        );
+        log(`Evaluation: ${evalResult.evaluation.items.length} items, pass rate ${(evalResult.passRate * 100).toFixed(0)}%`);
+
+        // ── Render script ──
+        const script = deps.evaluationGenerator.renderScript(evalResult.evaluation, undefined, metrics);
+
+        // ── TTS (optional) ──
+        let ttsAudioBase64: string | undefined;
+        if (deps.ttsEngine) {
+            try {
+                log("Synthesizing TTS...");
+                const ttsBuffer = await deps.ttsEngine.synthesize(script);
+                ttsAudioBase64 = ttsBuffer.toString("base64");
+                log(`TTS: ${(ttsBuffer.length / 1024).toFixed(0)}KB`);
+            } catch (ttsErr) {
+                log(`TTS skipped: ${ttsErr instanceof Error ? ttsErr.message : String(ttsErr)}`);
+            }
+        }
+
+        return {
+            durationSeconds,
+            transcript,
+            metrics,
+            evaluation: evalResult,
+            script,
+            ttsAudioBase64,
+        };
+    } finally {
+        if (audioPath) await cleanupFile(audioPath);
+    }
+}
+
+// ─── Rate Limiter ────────────────────────────────────────────────────────────────
+
 const uploadRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
@@ -142,19 +245,124 @@ const uploadRateLimiter = rateLimit({
     message: { status: "error", error: "Too many uploads. Please try again later." },
 });
 
+// ─── Router Factory ──────────────────────────────────────────────────────────────
+
 export function createUploadRouter(deps: UploadPipelineDeps): Router {
     const router = Router();
 
-    /**
-     * POST /api/upload
-     *
-     * Accepts multipart form data with:
-     * - file: video/audio file
-     * - speakerName: speaker's name (required for consent)
-     * - speechTitle: optional speech title
-     * - projectType: optional speech project type
-     * - objectives: optional project objectives
-     */
+    // Parse JSON bodies for /init and /process endpoints
+    router.use(express.json());
+
+    // ─── POST /init (GCS two-phase upload, step 1) ───────────────────────────────
+    //
+    // Returns a signed URL for direct-to-GCS upload.
+    // Request body: { filename, contentType, sizeBytes, speakerName, speechTitle?, projectType?, objectives? }
+    // Response: { uploadUrl, objectId }
+
+    if (deps.gcsUploadService) {
+        router.post("/init", uploadRateLimiter, async (req: Request, res: Response) => {
+            try {
+                const { filename, contentType, sizeBytes, speakerName } = req.body;
+
+                // Validate required fields
+                if (!filename || !contentType || !sizeBytes) {
+                    res.status(400).json({
+                        status: "error",
+                        error: "Missing required fields: filename, contentType, sizeBytes",
+                    });
+                    return;
+                }
+                if (!speakerName || typeof speakerName !== "string" || speakerName.trim().length === 0) {
+                    res.status(400).json({ status: "error", error: "speakerName is required." });
+                    return;
+                }
+
+                log(`Init GCS upload: ${filename} (${(sizeBytes / 1024 / 1024).toFixed(1)}MB, ${contentType})`);
+
+                const { uploadUrl, objectId } = await deps.gcsUploadService!.generateSignedUploadUrl(
+                    filename,
+                    contentType,
+                    sizeBytes,
+                );
+
+                res.json({ status: "ok", uploadUrl, objectId });
+            } catch (err) {
+                const errMsg = err instanceof Error ? err.message : String(err);
+                log(`Init error: ${errMsg}`);
+                res.status(400).json({ status: "error", error: errMsg });
+            }
+        });
+
+        // ─── POST /process (GCS two-phase upload, step 2) ────────────────────────────
+        //
+        // Downloads file from GCS, runs the evaluation pipeline, deletes GCS object.
+        // Request body: { objectId, speakerName, speechTitle?, projectType?, objectives? }
+        // Response: { status, durationSeconds, transcript, metrics, evaluation, passRate, script, ttsAudio? }
+
+        router.post("/process", uploadRateLimiter, async (req: Request, res: Response) => {
+            const { objectId, speakerName, speechTitle, projectType, objectives } = req.body;
+            let downloadedPath: string | undefined;
+
+            try {
+                // Validate required fields
+                if (!objectId) {
+                    res.status(400).json({ status: "error", error: "objectId is required." });
+                    return;
+                }
+                if (!speakerName || typeof speakerName !== "string" || speakerName.trim().length === 0) {
+                    res.status(400).json({ status: "error", error: "speakerName is required." });
+                    return;
+                }
+
+                log(`Processing GCS object: ${objectId}`);
+
+                // Download from GCS to tmpdir
+                downloadedPath = await deps.gcsUploadService!.downloadToTmpdir(objectId);
+                log(`Downloaded to: ${downloadedPath}`);
+
+                // Run shared pipeline
+                const result = await runEvaluationPipeline(
+                    downloadedPath,
+                    { speakerName, speechTitle, projectType, objectives },
+                    deps,
+                );
+
+                // Response
+                res.json({
+                    status: "success",
+                    durationSeconds: result.durationSeconds,
+                    transcript: result.transcript,
+                    metrics: result.metrics,
+                    evaluation: result.evaluation.evaluation,
+                    passRate: result.evaluation.passRate,
+                    script: result.script,
+                    ...(result.ttsAudioBase64 ? { ttsAudio: result.ttsAudioBase64 } : {}),
+                });
+
+                log(`Done — ${result.transcript.length} segments, ${result.durationSeconds.toFixed(1)}s`);
+
+            } catch (err) {
+                const errMsg = err instanceof Error ? err.message : String(err);
+                const statusCode = (err as { statusCode?: number }).statusCode ?? 500;
+                log(`Process error: ${errMsg}`);
+                res.status(statusCode).json({ status: "error", error: errMsg });
+            } finally {
+                // Always clean up: local file and GCS object
+                if (downloadedPath) await cleanupFile(downloadedPath);
+                if (objectId) {
+                    try {
+                        await deps.gcsUploadService!.deleteObject(objectId);
+                        log(`Deleted GCS object: ${objectId}`);
+                    } catch (deleteErr) {
+                        log(`Failed to delete GCS object: ${deleteErr instanceof Error ? deleteErr.message : String(deleteErr)}`);
+                    }
+                }
+            }
+        });
+    }
+
+    // ─── POST / (Legacy direct upload — kept for files < 32 MB) ──────────────────
+
     router.post("/", uploadRateLimiter, async (req: Request, res: Response) => {
         // Wrap multer to catch MulterErrors (file too large, unsupported type)
         // before they escape to Express's default 500 handler.
@@ -167,7 +375,7 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
             });
         } catch (multerErr) {
             if (multerErr instanceof multer.MulterError && multerErr.code === "LIMIT_FILE_SIZE") {
-                res.status(413).json({ status: "error", error: `File too large. Maximum: ${MAX_FILE_SIZE_MB}MB.` });
+                res.status(413).json({ status: "error", error: `File too large. Maximum for direct upload: ${LEGACY_MAX_FILE_SIZE_MB}MB. Use the two-phase upload for larger files.` });
                 return;
             }
             const errMsg = multerErr instanceof Error ? multerErr.message : String(multerErr);
@@ -177,7 +385,6 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
         }
 
         const uploadedPath = req.file?.path;
-        let audioPath: string | undefined;
 
         try {
             // ── Validate ──
@@ -194,91 +401,39 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
 
             log(`Received: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(1)}MB, ${req.file.mimetype})`);
 
-            // ── Duration ──
-            let durationSeconds = 0;
-            try {
-                durationSeconds = await getMediaDuration(uploadedPath!);
-                log(`Duration: ${durationSeconds.toFixed(1)}s`);
-            } catch {
-                log("Could not determine duration");
-            }
-
-            // ── Extract audio ──
-            log("Extracting audio...");
-            audioPath = await extractAudio(uploadedPath!);
-            const audioBuffer = await fs.readFile(audioPath);
-            log(`Audio extracted: ${(audioBuffer.length / 1024 / 1024).toFixed(1)}MB PCM`);
-
-            // ── Transcribe ──
-            log("Transcribing...");
-            const transcript: TranscriptSegment[] = await deps.transcriptionEngine.finalize(audioBuffer, { model: "whisper-1" });
-            log(`Transcription: ${transcript.length} segments`);
-
-            if (transcript.length === 0) {
-                res.status(422).json({ status: "error", error: "No speech detected in the uploaded file." });
-                return;
-            }
-
-            // ── Extract metrics ──
-            log("Extracting metrics...");
-            const metrics: DeliveryMetrics = deps.metricsExtractor.extract(transcript);
-            log(`Metrics: ${metrics.totalWords} words, ${Math.round(metrics.wordsPerMinute)} WPM`);
-
-            // ── Generate evaluation ──
-            log("Generating evaluation...");
-            const evalConfig = req.body?.speechTitle || req.body?.projectType
-                ? {
-                    speechTitle: req.body.speechTitle,
-                    projectType: req.body.projectType,
-                    objectives: req.body.objectives,
-                }
-                : undefined;
-
-            const { evaluation, passRate } = await deps.evaluationGenerator.generate(
-                transcript,
-                metrics,
-                evalConfig,
-                null, // no visual observations for uploaded video (yet)
+            // Run shared pipeline
+            const result = await runEvaluationPipeline(
+                uploadedPath!,
+                {
+                    speakerName,
+                    speechTitle: req.body?.speechTitle,
+                    projectType: req.body?.projectType,
+                    objectives: req.body?.objectives,
+                },
+                deps,
             );
-            log(`Evaluation: ${evaluation.items.length} items, pass rate ${(passRate * 100).toFixed(0)}%`);
-
-            // ── Render script ──
-            const script = deps.evaluationGenerator.renderScript(evaluation, undefined, metrics);
-
-            // ── TTS (optional) ──
-            let ttsAudioBase64: string | undefined;
-            if (deps.ttsEngine) {
-                try {
-                    log("Synthesizing TTS...");
-                    const ttsBuffer = await deps.ttsEngine.synthesize(script);
-                    ttsAudioBase64 = ttsBuffer.toString("base64");
-                    log(`TTS: ${(ttsBuffer.length / 1024).toFixed(0)}KB`);
-                } catch (ttsErr) {
-                    log(`TTS skipped: ${ttsErr instanceof Error ? ttsErr.message : String(ttsErr)}`);
-                }
-            }
 
             // ── Response ──
             res.json({
                 status: "success",
-                durationSeconds,
-                transcript,
-                metrics,
-                evaluation,
-                passRate,
-                script,
-                ...(ttsAudioBase64 ? { ttsAudio: ttsAudioBase64 } : {}),
+                durationSeconds: result.durationSeconds,
+                transcript: result.transcript,
+                metrics: result.metrics,
+                evaluation: result.evaluation.evaluation,
+                passRate: result.evaluation.passRate,
+                script: result.script,
+                ...(result.ttsAudioBase64 ? { ttsAudio: result.ttsAudioBase64 } : {}),
             });
 
-            log(`Done — ${transcript.length} segments, ${durationSeconds.toFixed(1)}s`);
+            log(`Done — ${result.transcript.length} segments, ${result.durationSeconds.toFixed(1)}s`);
 
         } catch (err) {
             const errMsg = err instanceof Error ? err.message : String(err);
+            const statusCode = (err as { statusCode?: number }).statusCode ?? 500;
             log(`Error: ${errMsg}`);
-            res.status(500).json({ status: "error", error: errMsg });
+            res.status(statusCode).json({ status: "error", error: errMsg });
         } finally {
             if (uploadedPath) await cleanupFile(uploadedPath);
-            if (audioPath) await cleanupFile(audioPath);
         }
     });
 

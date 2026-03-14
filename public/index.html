@@ -2819,7 +2819,7 @@
 
     // ─── Notification Toast ──────────────────────────────────────────
 
-    const MAX_UPLOAD_SIZE_MB = 32; // Cloud Run HTTP/1.1 body limit is 32 MiB
+    const MAX_UPLOAD_SIZE_MB = 2048; // GCS signed URL upload bypasses Cloud Run 32 MiB limit
 
     /**
      * Shows a toast notification banner.
@@ -2906,6 +2906,115 @@
       document.getElementById("upload-progress").classList.add("hidden");
     }
 
+    /**
+     * Two-phase GCS upload: init → PUT to GCS → process.
+     * Uses XMLHttpRequest for real upload progress tracking.
+     */
+    async function uploadViaGCS(file, metadata) {
+      // Step 1: Get signed URL from server
+      const initResponse = await fetch("/api/upload/init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: file.name,
+          contentType: file.type,
+          sizeBytes: file.size,
+          ...metadata,
+        }),
+      });
+
+      if (initResponse.status === 404) {
+        throw new Error("GCS upload not available");
+      }
+
+      const initResult = await initResponse.json();
+      if (!initResponse.ok || initResult.status === "error") {
+        throw new Error(initResult.error || "Failed to initialize upload");
+      }
+
+      const { uploadUrl, objectId } = initResult;
+
+      // Step 2: Upload directly to GCS via XHR (for progress tracking)
+      updateUploadProgress("Uploading", 10, `Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`);
+
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", uploadUrl);
+        xhr.setRequestHeader("Content-Type", file.type);
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const pct = Math.round((event.loaded / event.total) * 60) + 10; // 10-70%
+            const loadedMB = (event.loaded / 1024 / 1024).toFixed(1);
+            const totalMB = (event.total / 1024 / 1024).toFixed(1);
+            updateUploadProgress("Uploading", pct, `${loadedMB}MB / ${totalMB}MB uploaded`);
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve();
+          } else {
+            reject(new Error(`Upload to storage failed (HTTP ${xhr.status})`));
+          }
+        };
+        xhr.onerror = () => reject(new Error("Upload to storage failed (network error)"));
+        xhr.send(file);
+      });
+
+      // Step 3: Trigger server-side processing
+      updateUploadProgress("Processing", 75, "Extracting audio, transcribing, and evaluating...");
+
+      const processResponse = await fetch("/api/upload/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          objectId,
+          ...metadata,
+        }),
+      });
+
+      const result = await processResponse.json();
+      if (!processResponse.ok || result.status === "error") {
+        throw new Error(result.error || `Processing failed (HTTP ${processResponse.status})`);
+      }
+
+      return result;
+    }
+
+    /**
+     * Legacy direct upload via multipart POST (for files < 32MB or when GCS is unavailable).
+     */
+    async function uploadLegacy(file, metadata) {
+      updateUploadProgress("Uploading", 10, `Sending ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`);
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("speakerName", metadata.speakerName);
+      if (metadata.speechTitle) formData.append("speechTitle", metadata.speechTitle);
+      if (metadata.projectType) formData.append("projectType", metadata.projectType);
+      if (metadata.objectives) formData.append("objectives", metadata.objectives);
+
+      updateUploadProgress("Processing", 30, "Extracting audio and transcribing...");
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      updateUploadProgress("Analyzing", 70, "Generating evaluation...");
+
+      const result = await response.json();
+      if (!response.ok || result.status === "error") {
+        if (response.status === 413) {
+          throw new Error(`File too large for direct upload (${(file.size / 1024 / 1024).toFixed(0)}MB). Maximum: 32MB.`);
+        }
+        throw new Error(result.error || `Upload failed (HTTP ${response.status})`);
+      }
+
+      return result;
+    }
+
     async function uploadVideo(file) {
       const btnUpload = document.getElementById("btn-upload");
       const btnStart = document.getElementById("btn-start");
@@ -2916,36 +3025,35 @@
         btnStart.disabled = true;
         btnUpload.textContent = "⏳ Processing...";
 
-        updateUploadProgress("Uploading", 10, `Sending ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`);
-
-        // Build form data
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("speakerName", consentSpeakerName);
-
-        // Include project context if set
+        // Gather project context
         const speechTitle = document.getElementById("speech-title")?.value;
         const projectType = document.getElementById("project-type")?.value;
-        if (speechTitle) formData.append("speechTitle", speechTitle);
-        if (projectType) formData.append("projectType", projectType);
+        const objectives = document.getElementById("objectives")?.value;
 
-        updateUploadProgress("Processing", 30, "Extracting audio and transcribing...");
+        const metadata = {
+          speakerName: consentSpeakerName,
+          speechTitle: speechTitle || undefined,
+          projectType: projectType || undefined,
+          objectives: objectives || undefined,
+        };
 
-        const response = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
+        updateUploadProgress("Initializing", 5, "Preparing upload...");
 
-        updateUploadProgress("Analyzing", 70, "Generating evaluation...");
-
-        const result = await response.json();
-
-        if (!response.ok || result.status === "error") {
-          if (response.status === 413) {
-            throw new Error(`File too large for server (${(file.size / 1024 / 1024).toFixed(0)}MB). Maximum upload size is ${MAX_UPLOAD_SIZE_MB}MB. Try compressing your video first.`);
+        // ── Try GCS two-phase upload first ──
+        let result;
+        try {
+          result = await uploadViaGCS(file, metadata);
+        } catch (gcsErr) {
+          // If GCS init returns 404, fall back to legacy direct upload
+          if (gcsErr.message && gcsErr.message.includes("GCS upload not available")) {
+            console.log("GCS upload not available, falling back to legacy direct upload");
+            result = await uploadLegacy(file, metadata);
+          } else {
+            throw gcsErr;
           }
-          throw new Error(result.error || `Upload failed (HTTP ${response.status})`);
         }
+
+        const response = result;
 
         updateUploadProgress("Complete", 100, `Processed ${result.durationSeconds?.toFixed(0) || "?"}s of speech — ${result.transcript?.length || 0} segments`);
 

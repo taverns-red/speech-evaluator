@@ -21,6 +21,7 @@ import { VideoProcessor } from "./video-processor.js";
 import type { VideoProcessorDeps } from "./video-processor.js";
 import type { VideoConfig } from "./types.js";
 import { createUploadRouter } from "./upload-handler.js";
+import { GCSUploadService, createGCSClient } from "./gcs-upload.js";
 import { StubPoseDetector } from "./stub-pose-detector.js";
 import { StubFaceDetector } from "./stub-face-detector.js";
 import { TfjsFaceDetector } from "./tfjs-face-detector.js";
@@ -137,11 +138,19 @@ const sessionManager = new SessionManager({
 // ─── Upload Router ──────────────────────────────────────────────────────────────
 
 logInit("Initializing upload endpoint...");
+let gcsUploadService: GCSUploadService | undefined;
+try {
+  gcsUploadService = new GCSUploadService(createGCSClient());
+  logInit("GCS upload service initialized (two-phase upload enabled)");
+} catch (err) {
+  logInit(`GCS upload service unavailable, using legacy direct upload only: ${err}`);
+}
 const uploadRouter = createUploadRouter({
   transcriptionEngine,
   metricsExtractor,
   evaluationGenerator,
   ttsEngine,
+  gcsUploadService,
 });
 
 // ─── Firebase Auth & Authorization ──────────────────────────────────────────────
