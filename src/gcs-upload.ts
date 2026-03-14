@@ -75,7 +75,7 @@ export function createGCSClient(bucketName: string = BUCKET_NAME): GCSClient {
             objectId: string,
             contentType: string,
             expiryMinutes: number,
-            maxBytes: number,
+            _maxBytes: number,
         ): Promise<string> {
             const file = bucket.file(objectId);
             const [url] = await file.getSignedUrl({
@@ -83,9 +83,9 @@ export function createGCSClient(bucketName: string = BUCKET_NAME): GCSClient {
                 action: "write",
                 expires: Date.now() + expiryMinutes * 60 * 1000,
                 contentType,
-                extensionHeaders: {
-                    "x-goog-content-length-range": `0,${maxBytes}`,
-                },
+                // Note: extensionHeaders like x-goog-content-length-range are NOT included
+                // because they become REQUIRED on the client PUT request. Size is validated
+                // server-side in generateSignedUploadUrl() before signing.
             });
             return url;
         },
