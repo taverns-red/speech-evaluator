@@ -253,7 +253,8 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
     const router = Router();
 
     // Parse JSON bodies for /init and /process endpoints
-    router.use(express.json());
+    // Limit increased to 10MB to support evaluation form base64 payloads (#64)
+    router.use(express.json({ limit: "10mb" }));
 
     // ─── POST /init (GCS two-phase upload, step 1) ───────────────────────────────
     //
