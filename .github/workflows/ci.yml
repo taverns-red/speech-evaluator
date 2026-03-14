@@ -80,6 +80,7 @@ jobs:
             --image=${{ env.IMAGE }}:${{ github.sha }} \
             --region=${{ env.REGION }} \
             --platform=managed \
+            --timeout=3600 \
             --quiet
 
       - name: Verify deployment

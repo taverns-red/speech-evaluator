@@ -15,6 +15,20 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-14 — Lesson 21: Cloud Run timeoutSeconds Applies to WebSocket Upgrade Requests
+
+**The Discovery**: Cloud Run's `timeoutSeconds` (default 300s = 5 minutes) applies to the HTTP upgrade request that initiates a WebSocket connection. Once the timeout elapses, the entire WebSocket connection is silently killed — no error, no close frame, no server-side log. The client sees a sudden `onclose` event.
+
+**The Scientific Proof**: Session `f9b93122` opened its WebSocket at 16:32:49 UTC and was killed at 16:37:50 UTC — exactly 301 seconds, 1 second over the 300s limit. Zero errors were logged between recording start (16:33:29) and WebSocket close. The deploy workflow (`ci.yml`) did not set `--timeout`, inheriting the 300s default.
+
+**The Farley Principle Applied**: Silent infrastructure failures are the hardest to debug. The symptom ("Audio playback failed") was 3 layers removed from the root cause (Cloud Run timeout → WebSocket close → client-side TTS fail-safe). Always check infrastructure limits when connections die without errors.
+
+**The Resulting Rule**: For Cloud Run services using WebSockets, always set `--timeout=3600` (maximum) in the deploy command. The timeout applies to the upgrade request lifetime, not individual messages. Document the expected session duration and verify the timeout accommodates it.
+
+**Future Warning**: If sessions need to exceed 60 minutes, Cloud Run WebSocket connections will need a reconnection strategy (e.g., periodic client-side reconnects before the timeout elapses, with session resumption on the server).
+
+**rules.md**: none (GCP-specific)
+
 ## 🗓️ 2026-02-28 — Lesson 20: Use `ideal` Not `exact` for facingMode on Mobile Cameras
 
 **The Discovery**: `getUserMedia({ video: { facingMode: { exact: "environment" } } })` throws `OverconstrainedError` on devices that can't match the constraint exactly (e.g., desktop with a single webcam). Using `{ ideal: "environment" }` allows the browser to fall back gracefully to the available camera.
