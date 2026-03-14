@@ -2788,28 +2788,26 @@
 
         updateUploadProgress("Complete", 100, `Processed ${result.durationSeconds?.toFixed(0) || "?"}s of speech — ${result.transcript?.length || 0} segments`);
 
+        // ── Make panels visible ──
+        const transcriptPanel = document.getElementById("transcript-panel");
+        const evaluationPanel = document.getElementById("evaluation-panel");
+        if (transcriptPanel) transcriptPanel.classList.add("visible");
+        if (evaluationPanel) evaluationPanel.classList.add("visible");
+
         // ── Populate transcript panel ──
         if (result.transcript && result.transcript.length > 0) {
-          const transcriptEl = document.getElementById("transcript");
+          const transcriptEl = document.getElementById("transcript-content");
           if (transcriptEl) {
             const text = result.transcript.map(s => s.text).join(" ");
-            transcriptEl.textContent = text;
+            transcriptEl.innerHTML = `<p>${text}</p>`;
           }
         }
 
         // ── Populate evaluation panel ──
         if (result.evaluation) {
-          const evalEl = document.getElementById("evaluation");
+          const evalEl = document.getElementById("evaluation-content");
           if (evalEl) {
             evalEl.innerHTML = formatUploadedEvaluation(result.evaluation, result.metrics, result.passRate);
-          }
-        }
-
-        // ── Show metrics summary ──
-        if (result.metrics) {
-          const metricsEl = document.getElementById("metrics-summary");
-          if (metricsEl) {
-            metricsEl.innerHTML = formatUploadedMetrics(result.metrics);
           }
         }
 
