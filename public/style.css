@@ -114,6 +114,11 @@
   background: rgba(0, 0, 0, 0.06);
 }
 
+[data-theme="light"] .video-preview {
+  background: var(--bg-secondary);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
 [data-theme="light"] .btn-save {
   background: rgba(0, 0, 0, 0.04);
 }
@@ -1182,22 +1187,22 @@ body::before {
 }
 
 .video-preview {
-  width: 320px;
+  width: 100%;
+  max-width: 320px;
   height: auto;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: auto;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   background: #000;
   object-fit: cover;
-  resize: both;
+  transform: scaleX(-1); /* Mirror for front-facing camera self-view #49 */
   overflow: hidden;
   min-width: 160px;
-  max-width: 640px;
-  transition: width 0.2s ease;
+  transition: max-width 0.2s ease;
 }
 
 .video-preview.expanded {
-  width: 480px;
+  max-width: 480px;
 }
 
 .video-preview-info {
@@ -1395,6 +1400,15 @@ body::before {
     width: 100%;
     justify-content: center;
     margin-left: 0;
+  }
+
+  /* #49: Full-width video on tablet/mobile */
+  .video-preview {
+    max-width: 100%;
+  }
+
+  .video-preview.expanded {
+    max-width: 100%;
   }
 }
 
