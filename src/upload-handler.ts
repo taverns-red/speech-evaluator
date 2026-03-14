@@ -24,7 +24,7 @@ import type { TranscriptSegment, DeliveryMetrics } from "./types.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────────
 
-const MAX_FILE_SIZE_MB = 2048;
+const MAX_FILE_SIZE_MB = 32; // Cloud Run HTTP/1.1 body limit is 32 MiB
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 const ALLOWED_MIME_TYPES = [
     "video/mp4",

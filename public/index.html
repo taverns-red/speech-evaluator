@@ -2819,7 +2819,7 @@
 
     // ─── Notification Toast ──────────────────────────────────────────
 
-    const MAX_UPLOAD_SIZE_MB = 2048;
+    const MAX_UPLOAD_SIZE_MB = 32; // Cloud Run HTTP/1.1 body limit is 32 MiB
 
     /**
      * Shows a toast notification banner.
@@ -2941,6 +2941,9 @@
         const result = await response.json();
 
         if (!response.ok || result.status === "error") {
+          if (response.status === 413) {
+            throw new Error(`File too large for server (${(file.size / 1024 / 1024).toFixed(0)}MB). Maximum upload size is ${MAX_UPLOAD_SIZE_MB}MB. Try compressing your video first.`);
+          }
           throw new Error(result.error || `Upload failed (HTTP ${response.status})`);
         }
 

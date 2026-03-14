@@ -81,6 +81,8 @@ jobs:
             --region=${{ env.REGION }} \
             --platform=managed \
             --timeout=3600 \
+            --memory=2Gi \
+            --max-instances=2 \
             --quiet
 
       - name: Verify deployment
