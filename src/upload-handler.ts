@@ -26,6 +26,7 @@ import type { EvaluationGenerator } from "./evaluation-generator.js";
 import type { TTSEngine } from "./tts-engine.js";
 import type { TranscriptSegment, DeliveryMetrics } from "./types.js";
 import { type GCSUploadService } from "./gcs-upload.js";
+import { extractFormText, isFormMimeType } from "./form-extractor.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────────
 
@@ -146,7 +147,7 @@ function log(msg: string): void {
  */
 async function runEvaluationPipeline(
     uploadedPath: string,
-    formData: { speakerName: string; speechTitle?: string; projectType?: string; objectives?: string },
+    formData: { speakerName: string; speechTitle?: string; projectType?: string; objectives?: string; evaluationFormText?: string },
     deps: UploadPipelineDeps,
 ): Promise<{
     durationSeconds: number;
@@ -190,11 +191,12 @@ async function runEvaluationPipeline(
 
         // ── Generate evaluation ──
         log("Generating evaluation...");
-        const evalConfig = formData.speechTitle || formData.projectType
+        const evalConfig = formData.speechTitle || formData.projectType || formData.evaluationFormText
             ? {
                 speechTitle: formData.speechTitle,
                 projectType: formData.projectType,
                 objectives: formData.objectives ? [formData.objectives] : undefined,
+                evaluationFormText: formData.evaluationFormText,
             }
             : undefined;
 
@@ -320,10 +322,26 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
                 downloadedPath = await deps.gcsUploadService!.downloadToTmpdir(objectId);
                 log(`Downloaded to: ${downloadedPath}`);
 
+                // Extract evaluation form text if provided
+                let evaluationFormText: string | undefined;
+                const { evaluationFormBase64, evaluationFormMimeType } = req.body;
+                if (evaluationFormBase64 && evaluationFormMimeType) {
+                    try {
+                        log(`Extracting form text (${evaluationFormMimeType})...`);
+                        const formBuffer = Buffer.from(evaluationFormBase64, "base64");
+                        const formResult = await extractFormText(formBuffer, evaluationFormMimeType);
+                        evaluationFormText = formResult.text;
+                        log(`Form extracted: ${formResult.format}, ${evaluationFormText.length} chars`);
+                    } catch (formErr) {
+                        log(`Form extraction failed: ${formErr instanceof Error ? formErr.message : String(formErr)}`);
+                        // Non-fatal: continue without form
+                    }
+                }
+
                 // Run shared pipeline
                 const result = await runEvaluationPipeline(
                     downloadedPath,
-                    { speakerName, speechTitle, projectType, objectives },
+                    { speakerName, speechTitle, projectType, objectives, evaluationFormText },
                     deps,
                 );
 

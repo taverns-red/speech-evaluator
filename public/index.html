@@ -208,6 +208,12 @@
       </button>
       <input type="file" id="upload-file-input" accept="video/*,audio/*,.mp4,.webm,.mov,.avi,.mkv,.mp3,.wav,.m4a"
         style="display:none" onchange="onFileSelected(event)">
+      <input type="file" id="form-file-input" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+        style="display:none" onchange="onFormFileSelected(event)">
+      <button id="btn-attach-form" class="btn" style="display:none; font-size: 0.85em; padding: 8px 12px;" onclick="document.getElementById('form-file-input').click()">
+        📋 Attach Evaluation Form
+      </button>
+      <span id="form-file-label" style="display:none; font-size: 0.85em; color: var(--text-secondary); margin-left: 8px;"></span>
       <button id="btn-stop" class="btn btn-primary hidden" onclick="onStopSpeech()">
         ■ Stop Speech
       </button>
@@ -2863,6 +2869,9 @@
 
     // ─── Upload Flow ──────────────────────────────────────────────────────
 
+    // ─── Form file state ──────────────────────────────────────────────
+    let pendingFormFile = null; // { file, base64, mimeType }
+
     function onFileSelected(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -2886,8 +2895,32 @@
         return;
       }
 
+      // Show "Attach Evaluation Form" button
+      const attachBtn = document.getElementById("btn-attach-form");
+      if (attachBtn) attachBtn.style.display = "inline-block";
+
       uploadVideo(file);
       event.target.value = ""; // Reset input for re-uploads
+    }
+
+    function onFormFileSelected(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      // Read as base64
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result.split(",")[1]; // strip data:...;base64,
+        pendingFormFile = { file, base64, mimeType: file.type || "text/plain" };
+        const label = document.getElementById("form-file-label");
+        if (label) {
+          label.textContent = `📋 ${file.name}`;
+          label.style.display = "inline";
+        }
+        showNotification(`Evaluation form attached: ${file.name}`, "success");
+      };
+      reader.readAsDataURL(file);
+      event.target.value = "";
     }
 
     function updateUploadProgress(stage, progress, message) {
@@ -2965,13 +2998,22 @@
       // Step 3: Trigger server-side processing
       updateUploadProgress("Processing", 75, "Extracting audio, transcribing, and evaluating...");
 
+      const processBody = {
+          objectId,
+          ...metadata,
+        };
+
+      // Attach evaluation form if provided
+      if (pendingFormFile) {
+        processBody.evaluationFormBase64 = pendingFormFile.base64;
+        processBody.evaluationFormMimeType = pendingFormFile.mimeType;
+        updateUploadProgress("Processing", 75, "Processing with evaluation form...");
+      }
+
       const processResponse = await fetch("/api/upload/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          objectId,
-          ...metadata,
-        }),
+        body: JSON.stringify(processBody),
       });
 
       const result = await processResponse.json();
@@ -3080,6 +3122,27 @@
           }
         }
 
+        // ── Display completed evaluation form ──
+        if (result.evaluation?.completed_form) {
+          const evalEl = document.getElementById("evaluation-content");
+          if (evalEl) {
+            const formSection = document.createElement("div");
+            formSection.style.cssText = "margin-top: 20px; padding: 16px; background: var(--bg-card); border-radius: 8px; border: 1px solid var(--border-color);";
+            formSection.innerHTML = `
+              <h3 style="margin: 0 0 12px; color: var(--text-primary);">📋 Completed Evaluation Form</h3>
+              <pre style="white-space: pre-wrap; font-family: inherit; font-size: 0.9em; color: var(--text-secondary); margin: 0;">${result.evaluation.completed_form.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+            `;
+            evalEl.appendChild(formSection);
+          }
+        }
+
+        // Clean up form state
+        pendingFormFile = null;
+        const formLabel = document.getElementById("form-file-label");
+        if (formLabel) formLabel.style.display = "none";
+        const attachBtn = document.getElementById("btn-attach-form");
+        if (attachBtn) attachBtn.style.display = "none";
+
         // ── Play TTS if available ──
         if (result.ttsAudio) {
           try {
@@ -3152,6 +3215,11 @@
                 if (result.evaluation.closing) evalText += result.evaluation.closing + "\n";
                 if (result.passRate !== undefined) evalText += `\nEvidence pass rate: ${(result.passRate * 100).toFixed(0)}%\n`;
                 files.push({ name: "evaluation.txt", content: evalText });
+              }
+
+              // Completed evaluation form
+              if (result.evaluation?.completed_form) {
+                files.push({ name: "completed_evaluation_form.txt", content: result.evaluation.completed_form });
               }
 
               // Metrics

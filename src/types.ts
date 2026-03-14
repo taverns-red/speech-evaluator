@@ -204,6 +204,7 @@ export interface StructuredEvaluation {
   closing: string; // 1-2 sentences
   structure_commentary: StructureCommentary; // Phase 2 (Req 4.9)
   visual_feedback?: VisualFeedbackItem[]; // Phase 4 (Req 8) — optional visual observation items
+  completed_form?: string; // Phase 5 (#64) — completed evaluation form text
 }
 
 // ─── Public Evaluation Types (Phase 2 — Req 8.1) ───────────────────────────────
@@ -222,6 +223,7 @@ export interface StructuredEvaluationPublic {
   items: EvaluationItemPublic[];
   closing: string;
   structure_commentary: StructureCommentary;
+  completed_form?: string; // Phase 5 (#64) — completed evaluation form text
 }
 
 // ─── Redaction Types (Phase 2 — Req 8.1) ────────────────────────────────────────
@@ -264,6 +266,7 @@ export interface EvaluationConfig {
   objectives?: string[]; // unused in Phase 1, extensibility hook (Req 8.2)
   speechTitle?: string;    // Phase 3: speech title from ProjectContext
   projectType?: string;    // Phase 3: speech project type from ProjectContext
+  evaluationFormText?: string; // Phase 5 (#64): extracted text from uploaded evaluation form
 }
 
 export interface TTSConfig {

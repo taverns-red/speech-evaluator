@@ -609,12 +609,13 @@ export class EvaluationGenerator {
     visualObservations?: VisualObservations | null,
   ): { system: string; user: string } {
     const hasVisual = visualObservations != null && visualObservations.videoQualityGrade !== "poor";
-    const system = this.buildSystemPrompt(qualityWarning, hasVisual);
+    const hasForm = !!config?.evaluationFormText;
+    const system = this.buildSystemPrompt(qualityWarning, hasVisual, hasForm);
     const user = this.buildUserPrompt(transcriptText, metrics, config, highConfidenceSegments, visualObservations);
     return { system, user };
   }
 
-  private buildSystemPrompt(qualityWarning: boolean, hasVisual: boolean = false): string {
+  private buildSystemPrompt(qualityWarning: boolean, hasVisual: boolean = false, hasForm: boolean = false): string {
       let prompt = `You are an experienced speech evaluator. Your role is to provide supportive, evidence-based evaluations of speeches.
 
   ## Output Format
@@ -635,7 +636,8 @@ export class EvaluationGenerator {
       "opening_comment": "string or null (descriptive observation about the speech opening)",
       "body_comment": "string or null (descriptive observation about the speech body organization)",
       "closing_comment": "string or null (descriptive observation about the speech closing)"
-    }
+    },
+    "completed_form": "string or null (only when an evaluation form is provided — see Evaluation Form section)"
   }
 
   ## Evaluation Style
@@ -697,6 +699,21 @@ export class EvaluationGenerator {
   - Focus observations on high-confidence transcript segments only (segments where the mean word confidence is 0.7 or above).
   - Do not fabricate content to compensate for gaps in the transcript.
   - Still provide your best evaluation with the available content, but be transparent about limitations.`;
+      }
+
+      if (hasForm) {
+        prompt += `
+
+  ## Evaluation Form
+  An evaluation form has been provided by the user. You MUST:
+  1. Use the form's criteria and categories to guide your evaluation focus.
+  2. Fill out ALL fields and blanks in the form based on your evaluation of the speech.
+  3. Return the completed form as a "completed_form" field in your JSON response.
+  4. The completed_form should be the full text of the form with all blanks, checkboxes, and fields filled in.
+  5. Keep the original form structure and formatting intact — just fill in the content.
+  6. If the form has rating scales (e.g., 1-5), provide numeric ratings with brief justification.
+  7. Your standard evaluation (opening, items, closing) should still be generated independently.
+  8. If the form asks questions not answerable from the transcript, write "Not observed" for those fields.`;
       }
 
       if (hasVisual) {
@@ -840,6 +857,13 @@ ${config.objectives.map((o, i) => `${i + 1}. ${o}`).join("\n")}`;
 ${config.objectives.map((o, i) => `${i + 1}. ${o}`).join("\n")}`;
     }
 
+    if (config?.evaluationFormText) {
+      prompt += `
+
+## Evaluation Form (provided by user — fill out all fields)
+${config.evaluationFormText}`;
+    }
+
     prompt += `
 
 Please evaluate this speech following the instructions and output format specified above. Respond with ONLY the JSON object.`;
@@ -964,12 +988,18 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
         }
       }
 
+      // Parse optional completed_form string (Phase 5 — #64)
+      const completed_form = typeof obj.completed_form === "string" && obj.completed_form.length > 0
+          ? obj.completed_form
+          : undefined;
+
       return {
         opening: obj.opening,
         items,
         closing: obj.closing,
         structure_commentary: structureCommentary,
         ...(visual_feedback ? { visual_feedback } : {}),
+        ...(completed_form ? { completed_form } : {}),
       };
     }
 
