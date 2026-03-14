@@ -12,6 +12,7 @@ import {
   formatMetrics,
   formatEvaluation,
   buildDirectoryName,
+  serializeOutputs,
 } from "./file-persistence.js";
 import type {
   Session,
@@ -1752,5 +1753,113 @@ describe("Privacy non-persistence assertions (Req 11.2, 11.7)", () => {
       expect(logMessage).not.toContain("coordinate");
       expect(logMessage).not.toContain("trajectory");
     });
+  });
+});
+
+// ─── serializeOutputs (issue #55) ─────────────────────────────────────────────
+
+describe("serializeOutputs", () => {
+  it("returns transcript, metrics, and evaluation files for a full session", () => {
+    const session = makeSession({
+      transcript: makeSegments(),
+      metrics: makeMetrics(),
+      evaluation: makeEvaluation(),
+      evaluationScript: "Great speech!",
+    });
+
+    const files = serializeOutputs(session);
+
+    const names = files.map((f) => f.name);
+    expect(names).toContain("transcript.txt");
+    expect(names).toContain("metrics.json");
+    expect(names).toContain("evaluation.txt");
+    expect(files.every((f) => f.encoding === "utf-8")).toBe(true);
+  });
+
+  it("transcript content matches formatTranscript output", () => {
+    const segments = makeSegments();
+    const session = makeSession({ transcript: segments });
+
+    const files = serializeOutputs(session);
+    const transcriptFile = files.find((f) => f.name === "transcript.txt")!;
+
+    expect(transcriptFile.content).toBe(formatTranscript(segments));
+  });
+
+  it("metrics content matches formatMetrics output", () => {
+    const metrics = makeMetrics();
+    const session = makeSession({ metrics });
+
+    const files = serializeOutputs(session);
+    const metricsFile = files.find((f) => f.name === "metrics.json")!;
+
+    expect(metricsFile.content).toBe(formatMetrics(metrics));
+  });
+
+  it("evaluation content matches formatEvaluation output", () => {
+    const session = makeSession({
+      evaluation: makeEvaluation(),
+      evaluationScript: "Great speech!",
+    });
+
+    const files = serializeOutputs(session);
+    const evalFile = files.find((f) => f.name === "evaluation.txt")!;
+
+    expect(evalFile.content).toBe(formatEvaluation(session));
+  });
+
+  it("includes consent.json when consent exists", () => {
+    const consent = makeConsent();
+    const session = makeSession({ consent });
+
+    const files = serializeOutputs(session);
+    const consentFile = files.find((f) => f.name === "consent.json")!;
+
+    expect(consentFile).toBeDefined();
+    const parsed = JSON.parse(consentFile.content);
+    expect(parsed.speakerName).toBe("Alice");
+    expect(parsed.consentConfirmed).toBe(true);
+  });
+
+  it("excludes consent.json when consent is null", () => {
+    const session = makeSession({ consent: null });
+
+    const files = serializeOutputs(session);
+
+    expect(files.find((f) => f.name === "consent.json")).toBeUndefined();
+  });
+
+  it("includes project-context.json when projectContext exists", () => {
+    const session = makeSession({
+      projectContext: {
+        speechTitle: "Leadership",
+        projectType: "Pathways",
+        objectives: ["Inspire"],
+      },
+    });
+
+    const files = serializeOutputs(session);
+    const pcFile = files.find((f) => f.name === "project-context.json")!;
+
+    expect(pcFile).toBeDefined();
+    const parsed = JSON.parse(pcFile.content);
+    expect(parsed.speechTitle).toBe("Leadership");
+  });
+
+  it("omits transcript.txt when transcript is empty", () => {
+    const session = makeSession({ transcript: [] });
+
+    const files = serializeOutputs(session);
+
+    expect(files.find((f) => f.name === "transcript.txt")).toBeUndefined();
+  });
+
+  it("writes {} for metrics.json when metrics is null", () => {
+    const session = makeSession({ metrics: null });
+
+    const files = serializeOutputs(session);
+    const metricsFile = files.find((f) => f.name === "metrics.json")!;
+
+    expect(metricsFile.content).toBe("{}");
   });
 });

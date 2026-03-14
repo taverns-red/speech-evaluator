@@ -241,13 +241,13 @@ export interface RedactionOutput {
 
 export interface ToneViolation {
   category:
-    | "ungrounded_claim"
-    | "psychological_inference"
-    | "visual_scope"
-    | "punitive_language"
-    | "numerical_score"
-    | "visual_emotion_inference"
-    | "visual_judgment";
+  | "ungrounded_claim"
+  | "psychological_inference"
+  | "visual_scope"
+  | "punitive_language"
+  | "numerical_score"
+  | "visual_emotion_inference"
+  | "visual_judgment";
   sentence: string;
   pattern: string;
   explanation: string;
@@ -458,16 +458,24 @@ export interface VisualObservations {
   cameraPlacementWarning?: CameraPlacementWarning;
 }
 
+// ─── Output File (for client-side download — issue #55) ────────────────────────
+
+export interface OutputFile {
+  name: string;       // e.g. "transcript.txt"
+  content: string;    // text content or base64-encoded binary
+  encoding: "utf-8" | "base64";
+}
+
 // ─── WebSocket Protocol ─────────────────────────────────────────────────────────
 
 // Client → Server messages
 export type ClientMessage =
   | {
-      type: "audio_format";
-      channels: 1;
-      sampleRate: 16000;
-      encoding: "LINEAR16";
-    }
+    type: "audio_format";
+    channels: 1;
+    sampleRate: 16000;
+    encoding: "LINEAR16";
+  }
   | { type: "start_recording" }
   | { type: "audio_chunk"; data: ArrayBuffer }
   | { type: "stop_recording" }
@@ -488,42 +496,42 @@ export type ClientMessage =
 export type ServerMessage =
   | { type: "state_change"; state: SessionState }
   | {
-      type: "transcript_update";
-      segments: TranscriptSegment[];
-      replaceFromIndex: number;
-    }
+    type: "transcript_update";
+    segments: TranscriptSegment[];
+    replaceFromIndex: number;
+  }
   | { type: "elapsed_time"; seconds: number }
   | {
-      type: "evaluation_ready";
-      evaluation: StructuredEvaluationPublic;
-      script: string;
-    }
+    type: "evaluation_ready";
+    evaluation: StructuredEvaluationPublic;
+    script: string;
+  }
   | { type: "tts_audio"; data: ArrayBuffer }
   | { type: "tts_complete" }
-  | { type: "outputs_saved"; paths: string[] }
+  | { type: "outputs_saved"; paths: string[]; files: OutputFile[] }
   | { type: "error"; message: string; recoverable: boolean }
   | { type: "audio_format_error"; message: string }
   | { type: "consent_status"; consent: ConsentRecord | null }
   | {
-      type: "duration_estimate";
-      estimatedSeconds: number;
-      timeLimitSeconds: number;
-    }
+    type: "duration_estimate";
+    estimatedSeconds: number;
+    timeLimitSeconds: number;
+  }
   | { type: "vad_speech_end"; silenceDurationSeconds: number }
   | { type: "vad_status"; energy: number; isSpeech: boolean }
   | { type: "data_purged"; reason: "opt_out" | "auto_purge" }
   | { type: "pipeline_progress"; stage: PipelineStage; runId: number; message?: string }
   | {
-      type: "video_status";
-      framesProcessed: number;
-      framesDropped: number;
-      processingLatencyMs: number;
-      framesReceived?: number;
-      framesSkippedBySampler?: number;
-      framesDroppedByBackpressure?: number;
-      framesDroppedByTimestamp?: number;
-      framesErrored?: number;
-      effectiveSamplingRate?: number;
-      finalizationLatencyMs?: number;
-      videoQualityGrade?: "good" | "degraded" | "poor";
-    };
+    type: "video_status";
+    framesProcessed: number;
+    framesDropped: number;
+    processingLatencyMs: number;
+    framesReceived?: number;
+    framesSkippedBySampler?: number;
+    framesDroppedByBackpressure?: number;
+    framesDroppedByTimestamp?: number;
+    framesErrored?: number;
+    effectiveSamplingRate?: number;
+    finalizationLatencyMs?: number;
+    videoQualityGrade?: "good" | "degraded" | "poor";
+  };

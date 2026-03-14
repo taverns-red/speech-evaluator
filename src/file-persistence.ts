@@ -8,7 +8,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Session, TranscriptSegment, DeliveryMetrics, StructuredEvaluation, StructuredEvaluationPublic, ConsentRecord } from "./types.js";
+import type { Session, TranscriptSegment, DeliveryMetrics, StructuredEvaluation, StructuredEvaluationPublic, ConsentRecord, OutputFile } from "./types.js";
 
 /**
  * Formats a number of seconds into `[MM:SS]` timestamp format.
@@ -141,6 +141,56 @@ export function buildDirectoryName(session: Session): string {
 
   const timestamp = `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
   return `${timestamp}_${session.id}`;
+}
+/**
+ * Serializes session outputs into an array of OutputFile objects for client-side download.
+ * Reuses the same format helpers as FilePersistence.saveSession() but produces
+ * in-memory content instead of writing to disk.
+ *
+ * Intentionally omits TTS audio — the client already has the audio blob from playback.
+ */
+export function serializeOutputs(session: Session): OutputFile[] {
+  const files: OutputFile[] = [];
+
+  // transcript.txt
+  const transcriptContent = formatTranscript(session.transcript);
+  if (transcriptContent) {
+    files.push({ name: "transcript.txt", content: transcriptContent, encoding: "utf-8" });
+  }
+
+  // metrics.json
+  const metricsContent = session.metrics
+    ? formatMetrics(session.metrics)
+    : "{}";
+  files.push({ name: "metrics.json", content: metricsContent, encoding: "utf-8" });
+
+  // evaluation.txt
+  const evaluationContent = formatEvaluation(session);
+  files.push({ name: "evaluation.txt", content: evaluationContent, encoding: "utf-8" });
+
+  // consent.json (if consent record exists)
+  if (session.consent) {
+    const ts = session.consent.consentTimestamp;
+    const tsStr = ts instanceof Date && !isNaN(ts.getTime()) ? ts.toISOString() : null;
+    const consentContent = JSON.stringify({
+      speakerName: session.consent.speakerName,
+      consentConfirmed: session.consent.consentConfirmed,
+      consentTimestamp: tsStr,
+    }, null, 2);
+    files.push({ name: "consent.json", content: consentContent, encoding: "utf-8" });
+  }
+
+  // project-context.json (if project context exists)
+  if (session.projectContext) {
+    const projectContextContent = JSON.stringify({
+      speechTitle: session.projectContext.speechTitle,
+      projectType: session.projectContext.projectType,
+      objectives: session.projectContext.objectives,
+    }, null, 2);
+    files.push({ name: "project-context.json", content: projectContextContent, encoding: "utf-8" });
+  }
+
+  return files;
 }
 
 /**

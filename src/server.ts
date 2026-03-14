@@ -27,6 +27,7 @@ import {
   decodeVideoFrame,
   decodeAudioFrame,
 } from "./video-frame-codec.js";
+import { serializeOutputs } from "./file-persistence.js";
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -977,29 +978,27 @@ function handleSaveOutputs(
     return;
   }
 
+  // Serialize files for client-side download (always available, no disk dependency)
+  const files = serializeOutputs(session);
+
+  // Attempt server-side persistence (optional secondary storage)
   sessionManager
     .saveOutputs(connState.sessionId)
     .then((paths) => {
+      session.outputsSaved = true;
+      sendMessage(ws, { type: "outputs_saved", paths, files });
       if (paths.length > 0) {
-        session.outputsSaved = true;
-        sendMessage(ws, { type: "outputs_saved", paths });
         logger.info(`Outputs saved for session ${connState.sessionId}: ${paths.join(", ")}`);
       } else {
-        sendMessage(ws, {
-          type: "error",
-          message: "No file persistence engine configured.",
-          recoverable: true,
-        });
+        logger.info(`Outputs serialized for download (no disk persistence) for session ${connState.sessionId}`);
       }
     })
     .catch((err) => {
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error(`Failed to save outputs for session ${connState.sessionId}: ${errorMessage}`);
-      sendMessage(ws, {
-        type: "error",
-        message: `Failed to save outputs: ${errorMessage}`,
-        recoverable: true,
-      });
+      // Still send files for download even if disk persistence fails
+      session.outputsSaved = true;
+      sendMessage(ws, { type: "outputs_saved", paths: [], files });
     });
 }
 
