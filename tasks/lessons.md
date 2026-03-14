@@ -15,6 +15,14 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-14 — Lesson 25: MediaRecorder MIME Type Detection Is Browser-Specific
+
+**The Discovery**: `MediaRecorder.isTypeSupported()` returns different results across browsers. Chrome supports `audio/webm;codecs=opus`, Safari supports `audio/mp4`, Firefox supports `audio/ogg;codecs=opus`. A cascading fallback (`webm/opus` → `webm` → browser default) ensures cross-browser compatibility.
+
+**The Resulting Rule**: Always use `isTypeSupported()` before specifying a MIME type, and handle the empty-string fallback (browser picks). Also, `downloadOutputsAsZip()` became async due to `FileReader.readAsDataURL()` for blob→base64 conversion — the ZIP download now uses a callback pattern (`finishZipDownload`).
+
+**rules.md**: none
+
 ## 🗓️ 2026-03-14 — Lesson 24: gpt-4o-transcribe Returns Text-Only — No Segments, Words, or Duration
 
 **The Discovery**: `gpt-4o-transcribe` with `response_format: "json"` returns only `{ text: "..." }` — no `segments`, `words`, or `duration` fields. The `parseTranscriptionResponse()` fallback created a single segment with `endTime: 0` (since `duration` was `undefined`), causing WPM = 0 for all uploaded videos. The bug was silent — no errors, no warnings, just degraded output.
