@@ -2817,9 +2817,32 @@
             const audioData = Uint8Array.from(atob(result.ttsAudio), c => c.charCodeAt(0));
             const audioBlob = new Blob([audioData], { type: "audio/mp3" });
             const audioUrl = URL.createObjectURL(audioBlob);
-            const audio = new Audio(audioUrl);
-            // Don't auto-play; let user click replay
-            showNotification("Evaluation ready! Click 🔁 Replay to listen.", "success");
+            window._uploadTtsAudio = new Audio(audioUrl);
+
+            // Add play button to the evaluation panel
+            const evalEl = document.getElementById("evaluation-content");
+            if (evalEl) {
+              const playBtn = document.createElement("button");
+              playBtn.className = "btn";
+              playBtn.style.cssText = "margin-top: 16px; width: 100%;";
+              playBtn.innerHTML = "🔊 Play Spoken Evaluation";
+              playBtn.onclick = () => {
+                if (window._uploadTtsAudio) {
+                  if (window._uploadTtsAudio.paused) {
+                    window._uploadTtsAudio.play();
+                    playBtn.innerHTML = "⏸ Pause Evaluation";
+                  } else {
+                    window._uploadTtsAudio.pause();
+                    playBtn.innerHTML = "🔊 Play Spoken Evaluation";
+                  }
+                }
+              };
+              window._uploadTtsAudio.onended = () => {
+                playBtn.innerHTML = "🔊 Replay Spoken Evaluation";
+              };
+              evalEl.appendChild(playBtn);
+            }
+            showNotification("Evaluation ready! Click 🔊 to listen.", "success");
           } catch (e) {
             console.warn("TTS playback error:", e);
           }
@@ -2843,18 +2866,34 @@
 
     function formatUploadedEvaluation(evaluation, metrics, passRate) {
       let html = '<div class="evaluation-uploaded">';
+
+      // Opening
+      if (evaluation.opening) {
+        html += `<p style="margin-bottom:16px; color: var(--text-secondary, #b0b0b0);">${evaluation.opening}</p>`;
+      }
+
       if (evaluation.items && Array.isArray(evaluation.items)) {
         for (const item of evaluation.items) {
           const icon = item.type === "commendation" ? "✅" : "💡";
-          html += `<div class="eval-item"><strong>${icon} ${item.area || item.type}</strong><p>${item.observation || ""}</p>`;
-          if (item.recommendation) {
-            html += `<p class="eval-recommendation"><em>${item.recommendation}</em></p>`;
+          html += `<div style="margin-bottom: 16px; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.03);">`;
+          html += `<strong>${icon} ${item.summary || item.type}</strong>`;
+          if (item.explanation) {
+            html += `<p style="margin: 8px 0 4px; color: var(--text-secondary, #b0b0b0);">${item.explanation}</p>`;
+          }
+          if (item.evidence_quote) {
+            html += `<p style="margin: 4px 0; font-style: italic; color: var(--text-muted, #888);">"${item.evidence_quote}"</p>`;
           }
           html += `</div>`;
         }
       }
+
+      // Closing
+      if (evaluation.closing) {
+        html += `<p style="margin-top:16px; color: var(--text-secondary, #b0b0b0);">${evaluation.closing}</p>`;
+      }
+
       if (passRate !== undefined) {
-        html += `<p class="eval-pass-rate">Evidence pass rate: ${(passRate * 100).toFixed(0)}%</p>`;
+        html += `<p style="margin-top:12px; font-weight:600;">Evidence pass rate: ${(passRate * 100).toFixed(0)}%</p>`;
       }
       html += '</div>';
       return html;
