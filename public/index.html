@@ -1779,6 +1779,9 @@
      * Handles connection lifecycle, auto-reconnection with exponential backoff,
      * and message routing.
      */
+    // Track whether a live session is active (for reconnect decisions)
+    let liveSessionActive = false;
+
     function connectWebSocket() {
       if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
         return; // Already connected or connecting
@@ -1831,30 +1834,33 @@
 
       ws.onclose = function () {
         // Fail-safe: if WS drops during playback, deferred state, pending latch,
-        // or any non-IDLE state, stop everything. The pendingIdleFromServer check
-        // covers the case where the latch is set (e.g., PROCESSING→IDLE with
-        // !ttsPlaying) and the socket drops before handleTTSAudio runs.
+        // or any non-IDLE state, stop everything.
         if (ttsPlaying || deferredIdleTransition !== null || pendingIdleFromServer !== null || currentState !== SessionState.IDLE) {
-          triggerTTSFailSafe(); // Owns force-stop internally: forceStopTtsAndCancelDeferral() + show written eval + transitionToIdle()
+          triggerTTSFailSafe();
         }
 
         ws = null;
         audioFormatSent = false;
 
-        // Schedule auto-reconnect with exponential backoff
-        const delaySec = (reconnectDelay / 1000).toFixed(0);
-        dom.connectionStatus.textContent = `Reconnecting in ${delaySec}s…`;
-        dom.connectionStatus.style.color = "var(--color-warning, #e6a817)";
-        btnReconnect.style.display = "inline-block";
+        // Only auto-reconnect during active live sessions — not idle page views
+        if (liveSessionActive) {
+          const delaySec = (reconnectDelay / 1000).toFixed(0);
+          dom.connectionStatus.textContent = `Reconnecting in ${delaySec}s…`;
+          dom.connectionStatus.style.color = "var(--color-warning, #e6a817)";
+          btnReconnect.style.display = "inline-block";
 
-        console.log(`[WS] Disconnected. Auto-reconnecting in ${delaySec}s…`);
-        reconnectTimer = setTimeout(() => {
-          reconnectTimer = null;
-          connectWebSocket();
-        }, reconnectDelay);
+          console.log(`[WS] Disconnected during session. Auto-reconnecting in ${delaySec}s…`);
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            connectWebSocket();
+          }, reconnectDelay);
 
-        // Exponential backoff: 1s → 2s → 4s → 8s → 16s → 30s (capped)
-        reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_DELAY_MAX);
+          reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_DELAY_MAX);
+        } else {
+          dom.connectionStatus.textContent = "Disconnected";
+          dom.connectionStatus.style.color = "var(--text-muted)";
+          console.log("[WS] Disconnected (no active session — not auto-reconnecting)");
+        }
       };
 
       ws.onerror = function (err) {
@@ -1862,6 +1868,35 @@
         dom.connectionStatus.textContent = "Connection Error";
         dom.connectionStatus.style.color = "var(--color-danger)";
       };
+    }
+
+    /**
+     * Connects the WebSocket and returns a promise that resolves when
+     * the connection is open. Used by onStartSpeech() for on-demand connection.
+     * Rejects after 10 seconds if the connection cannot be established.
+     */
+    function connectWebSocketAndWait() {
+      return new Promise((resolve, reject) => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          resolve();
+          return;
+        }
+        connectWebSocket();
+        const timeout = setTimeout(() => {
+          reject(new Error("WebSocket connection timeout"));
+        }, 10000);
+        const checkInterval = setInterval(() => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            clearTimeout(timeout);
+            clearInterval(checkInterval);
+            resolve();
+          } else if (!ws || ws.readyState === WebSocket.CLOSED) {
+            clearTimeout(timeout);
+            clearInterval(checkInterval);
+            reject(new Error("WebSocket connection failed"));
+          }
+        }, 50);
+      });
     }
 
     /**
@@ -2995,10 +3030,13 @@
         return;
       }
 
-      // Guard: need WebSocket connection
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        showError("Not connected to server. Reconnecting…", false);
-        manualReconnect();
+      // Connect WebSocket on demand (deferred from page load per #59)
+      liveSessionActive = true;
+      try {
+        await connectWebSocketAndWait();
+      } catch (err) {
+        showError("Could not connect to server. Please try again.", true);
+        liveSessionActive = false;
         enable(dom.btnStart);
         return;
       }
@@ -3567,8 +3605,9 @@
     // Set initial UI state and establish WebSocket connection
     updateUI(SessionState.IDLE);
 
-    // Connect WebSocket on page load
-    connectWebSocket();
+    // WebSocket is connected on demand when "Start Speech" is clicked (#59)
+    dom.connectionStatus.textContent = "Ready";
+    dom.connectionStatus.style.color = "var(--text-muted)";
 
     // Check mic availability on load (non-blocking)
     checkMicPermission();
