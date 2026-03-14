@@ -951,6 +951,63 @@
       }
     }
 
+    // ─── Form State Persistence (#58) ────────────────────────────────
+    const FORM_STORAGE_KEY = "speech-evaluator-form";
+
+    function saveFormState() {
+      try {
+        const state = {
+          speakerName: dom.speakerNameInput.value,
+          consentConfirmed: dom.consentCheckbox.checked,
+          speechTitle: dom.speechTitleInput.value,
+          projectType: dom.projectTypeSelect.value,
+          objectives: dom.objectivesTextarea.value,
+        };
+        localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        // localStorage may be unavailable (private browsing, quota exceeded)
+      }
+    }
+
+    function restoreFormState() {
+      try {
+        const raw = localStorage.getItem(FORM_STORAGE_KEY);
+        if (!raw) return;
+        const state = JSON.parse(raw);
+        if (state.speakerName) dom.speakerNameInput.value = state.speakerName;
+        if (state.consentConfirmed) dom.consentCheckbox.checked = true;
+        if (state.speechTitle) dom.speechTitleInput.value = state.speechTitle;
+        if (state.projectType) dom.projectTypeSelect.value = state.projectType;
+        if (state.objectives) dom.objectivesTextarea.value = state.objectives;
+
+        // Sync local state variables with restored values
+        consentSpeakerName = (state.speakerName || "").trim();
+        consentConfirmed = state.consentConfirmed && consentSpeakerName.length > 0;
+        projectContext.speechTitle = (state.speechTitle || "").trim();
+        projectContext.projectType = state.projectType || "";
+        if (state.objectives) {
+          projectContext.objectives = state.objectives.split("\n")
+            .map(function (l) { return l.trim(); })
+            .filter(function (l) { return l.length > 0; });
+        }
+
+        // Enable video consent checkbox if audio consent is confirmed
+        if (consentConfirmed) {
+          enable(dom.videoConsentCheckbox);
+        }
+      } catch (e) {
+        // Corrupted or missing — ignore
+      }
+    }
+
+    function clearFormState() {
+      try {
+        localStorage.removeItem(FORM_STORAGE_KEY);
+      } catch (e) {
+        // Ignore
+      }
+    }
+
     // ─── Consent Form Event Handlers (continued) ─────────────────────
     /**
      * Called when the speaker name input or consent checkbox changes.
@@ -964,6 +1021,9 @@
 
       consentSpeakerName = name;
       consentConfirmed = checked && name.length > 0;
+
+      // Persist form state across page refreshes (#58)
+      saveFormState();
 
       // Debounce consent messages to avoid per-keystroke chattiness (#31)
       clearTimeout(consentDebounceTimer);
@@ -1213,6 +1273,7 @@
      */
     function onSpeechTitleChange() {
       projectContext.speechTitle = dom.speechTitleInput.value.trim();
+      saveFormState();
       sendProjectContext();
     }
 
@@ -1238,6 +1299,7 @@
       }
       // For "Custom / Other" (empty array), leave objectives as-is so operator can type freely
 
+      saveFormState();
       sendProjectContext();
     }
 
@@ -1252,6 +1314,7 @@
       projectContext.objectives = text.split("\n")
         .map(function (line) { return line.trim(); })
         .filter(function (line) { return line.length > 0; });
+      saveFormState();
       sendProjectContext();
     }
 
@@ -2463,7 +2526,8 @@
         consentConfirmed = false;
         dom.speakerNameInput.value = "";
         dom.consentCheckbox.checked = false;
-        // Reset video consent (Phase 4, Req 1.7)
+        // Clear persisted form state on consent revocation (#58)
+        clearFormState();
         videoConsentEnabled = false;
         videoStreamReady = false;
         dom.videoConsentCheckbox.checked = false;
@@ -3604,6 +3668,9 @@
     // ─── Initialize ───────────────────────────────────────────────────
     // Set initial UI state and establish WebSocket connection
     updateUI(SessionState.IDLE);
+
+    // Restore form state from localStorage (#58)
+    restoreFormState();
 
     // WebSocket is connected on demand when "Start Speech" is clicked (#59)
     dom.connectionStatus.textContent = "Ready";
