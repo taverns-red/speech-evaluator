@@ -15,6 +15,10 @@ RUN npm run build
 FROM node:20-slim AS runtime
 WORKDIR /app
 
+# Install ffmpeg for audio extraction from video uploads
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install production dependencies only
 COPY package.json package-lock.json ./
 # --ignore-scripts: skips husky prepare hook (devDep not present)
