@@ -15,6 +15,16 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-14 — Lesson 26: Cloud Run HTTP/1.1 Has a Fixed 32 MiB Request Body Limit
+
+**The Discovery**: Video uploads ≥32 MiB silently fail with HTTP 413 (Payload Too Large) on Cloud Run. The error comes from Cloud Run's ingress proxy, **not** from Express/multer, so no server-side logs are generated. The 32 MiB limit is **fixed and cannot be overridden** for HTTP/1.1 connections. Using `--use-http2` would lift this limit but is explicitly incompatible with WebSocket session affinity.
+
+**The Scientific Proof**: Browser test (`upload_test` recording) confirmed a 1.3 GB .mov file triggered a 413 response. Server logs showed zero POST requests — the rejection happened at the ingress proxy layer. Google Cloud documentation confirms the 32 MiB fixed limit for HTTP/1.1.
+
+**The Resulting Rule**: Always keep `MAX_UPLOAD_SIZE_MB` **≤ 32** in both client and server when deploying to Cloud Run over HTTP/1.1. For larger files, implement Cloud Storage signed URL uploads or client-side compression. Always add explicit 413 error handling in the client.
+
+**Future Warning**: If the app ever needs to support files > 32 MB, the architecture must change to either (a) use GCS signed URLs for direct upload, or (b) implement client-side video compression before upload.
+
 ## 🗓️ 2026-03-14 — Lesson 25: MediaRecorder MIME Type Detection Is Browser-Specific
 
 **The Discovery**: `MediaRecorder.isTypeSupported()` returns different results across browsers. Chrome supports `audio/webm;codecs=opus`, Safari supports `audio/mp4`, Firefox supports `audio/ogg;codecs=opus`. A cascading fallback (`webm/opus` → `webm` → browser default) ensures cross-browser compatibility.
