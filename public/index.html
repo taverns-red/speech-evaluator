@@ -254,11 +254,14 @@
       <div class="upload-progress-header">
         <span class="upload-progress-label">Processing Upload</span>
         <span id="upload-progress-stage" class="upload-progress-stage"></span>
+        <span id="upload-elapsed" class="upload-elapsed" style="margin-left: auto; font-size: 0.85em; color: var(--text-secondary, #aaa);"></span>
       </div>
       <div class="upload-progress-bar-container">
         <div id="upload-progress-bar" class="upload-progress-bar" style="width: 0%"></div>
       </div>
       <p id="upload-progress-message" class="upload-progress-message"></p>
+      <p id="upload-speed-eta" class="upload-progress-message" style="font-size: 0.85em; color: var(--text-secondary, #aaa); margin-top: 4px;"></p>
+      <button id="upload-cancel-btn" class="btn btn-danger" style="margin-top: 8px; padding: 6px 16px; font-size: 0.85em; display: none;" type="button">Cancel Upload</button>
     </div>
 
     <!-- Speaking Indicator -->
@@ -2988,21 +2991,102 @@
       event.target.value = "";
     }
 
+    // ─── Upload Progress State (Sprint 7: #95 #97 #98) ──────────────
+    let uploadElapsedInterval = null;
+    let uploadStartTime = null;
+    let activeUploadXHR = null;
+    const uploadProgressSamples = []; // {time, loaded} for speed calculation
+
+    function startUploadTimer() {
+      uploadStartTime = Date.now();
+      uploadProgressSamples.length = 0;
+      const elapsedEl = document.getElementById("upload-elapsed");
+      if (uploadElapsedInterval) clearInterval(uploadElapsedInterval);
+      uploadElapsedInterval = setInterval(() => {
+        if (!uploadStartTime) return;
+        const elapsed = Math.floor((Date.now() - uploadStartTime) / 1000);
+        const mins = Math.floor(elapsed / 60);
+        const secs = elapsed % 60;
+        elapsedEl.textContent = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+      }, 1000);
+    }
+
+    function stopUploadTimer() {
+      if (uploadElapsedInterval) { clearInterval(uploadElapsedInterval); uploadElapsedInterval = null; }
+      activeUploadXHR = null;
+    }
+
+    function computeSpeedAndETA(loaded, total) {
+      const now = Date.now();
+      uploadProgressSamples.push({ time: now, loaded });
+      // Keep last 5 samples for smoothing
+      while (uploadProgressSamples.length > 5) uploadProgressSamples.shift();
+      if (uploadProgressSamples.length < 2) return { speed: null, eta: null };
+      const first = uploadProgressSamples[0];
+      const last = uploadProgressSamples[uploadProgressSamples.length - 1];
+      const dtSec = (last.time - first.time) / 1000;
+      if (dtSec < 0.5) return { speed: null, eta: null };
+      const bytesPerSec = (last.loaded - first.loaded) / dtSec;
+      const speed = bytesPerSec > 0 ? (bytesPerSec / 1024 / 1024).toFixed(1) + " MB/s" : null;
+      const remaining = total - loaded;
+      const etaSec = bytesPerSec > 0 ? Math.ceil(remaining / bytesPerSec) : null;
+      let eta = null;
+      if (etaSec !== null) {
+        if (etaSec > 60) eta = `~${Math.ceil(etaSec / 60)} min remaining`;
+        else eta = `~${etaSec}s remaining`;
+      }
+      return { speed, eta };
+    }
+
     function updateUploadProgress(stage, progress, message) {
       const container = document.getElementById("upload-progress");
       const bar = document.getElementById("upload-progress-bar");
       const stageEl = document.getElementById("upload-progress-stage");
       const msgEl = document.getElementById("upload-progress-message");
+      const cancelBtn = document.getElementById("upload-cancel-btn");
 
       container.classList.remove("hidden");
       bar.style.width = progress + "%";
       stageEl.textContent = stage;
       msgEl.textContent = message;
+
+      // Show cancel button during upload/processing, hide on complete/error
+      if (stage === "Complete" || stage === "Error") {
+        cancelBtn.style.display = "none";
+        stopUploadTimer();
+      } else {
+        cancelBtn.style.display = "inline-block";
+      }
+    }
+
+    function updateSpeedETA(speed, eta) {
+      const el = document.getElementById("upload-speed-eta");
+      const parts = [];
+      if (speed) parts.push(speed);
+      if (eta) parts.push(eta);
+      el.textContent = parts.join(" — ");
     }
 
     function hideUploadProgress() {
       document.getElementById("upload-progress").classList.add("hidden");
+      document.getElementById("upload-speed-eta").textContent = "";
+      document.getElementById("upload-elapsed").textContent = "";
+      stopUploadTimer();
     }
+
+    // Cancel button handler (#98)
+    document.getElementById("upload-cancel-btn").addEventListener("click", () => {
+      if (activeUploadXHR) {
+        activeUploadXHR.abort();
+      }
+      updateUploadProgress("Error", 0, "Upload cancelled by user");
+      stopUploadTimer();
+      // Re-enable upload buttons
+      const btnUpload = document.getElementById("btn-upload");
+      const btnStart = document.getElementById("btn-start");
+      if (btnUpload) { btnUpload.disabled = false; btnUpload.textContent = "📁 Upload Video/Audio"; }
+      if (btnStart) btnStart.disabled = false;
+    });
 
     /**
      * Two-phase GCS upload: init → PUT to GCS → process.
@@ -3032,33 +3116,61 @@
 
       const { uploadUrl, objectId } = initResult;
 
-      // Step 2: Upload directly to GCS via XHR (for progress tracking)
+      // Step 2: Upload directly to GCS via XHR with retry (#100)
       updateUploadProgress("Uploading", 10, `Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`);
 
-      await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("PUT", uploadUrl);
-        xhr.setRequestHeader("Content-Type", file.type);
+      const MAX_UPLOAD_RETRIES = 3;
+      let uploadAttempt = 0;
 
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const pct = Math.round((event.loaded / event.total) * 60) + 10; // 10-70%
-            const loadedMB = (event.loaded / 1024 / 1024).toFixed(1);
-            const totalMB = (event.total / 1024 / 1024).toFixed(1);
-            updateUploadProgress("Uploading", pct, `${loadedMB}MB / ${totalMB}MB uploaded`);
-          }
-        };
+      while (true) {
+        uploadAttempt++;
+        try {
+          await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            activeUploadXHR = xhr;
+            xhr.open("PUT", uploadUrl);
+            xhr.setRequestHeader("Content-Type", file.type);
 
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve();
-          } else {
-            reject(new Error(`Upload to storage failed (HTTP ${xhr.status})`));
-          }
-        };
-        xhr.onerror = () => reject(new Error("Upload to storage failed (network error)"));
-        xhr.send(file);
-      });
+            xhr.upload.onprogress = (event) => {
+              if (event.lengthComputable) {
+                const pct = Math.round((event.loaded / event.total) * 60) + 10;
+                const loadedMB = (event.loaded / 1024 / 1024).toFixed(1);
+                const totalMB = (event.total / 1024 / 1024).toFixed(1);
+                const { speed, eta } = computeSpeedAndETA(event.loaded, event.total);
+                const retryLabel = uploadAttempt > 1 ? ` (retry ${uploadAttempt - 1})` : "";
+                updateUploadProgress("Uploading", pct, `${loadedMB}MB / ${totalMB}MB uploaded${retryLabel}`);
+                updateSpeedETA(speed, eta);
+              }
+            };
+
+            xhr.onload = () => {
+              activeUploadXHR = null;
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve();
+              } else {
+                reject(new Error(`Upload to storage failed (HTTP ${xhr.status})`));
+              }
+            };
+            xhr.onerror = () => { activeUploadXHR = null; reject(new Error("Upload to storage failed (network error)")); };
+            xhr.onabort = () => { activeUploadXHR = null; reject(new Error("Upload cancelled")); };
+            xhr.send(file);
+          });
+          break; // Success — exit retry loop
+        } catch (uploadErr) {
+          // Don't retry user-initiated cancels
+          if (uploadErr.message === "Upload cancelled") throw uploadErr;
+          // Don't retry HTTP errors (only network errors)
+          if (!uploadErr.message.includes("network error")) throw uploadErr;
+          if (uploadAttempt >= MAX_UPLOAD_RETRIES) throw uploadErr;
+
+          // Exponential backoff: 2s, 4s, 8s
+          const delaySec = Math.pow(2, uploadAttempt);
+          updateUploadProgress("Retrying", 10, `Network error — retrying in ${delaySec}s (attempt ${uploadAttempt + 1}/${MAX_UPLOAD_RETRIES})...`);
+          updateSpeedETA(null, null);
+          uploadProgressSamples.length = 0; // Reset speed samples
+          await new Promise(r => setTimeout(r, delaySec * 1000));
+        }
+      }
 
       // Step 3: Trigger server-side processing
       updateUploadProgress("Processing", 75, "Extracting audio, transcribing, and evaluating...");
@@ -3150,6 +3262,7 @@
           objectives: objectives || undefined,
         };
 
+        startUploadTimer();
         updateUploadProgress("Initializing", 5, "Preparing upload...");
 
         // ── Try GCS two-phase upload first ──
