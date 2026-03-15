@@ -239,26 +239,10 @@ export interface RedactionOutput {
   evaluationPublic: StructuredEvaluationPublic;
 }
 
-// ─── Tone Checker Types (Phase 2 — Req 3) ───────────────────────────────────────
+// ─── Tone Checker Types (co-located in tone-checker.ts — #85) ───────────────────
+// Re-exported here for backward compatibility
 
-export interface ToneViolation {
-  category:
-  | "ungrounded_claim"
-  | "psychological_inference"
-  | "visual_scope"
-  | "punitive_language"
-  | "numerical_score"
-  | "visual_emotion_inference"
-  | "visual_judgment";
-  sentence: string;
-  pattern: string;
-  explanation: string;
-}
-
-export interface ToneCheckResult {
-  passed: boolean;
-  violations: ToneViolation[];
-}
+export type { ToneViolation, ToneCheckResult } from "./tone-checker.js";
 
 // ─── Configuration ──────────────────────────────────────────────────────────────
 

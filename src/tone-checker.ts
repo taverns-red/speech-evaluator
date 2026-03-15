@@ -5,12 +5,31 @@
 // Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.8, 3.10
 
 import type {
-  ToneViolation,
-  ToneCheckResult,
   StructuredEvaluation,
   DeliveryMetrics,
 } from "./types.js";
 import { splitSentences } from "./utils.js";
+
+// ─── Tone Checker Types (co-located — #85) ──────────────────────────────────────
+
+export interface ToneViolation {
+  category:
+  | "ungrounded_claim"
+  | "psychological_inference"
+  | "visual_scope"
+  | "punitive_language"
+  | "numerical_score"
+  | "visual_emotion_inference"
+  | "visual_judgment";
+  sentence: string;
+  pattern: string;
+  explanation: string;
+}
+
+export interface ToneCheckResult {
+  passed: boolean;
+  violations: ToneViolation[];
+}
 
 // ─── Visual Metric Key Allowlist ────────────────────────────────────────────────
 
