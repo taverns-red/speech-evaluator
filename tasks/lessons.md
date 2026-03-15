@@ -15,6 +15,26 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-14 — Lesson 31: Standalone Functions Don't Capture Closure Variables
+
+**The Discovery**: When threading a new dependency (`roleRegistry`) through the WebSocket message handling chain in `server.ts`, the build failed because `handleClientMessage` and `handleDeliverEvaluation` are standalone functions — not closures — so they don't capture variables from `createAppServer`. Every standalone function in the call chain must explicitly receive the dependency as a parameter.
+
+**The Scientific Proof**: TypeScript build error `TS2552: Cannot find name 'roleRegistry'` at 3 call sites. Fixed by adding `roleRegistry` parameter to `handleConnection` → `handleClientMessage` → `handleDeliverEvaluation`.
+
+**The Resulting Rule**: When adding a dependency to deeply nested handlers, trace the full call chain and add the parameter to every standalone function. Don't assume closure capture.
+
+**Future Warning**: `server.ts` has many standalone handler functions. Any new dependency from `createAppServer` must be threaded through the entire chain.
+
+## 🗓️ 2026-03-14 — Lesson 30: OpenAI Whisper 25MB Limit Includes Multipart Encoding Overhead
+
+**The Discovery**: The `TranscriptionEngine.finalizeChunked()` method calculated `MAX_CHUNK_BYTES` as `25 * 1024 * 1024 - 44` (25MB minus WAV header). But the OpenAI Whisper API measures the *total HTTP request body*, which includes multipart boundary strings, Content-Type headers, and the WAV header. A chunk that's exactly 25MB as a WAV file pushes the HTTP body ~893 bytes over the limit, causing a 413 error.
+
+**The Scientific Proof**: Cloud Run logs showed: `Process error: 413 413: Maximum content size limit (26214400) exceeded (26215293 bytes read)` — the 893-byte overshoot matches multipart encoding overhead.
+
+**The Resulting Rule**: When chunking for API file size limits, use a 1MB safety margin (e.g., 24MB for a 25MB limit). Never calculate exact-boundary values.
+
+**Future Warning**: Any API with a file size limit requires a safety margin for HTTP encoding overhead. The margin scales with metadata size.
+
 ## 🗓️ 2026-03-14 — Lesson 29: fast-check Requires asyncProperty for async Predicates
 
 **The Discovery**: Using `fc.property()` with an `async` predicate function silently fails — the promise resolves to a truthy object which `fc.assert()` interprets as `true`, so violations go undetected. Property-based tests with async operations (like calling `role.run()`) must use `fc.asyncProperty()` and the `it()` callback must be `async` with `await fc.assert(...)`.
