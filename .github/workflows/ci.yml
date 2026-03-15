@@ -17,9 +17,9 @@ permissions:
 
 env:
   PROJECT_ID: toast-stats-prod-6d64a
-  REGION: us-east1
+  REGION: northamerica-northeast1
   SERVICE: speech-evaluator
-  IMAGE: us-east1-docker.pkg.dev/toast-stats-prod-6d64a/speech-evaluator/app
+  IMAGE: northamerica-northeast1-docker.pkg.dev/toast-stats-prod-6d64a/speech-evaluator/app
 
 jobs:
   quality:
