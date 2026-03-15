@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.5](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.4...ai-speech-evaluator-v0.6.5) (2026-03-15)
+
+
+### Features
+
+* add ServiceRegistry for typed dependency injection ([#86](https://github.com/rservant/speech-evaluator/issues/86)) ([e71b072](https://github.com/rservant/speech-evaluator/commit/e71b072e41275593610c0d3b36c7467dc45629e3))
+
 ## [0.6.4](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.3...ai-speech-evaluator-v0.6.4) (2026-03-15)
 
 
