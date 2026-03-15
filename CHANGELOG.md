@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.2](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.1...ai-speech-evaluator-v0.6.2) (2026-03-15)
+
+
+### Features
+
+* accept uploaded evaluation forms to guide evaluation ([#64](https://github.com/rservant/speech-evaluator/issues/64)) ([0755950](https://github.com/rservant/speech-evaluator/commit/0755950a63a8897c70ba0b7b2ecee349a8a7cca9))
+* add GCS signed URL uploads for large video files ([#66](https://github.com/rservant/speech-evaluator/issues/66)) ([27c9186](https://github.com/rservant/speech-evaluator/commit/27c9186f4bf029f7f62a8622624a683fcd8ff8d9))
+* capture live speech audio via MediaRecorder for download ZIP ([#60](https://github.com/rservant/speech-evaluator/issues/60)) ([6ea0102](https://github.com/rservant/speech-evaluator/commit/6ea0102b5d09207af06f5a7d21566341f8738378))
+* responsive video preview with mirror transform and light theme ([#49](https://github.com/rservant/speech-evaluator/issues/49)) ([2f88afc](https://github.com/rservant/speech-evaluator/commit/2f88afcc97fa52a768b1b1026e25e309dcd468c7))
+
+
+### Bug Fixes
+
+* destructure PDFParse named export from pdf-parse ([#64](https://github.com/rservant/speech-evaluator/issues/64)) ([ed0a384](https://github.com/rservant/speech-evaluator/commit/ed0a384dcad363b2244058388ddd9225cfd3ecc3))
+* enforce 32MB upload limit matching Cloud Run HTTP/1.1 body size ([#65](https://github.com/rservant/speech-evaluator/issues/65)) ([ef68e20](https://github.com/rservant/speech-evaluator/commit/ef68e209262f355d242ff6bee0ee1d97282cc695))
+* increase JSON body limit to 10MB for upload endpoints ([#64](https://github.com/rservant/speech-evaluator/issues/64)) ([36f270d](https://github.com/rservant/speech-evaluator/commit/36f270d1f3eb600af99e77d9b5ae11c69086972f))
+* install ffmpeg in Docker runtime image ([#66](https://github.com/rservant/speech-evaluator/issues/66)) ([b060eec](https://github.com/rservant/speech-evaluator/commit/b060eec0b967bcf512784c7e8e74f687bdda5a33))
+* preserve completed_form through validation pipeline and enable legacy upload form support ([#64](https://github.com/rservant/speech-evaluator/issues/64)) ([66d0050](https://github.com/rservant/speech-evaluator/commit/66d0050dd90dbeae44f5b1f7338048dd1f38dddb))
+* remove extensionHeaders from GCS signed URL ([#66](https://github.com/rservant/speech-evaluator/issues/66)) ([e667a8f](https://github.com/rservant/speech-evaluator/commit/e667a8f449e00d1876568628ef7e7bb25fdb0bcc))
+* update to pdf-parse v2 API for form extraction ([#64](https://github.com/rservant/speech-evaluator/issues/64)) ([2232e4b](https://github.com/rservant/speech-evaluator/commit/2232e4b8c2d8caa67c4aaf3c34b9062b64cceba0))
+* use createRequire for CJS-only pdf-parse in ESM context ([#64](https://github.com/rservant/speech-evaluator/issues/64)) ([38fa277](https://github.com/rservant/speech-evaluator/commit/38fa2772c8b71a797e0144c09a2fa0a54be4391d))
+
 ## [0.6.1](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.0...ai-speech-evaluator-v0.6.1) (2026-03-14)
 
 
