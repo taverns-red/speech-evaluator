@@ -1,5 +1,5 @@
 # ── Stage 1: Build ──────────────────────────────────────────────────────────────
-FROM node:20-slim AS build
+FROM node:24-slim AS build
 WORKDIR /app
 
 # Copy dependency manifests first for layer caching
@@ -12,7 +12,7 @@ COPY src/ src/
 RUN npm run build
 
 # ── Stage 2: Production Runtime ─────────────────────────────────────────────────
-FROM node:20-slim AS runtime
+FROM node:24-slim AS runtime
 WORKDIR /app
 
 # Install ffmpeg for audio extraction from video uploads
