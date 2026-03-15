@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.3](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.2...ai-speech-evaluator-v0.6.3) (2026-03-15)
+
+
+### Features
+
+* extract shared EvaluationPipeline service ([#79](https://github.com/rservant/speech-evaluator/issues/79)) ([dd2111a](https://github.com/rservant/speech-evaluator/commit/dd2111accda6e9548abb6222428c293ec341d30f))
+* split frontend into ES modules ([#80](https://github.com/rservant/speech-evaluator/issues/80)) ([d6d95b9](https://github.com/rservant/speech-evaluator/commit/d6d95b9c25bf9f63c4161ab524ea252295e44349))
+
 ## [0.6.2](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.1...ai-speech-evaluator-v0.6.2) (2026-03-15)
 
 
