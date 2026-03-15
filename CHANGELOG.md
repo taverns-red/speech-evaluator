@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.6](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.5...ai-speech-evaluator-v0.6.6) (2026-03-15)
+
+
+### Features
+
+* add AI Ah-Counter role — first meeting role implementation ([#73](https://github.com/rservant/speech-evaluator/issues/73)) ([58ce18e](https://github.com/rservant/speech-evaluator/commit/58ce18e9e9848404767d477b333fd9ece39316bc))
+* add MeetingRole interface and RoleRegistry ([#72](https://github.com/rservant/speech-evaluator/issues/72)) ([e4f55a1](https://github.com/rservant/speech-evaluator/commit/e4f55a115ef87e83335d2c62e63c9de112172460))
+* integrate roles into server and frontend ([#72](https://github.com/rservant/speech-evaluator/issues/72)) ([ab31310](https://github.com/rservant/speech-evaluator/commit/ab31310ff81409e42ee9e024b4bd69ff471ccced))
+
 ## [0.6.5](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.4...ai-speech-evaluator-v0.6.5) (2026-03-15)
 
 
