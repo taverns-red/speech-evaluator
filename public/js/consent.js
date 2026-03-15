@@ -10,7 +10,10 @@ import {
   dismissVADNotification, resetVadEnergyState, updateDurationEstimateDisplay,
 } from "./ui.js";
 // Circular import — safe because all calls are inside function bodies (post-init)
-import { wsSend, acquireCamera, releaseCamera, onStopSpeech } from "./app.js";
+import { wsSend } from "./websocket.js";
+import { acquireCamera, releaseCamera } from "./video.js";
+// Circular import — safe (called inside function body only)
+import { onStopSpeech } from "./app.js";
 
 // ─── Consent Form Event Handlers ──────────────────────────────────
 
