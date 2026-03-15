@@ -15,6 +15,16 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-14 — Lesson 27: validateAndRetry Drops Non-Standard Fields When Reconstructing Evaluation Objects
+
+**The Discovery**: The `validateAndRetry()` method in `evaluation-generator.ts` reconstructs the `StructuredEvaluation` object from individual fields, but only copies known fields (`opening`, `items`, `closing`, `structure_commentary`, `visual_feedback`). When `completed_form` was added to the GPT output schema, the parser correctly extracted it, but `validateAndRetry` silently dropped it when building the return object.
+
+**The Scientific Proof**: Debug logging confirmed GPT returned `completed_form` as a string (~4000 chars), but the `upload-handler.ts` log showed `hasForm=true` with no form returned. The field was lost between `parseEvaluation()` (which preserved it) and the final `validateAndRetry()` result.
+
+**The Resulting Rule**: When adding new optional fields to `StructuredEvaluation`, always check `validateAndRetry()` and any other method that reconstructs the evaluation object using object spread. Add a `...(evaluation.newField ? { newField: evaluation.newField } : {})` spread for each new optional field.
+
+**Future Warning**: Any new fields added to the evaluation schema (e.g., `rubric_scores`, `audience_feedback`) will be silently dropped unless explicitly propagated through `validateAndRetry()`.
+
 ## 🗓️ 2026-03-14 — Lesson 26: Cloud Run HTTP/1.1 Has a Fixed 32 MiB Request Body Limit
 
 **The Discovery**: Video uploads ≥32 MiB silently fail with HTTP 413 (Payload Too Large) on Cloud Run. The error comes from Cloud Run's ingress proxy, **not** from Express/multer, so no server-side logs are generated. The 32 MiB limit is **fixed and cannot be overridden** for HTTP/1.1 connections. Using `--use-http2` would lift this limit but is explicitly incompatible with WebSocket session affinity.
