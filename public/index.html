@@ -386,6 +386,8 @@
             } else {
               activeRoles.delete(role.id);
             }
+            // Send updated active roles to server via WebSocket
+            wsSend({ type: "set_active_roles", roleIds: Array.from(activeRoles) });
           });
 
           const label = document.createElement("label");
@@ -1675,6 +1677,51 @@
       show(dom.evaluationPanel);
     }
 
+    // ─── UI Update: Role Results Display ─────────────────────────────
+    /**
+     * Displays meeting role results (e.g., Ah-Counter report) in a
+     * dedicated panel below the evaluation.
+     */
+    function displayRoleResults(results) {
+      if (!results || results.length === 0) return;
+
+      // Find or create the role results container
+      let container = document.getElementById("role-results-panel");
+      if (!container) {
+        container = document.createElement("div");
+        container.id = "role-results-panel";
+        container.style.cssText = "margin-top: 24px;";
+        // Insert after evaluation panel
+        const evalPanel = document.getElementById("evaluation-panel");
+        if (evalPanel && evalPanel.parentNode) {
+          evalPanel.parentNode.insertBefore(container, evalPanel.nextSibling);
+        } else {
+          document.querySelector(".main-content")?.appendChild(container);
+        }
+      }
+
+      container.innerHTML = "";
+
+      for (const role of results) {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.style.cssText = "margin-bottom: 16px; padding: 20px; border-left: 3px solid var(--red-primary, #e53935);";
+
+        let html = `<h3 style="margin: 0 0 12px; color: var(--text-primary);">${role.report.title}</h3>`;
+
+        for (const section of role.report.sections) {
+          html += `<h4 style="margin: 12px 0 6px; color: var(--text-secondary); font-size: 0.9em; text-transform: uppercase;">${section.heading}</h4>`;
+          html += `<p style="margin: 0 0 8px; color: var(--text-primary); white-space: pre-wrap;">${section.content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`;
+        }
+
+        card.innerHTML = html;
+        container.appendChild(card);
+      }
+
+      container.style.display = "block";
+      showNotification(`${results.length} meeting role report(s) ready`, "success");
+    }
+
     // ─── UI Update: Error Display ─────────────────────────────────────
     /**
      * Displays an error message to the operator.
@@ -2074,6 +2121,9 @@
           lastEvaluationScript = message.script || "";
           lastEvaluationData = message.evaluation || null;
           showEvaluation(message.script);
+          break;
+        case "role_results":
+          displayRoleResults(message.results);
           break;
         case "tts_complete":
           handleTTSComplete();

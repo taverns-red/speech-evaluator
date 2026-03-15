@@ -68,6 +68,8 @@ interface ConnectionState {
   videoStatusInterval: ReturnType<typeof setInterval> | null;
   /** Promise tracking the in-flight stopRecording async operation */
   stopRecordingPromise: Promise<void> | null;
+  /** IDs of active meeting roles selected by the operator (Phase 9, #72) */
+  activeRoles: string[];
 }
 
 // ─── Logging ────────────────────────────────────────────────────────────────────
@@ -214,7 +216,7 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
   const wss = new WebSocketServer(wsAuthVerify ? { noServer: true } : { server: httpServer });
 
   wss.on("connection", (ws: WebSocket) => {
-    handleConnection(ws, sessionManager, logger);
+    handleConnection(ws, sessionManager, logger, roleRegistry);
   });
 
   // WebSocket upgrade with auth verification
@@ -275,6 +277,7 @@ function handleConnection(
   ws: WebSocket,
   sessionManager: SessionManager,
   logger: ServerLogger,
+  roleRegistry: RoleRegistry | null,
 ): void {
   // Each WebSocket connection gets its own session
   const session = sessionManager.createSession();
@@ -288,6 +291,7 @@ function handleConnection(
     liveTranscriptLength: 0,
     videoStatusInterval: null,
     stopRecordingPromise: null,
+    activeRoles: [],
   };
 
   logger.info(`New WebSocket connection, session ${session.id}`);
@@ -302,7 +306,7 @@ function handleConnection(
       } else {
         const text = typeof data === "string" ? data : data.toString("utf-8");
         const message = JSON.parse(text) as ClientMessage;
-        handleClientMessage(ws, message, connState, sessionManager, logger);
+        handleClientMessage(ws, message, connState, sessionManager, logger, roleRegistry);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -434,6 +438,7 @@ function handleClientMessage(
   connState: ConnectionState,
   sessionManager: SessionManager,
   logger: ServerLogger,
+  roleRegistry: RoleRegistry | null,
 ): void {
   // Helper to catch errors from async handlers and send them to the client
   const catchAsync = (promise: Promise<void>) => {
@@ -470,7 +475,7 @@ function handleClientMessage(
     }
 
     case "deliver_evaluation":
-      catchAsync(handleDeliverEvaluation(ws, connState, sessionManager, logger));
+      catchAsync(handleDeliverEvaluation(ws, connState, sessionManager, logger, roleRegistry));
       break;
 
     case "save_outputs":
@@ -525,6 +530,11 @@ function handleClientMessage(
 
     case "set_video_config":
       handleSetVideoConfig(ws, message, connState, sessionManager, logger);
+      break;
+
+    case "set_active_roles":
+      connState.activeRoles = message.roleIds ?? [];
+      logger.info(`Active roles set: [${connState.activeRoles.join(", ")}] for session ${connState.sessionId}`);
       break;
 
     default: {
@@ -721,6 +731,7 @@ async function handleDeliverEvaluation(
   connState: ConnectionState,
   sessionManager: SessionManager,
   logger: ServerLogger,
+  roleRegistry: RoleRegistry | null,
 ): Promise<void> {
   const session = sessionManager.getSession(connState.sessionId);
 
@@ -812,6 +823,50 @@ async function handleDeliverEvaluation(
       script: sessionAfterGen.evaluationScript,
     });
     logger.debug(`[handleDeliverEvaluation] Sent evaluation_ready for session ${connState.sessionId}`);
+  }
+
+  // ── Run meeting roles if any are active (Phase 9, #72) ──
+  if (connState.activeRoles.length > 0 && roleRegistry) {
+    try {
+      const session = sessionManager.getSession(connState.sessionId);
+      const roleContext = {
+        transcript: session.transcript ?? [],
+        metrics: session.metrics ?? null,
+        visualObservations: session.visualObservations ?? null,
+        projectContext: session.projectContext ?? null,
+        consent: session.consent ?? null,
+        speakerName: session.consent?.speakerName ?? null,
+        config: {},
+      };
+
+      const roleResults = [];
+      for (const roleId of connState.activeRoles) {
+        const role = roleRegistry.get(roleId);
+        if (!role) {
+          logger.warn(`[Roles] Unknown role: ${roleId}`);
+          continue;
+        }
+        try {
+          const result = await roleRegistry.run(roleId, roleContext);
+          roleResults.push({
+            roleId: result.roleId,
+            roleName: role.name,
+            report: result.report,
+            script: result.script,
+          });
+          logger.info(`[Roles] ${role.name} completed for session ${connState.sessionId}`);
+        } catch (roleErr) {
+          logger.warn(`[Roles] ${role.name} failed: ${roleErr instanceof Error ? roleErr.message : String(roleErr)}`);
+        }
+      }
+
+      if (roleResults.length > 0) {
+        sendMessage(ws, { type: "role_results", results: roleResults });
+        logger.info(`[Roles] Sent ${roleResults.length} role result(s) for session ${connState.sessionId}`);
+      }
+    } catch (roleErr) {
+      logger.warn(`[Roles] Role execution failed: ${roleErr instanceof Error ? roleErr.message : String(roleErr)}`);
+    }
   }
 
   if (audioBuffer) {

@@ -477,7 +477,8 @@ export type ClientMessage =
   | { type: "set_vad_config"; silenceThresholdSeconds: number; enabled: boolean }
   | { type: "set_video_consent"; consentGranted: boolean; timestamp: string }
   | { type: "video_stream_ready"; width: number; height: number; deviceLabel?: string }
-  | { type: "set_video_config"; frameRate: number };
+  | { type: "set_video_config"; frameRate: number }
+  | { type: "set_active_roles"; roleIds: string[] };
 
 // Server → Client messages
 export type ServerMessage =
@@ -521,4 +522,13 @@ export type ServerMessage =
     effectiveSamplingRate?: number;
     finalizationLatencyMs?: number;
     videoQualityGrade?: "good" | "degraded" | "poor";
+  }
+  | {
+    type: "role_results";
+    results: Array<{
+      roleId: string;
+      roleName: string;
+      report: { title: string; sections: Array<{ heading: string; content: string }>; data?: Record<string, unknown> };
+      script: string;
+    }>;
   };
