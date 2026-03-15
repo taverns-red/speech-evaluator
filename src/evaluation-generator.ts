@@ -708,12 +708,13 @@ export class EvaluationGenerator {
   An evaluation form has been provided by the user. You MUST:
   1. Use the form's criteria and categories to guide your evaluation focus.
   2. Fill out ALL fields and blanks in the form based on your evaluation of the speech.
-  3. Return the completed form as a "completed_form" field in your JSON response.
-  4. The completed_form should be the full text of the form with all blanks, checkboxes, and fields filled in.
+  3. Return the completed form as a "completed_form" field in your JSON response. THIS FIELD IS MANDATORY when a form is provided.
+  4. The completed_form value MUST be a non-empty string containing the full text of the form with all blanks, checkboxes, and fields filled in.
   5. Keep the original form structure and formatting intact — just fill in the content.
   6. If the form has rating scales (e.g., 1-5), provide numeric ratings with brief justification.
   7. Your standard evaluation (opening, items, closing) should still be generated independently.
-  8. If the form asks questions not answerable from the transcript, write "Not observed" for those fields.`;
+  8. If the form asks questions not answerable from the transcript, write "Not observed" for those fields.
+  9. Do NOT return null or omit the completed_form field — it is REQUIRED.`;
       }
 
       if (hasVisual) {
@@ -1107,6 +1108,7 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
         closing: evaluation.closing,
         structure_commentary: evaluation.structure_commentary,
         ...(evaluation.visual_feedback ? { visual_feedback: evaluation.visual_feedback } : {}),
+        ...(evaluation.completed_form ? { completed_form: evaluation.completed_form } : {}),
       },
       firstAttemptResults,
       // Count items that are in the final evaluation AND passed on first attempt.

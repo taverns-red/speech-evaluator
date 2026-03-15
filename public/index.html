@@ -124,6 +124,15 @@
         <textarea id="objectives-textarea"
           placeholder="One objective per line (auto-populated on project type selection)" rows="4"></textarea>
       </div>
+      <div class="form-group" style="text-align: center; padding: 4px 0;">
+        <span style="color: var(--text-secondary); font-size: 0.85em;">— or —</span>
+      </div>
+      <div class="form-group">
+        <button id="btn-attach-form" class="btn" style="width: 100%; font-size: 0.9em; padding: 10px 12px;" onclick="document.getElementById('form-file-input').click()">
+          📋 Upload Evaluation Form (PDF, DOCX, TXT)
+        </button>
+        <span id="form-file-label" style="display:none; font-size: 0.85em; color: var(--text-secondary); margin-top: 6px; text-align: center;"></span>
+      </div>
     </div>
 
     <!-- Time Limit Control (visible in IDLE and PROCESSING states) -->
@@ -210,10 +219,6 @@
         style="display:none" onchange="onFileSelected(event)">
       <input type="file" id="form-file-input" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
         style="display:none" onchange="onFormFileSelected(event)">
-      <button id="btn-attach-form" class="btn" style="display:none; font-size: 0.85em; padding: 8px 12px;" onclick="document.getElementById('form-file-input').click()">
-        📋 Attach Evaluation Form
-      </button>
-      <span id="form-file-label" style="display:none; font-size: 0.85em; color: var(--text-secondary); margin-left: 8px;"></span>
       <button id="btn-stop" class="btn btn-primary hidden" onclick="onStopSpeech()">
         ■ Stop Speech
       </button>
@@ -2895,9 +2900,7 @@
         return;
       }
 
-      // Show "Attach Evaluation Form" button
-      const attachBtn = document.getElementById("btn-attach-form");
-      if (attachBtn) attachBtn.style.display = "inline-block";
+
 
       uploadVideo(file);
       event.target.value = ""; // Reset input for re-uploads
@@ -3037,6 +3040,12 @@
       if (metadata.projectType) formData.append("projectType", metadata.projectType);
       if (metadata.objectives) formData.append("objectives", metadata.objectives);
 
+      // Include evaluation form if attached
+      if (pendingFormFile) {
+        formData.append("evaluationFormBase64", pendingFormFile.base64);
+        formData.append("evaluationFormMimeType", pendingFormFile.mimeType);
+      }
+
       updateUploadProgress("Processing", 30, "Extracting audio and transcribing...");
 
       const response = await fetch("/api/upload", {
@@ -3086,13 +3095,10 @@
         try {
           result = await uploadViaGCS(file, metadata);
         } catch (gcsErr) {
-          // If GCS init returns 404, fall back to legacy direct upload
-          if (gcsErr.message && gcsErr.message.includes("GCS upload not available")) {
-            console.log("GCS upload not available, falling back to legacy direct upload");
-            result = await uploadLegacy(file, metadata);
-          } else {
-            throw gcsErr;
-          }
+          // Fall back to legacy direct upload if GCS is unavailable (404)
+          // or fails to initialize (e.g., no service account credentials locally)
+          console.log("GCS upload failed, falling back to legacy direct upload:", gcsErr.message);
+          result = await uploadLegacy(file, metadata);
         }
 
         const response = result;
@@ -3139,9 +3145,7 @@
         // Clean up form state
         pendingFormFile = null;
         const formLabel = document.getElementById("form-file-label");
-        if (formLabel) formLabel.style.display = "none";
-        const attachBtn = document.getElementById("btn-attach-form");
-        if (attachBtn) attachBtn.style.display = "none";
+        if (formLabel) { formLabel.textContent = ""; formLabel.style.display = "none"; }
 
         // ── Play TTS if available ──
         if (result.ttsAudio) {

@@ -207,6 +207,11 @@ async function runEvaluationPipeline(
             null, // no visual observations for uploaded video (yet)
         );
         log(`Evaluation: ${evalResult.evaluation.items.length} items, pass rate ${(evalResult.passRate * 100).toFixed(0)}%`);
+        if (evalResult.evaluation.completed_form) {
+            log(`Completed form: ${evalResult.evaluation.completed_form.length} chars`);
+        } else {
+            log(`Completed form: not returned by LLM (hasForm=${!!formData.evaluationFormText})`);
+        }
 
         // ── Render script ──
         const script = deps.evaluationGenerator.renderScript(evalResult.evaluation, undefined, metrics);
@@ -420,6 +425,22 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
 
             log(`Received: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(1)}MB, ${req.file.mimetype})`);
 
+            // Extract evaluation form text if provided
+            let evaluationFormText: string | undefined;
+            const { evaluationFormBase64, evaluationFormMimeType } = req.body ?? {};
+            if (evaluationFormBase64 && evaluationFormMimeType) {
+                try {
+                    log(`Extracting form text (${evaluationFormMimeType})...`);
+                    const formBuffer = Buffer.from(evaluationFormBase64, "base64");
+                    const formResult = await extractFormText(formBuffer, evaluationFormMimeType);
+                    evaluationFormText = formResult.text;
+                    log(`Form extracted: ${formResult.format}, ${evaluationFormText.length} chars`);
+                } catch (formErr) {
+                    log(`Form extraction failed: ${formErr instanceof Error ? formErr.message : String(formErr)}`);
+                    // Non-fatal: continue without form
+                }
+            }
+
             // Run shared pipeline
             const result = await runEvaluationPipeline(
                 uploadedPath!,
@@ -428,6 +449,7 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
                     speechTitle: req.body?.speechTitle,
                     projectType: req.body?.projectType,
                     objectives: req.body?.objectives,
+                    evaluationFormText,
                 },
                 deps,
             );
