@@ -33,6 +33,14 @@
 
 **The Resulting Rule**: When adding a dependency to deeply nested handlers, trace the full call chain and add the parameter to every standalone function. Don't assume closure capture.
 
+## 🗓️ 2026-03-14 — Lesson 33: ES Module Scoping Breaks Inline onclick Handlers
+
+**The Discovery**: New functions (`switchMode`, `onExportPDF`) defined inside `<script type="module">` were invisible to inline HTML `onclick` attributes. The existing codebase already had a "Module → Global Bridge" section at the bottom of the script that explicitly assigns `window.functionName = functionName` for every onclick-referenced function. Adding new functions without registering them in this bridge means they silently fail when clicked.
+
+**The Scientific Proof**: Browser console showed `ReferenceError: switchMode is not defined` when clicking the mode tabs. Adding `window.switchMode = switchMode` to the bridge fixed it immediately.
+
+**The Resulting Rule**: Every function referenced by an inline HTML `onclick`/`onchange` attribute in a `<script type="module">` MUST be registered in the Module → Global Bridge. Also prefer `addEventListener` over inline handlers when practical.
+
 **Future Warning**: `server.ts` has many standalone handler functions. Any new dependency from `createAppServer` must be threaded through the entire chain.
 
 ## 🗓️ 2026-03-14 — Lesson 30: OpenAI Whisper 25MB Limit Includes Multipart Encoding Overhead
