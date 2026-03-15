@@ -34,6 +34,7 @@ import type { TTSEngine } from "./tts-engine.js";
 import type { ToneChecker } from "./tone-checker.js";
 import type { FilePersistence } from "./file-persistence.js";
 import type { VADMonitor, VADConfig, VADEventCallback } from "./vad-monitor.js";
+import { runEvaluationStages } from "./evaluation-pipeline.js";
 
 // ─── Quality thresholds (matching EvaluationGenerator's internal thresholds) ────
 
@@ -834,22 +835,9 @@ export class SessionManager {
   /**
    * Transitions the session from PROCESSING to DELIVERING.
    *
-   * Phase 2 Pipeline (Req 11):
-   * 1. LLM Generation — EvaluationGenerator.generate() (includes evidence validation + retry + shape check)
-   * 2. Compute energy profile from audio chunks
-   * 3. Script Rendering (with [[Q:*]] / [[M:*]] markers) — EvaluationGenerator.renderScript()
-   * 4. Tone Check + Fix — ToneChecker.check() → stripViolations() → stripMarkers()
-   * 5. Timing Trim — TTSEngine.trimToFit()
-   * 6. Scope Ack Check — ToneChecker.appendScopeAcknowledgment()
-   * 7. Name Redaction — EvaluationGenerator.redact() → produces scriptRedacted + evaluationPublic
-   * 8. TTS Synthesis — TTSEngine.synthesize()
-   *
-   * Stage contracts:
-   * - Stages 1-6 operate on UNREDACTED text. Redaction happens exactly once at stage 7.
-   * - After stage 4, the script MUST NOT contain any [[Q:*]] or [[M:*]] markers.
-   * - Stage 7 produces both a redacted script (for TTS) and a StructuredEvaluationPublic (for UI).
-   * - The evaluation_ready message sends the public (redacted) version, never the internal version.
-   * - RunId checking at every async boundary for cancellation correctness.
+   * Delegates stages 1-8 (LLM → energy → script → tone → trim → scope ack → redact → TTS)
+   * to the shared `runEvaluationStages()` pipeline. Session-specific concerns (state
+   * transitions, runId checks, field commits, telemetry) remain here.
    *
    * @throws Error if the session is not in PROCESSING state.
    * @throws Error if LLM generation fails (session transitions back to PROCESSING).
@@ -877,42 +865,51 @@ export class SessionManager {
 
     const metrics = session.metrics;
 
-    // ── Stage 1: LLM Generation (includes evidence validation + retry + shape check / fallback) ──
-    let evaluation: StructuredEvaluation;
-
-    try {
-      // Build EvaluationConfig from session.projectContext (Req 4.5, 5.1, 5.5)
-      const config: EvaluationConfig | undefined = session.projectContext
-        ? {
-            objectives: session.projectContext.objectives,
-            speechTitle: session.projectContext.speechTitle ?? undefined,
-            projectType: session.projectContext.projectType ?? undefined,
-          }
-        : undefined;
-
-      this.log("INFO", `Generating evaluation via GPT-4o for session ${sessionId} (${session.transcript.length} segments, ${metrics.totalWords} words)`);
-
-      // Phase 4: Determine visual observations to pass to EvaluationGenerator (Req 17.3)
-      // Suppress visual feedback entirely when videoQualityGrade === "poor"
-      // Skip unreliable metrics by passing null when quality is poor
-      let visualObsForEval: VisualObservations | null = null;
-      if (session.visualObservations) {
-        if (session.visualObservations.videoQualityGrade !== "poor") {
-          visualObsForEval = session.visualObservations;
-        } else {
-          this.log("INFO", `Visual observations suppressed for session ${sessionId}: videoQualityGrade is "poor"`);
+    // Build EvaluationConfig from session.projectContext (Req 4.5, 5.1, 5.5)
+    const config: EvaluationConfig | undefined = session.projectContext
+      ? {
+          objectives: session.projectContext.objectives,
+          speechTitle: session.projectContext.speechTitle ?? undefined,
+          projectType: session.projectContext.projectType ?? undefined,
         }
-      }
+      : undefined;
 
-      const generateResult = await this.deps.evaluationGenerator.generate(
-        session.transcript,
-        metrics,
-        config,
-        visualObsForEval,
+    // Phase 4: Determine visual observations to pass to EvaluationGenerator (Req 17.3)
+    // Suppress visual feedback entirely when videoQualityGrade === "poor"
+    let visualObsForEval: VisualObservations | null = null;
+    if (session.visualObservations) {
+      if (session.visualObservations.videoQualityGrade !== "poor") {
+        visualObsForEval = session.visualObservations;
+      } else {
+        this.log("INFO", `Visual observations suppressed for session ${sessionId}: videoQualityGrade is "poor"`);
+      }
+    }
+
+    // Delegate to shared pipeline (stages 1-8)
+    let result: Awaited<ReturnType<typeof runEvaluationStages>>;
+    try {
+      this.log("INFO", `Running evaluation pipeline for session ${sessionId}`);
+      result = await runEvaluationStages(
+        {
+          transcript: session.transcript,
+          metrics,
+          evalConfig: config,
+          visualObservations: visualObsForEval,
+          audioChunks: session.audioChunks,
+          consent: session.consent,
+          timeLimitSeconds: session.timeLimitSeconds,
+          qualityWarning: session.qualityWarning,
+          hasVideo: session.visualObservations != null,
+          isCancelled: () => session.runId !== capturedRunId,
+          log: (level, msg) => this.log(level, `[pipeline] ${msg}`),
+        },
+        {
+          evaluationGenerator: this.deps.evaluationGenerator,
+          metricsExtractor: this.deps.metricsExtractor,
+          ttsEngine: this.deps.ttsEngine,
+          toneChecker: this.deps.toneChecker,
+        },
       );
-      evaluation = generateResult.evaluation;
-      session.evaluationPassRate = generateResult.passRate;
-      this.log("INFO", `Evaluation generated: ${evaluation.items.length} items (${evaluation.items.filter(i => i.type === "commendation").length} commendations, ${evaluation.items.filter(i => i.type === "recommendation").length} recommendations), pass rate: ${(generateResult.passRate * 100).toFixed(0)}%`);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       this.log("ERROR", `Evaluation generation failed for session ${sessionId}: ${errMsg}`);
@@ -923,168 +920,38 @@ export class SessionManager {
       throw err;
     }
 
-    // RunId check after LLM generation
-    if (session.runId !== capturedRunId) {
-      this.log("WARN", `RunId changed during evaluation generation for session ${sessionId}, discarding`);
+    // Pipeline was cancelled (runId changed)
+    if (!result) {
+      this.log("WARN", `Pipeline cancelled for session ${sessionId} (runId changed)`);
       return undefined;
     }
 
-    session.evaluation = evaluation;
-
-    // ── Stage 2: Compute energy profile from audio chunks ──
-    if (this.deps.metricsExtractor && session.audioChunks.length > 0) {
-      this.log("INFO", `Computing energy profile from ${session.audioChunks.length} audio chunks for session ${sessionId}`);
-      const energyProfile = this.deps.metricsExtractor.computeEnergyProfile(session.audioChunks);
-      metrics.energyProfile = energyProfile;
-      metrics.energyVariationCoefficient = energyProfile.coefficientOfVariation;
+    // Commit pipeline results to session
+    session.evaluation = result.evaluation;
+    session.evaluationPassRate = result.passRate;
+    session.evaluationScript = result.scriptForTTS;
+    if (result.evaluationPublic) {
+      session.evaluationPublic = result.evaluationPublic;
+    }
+    if (result.ttsAudio) {
+      session.ttsAudioCache = result.ttsAudio;
     }
 
-    // ── Stage 3: Script Rendering (with [[Q:*]] / [[M:*]] markers, UNREDACTED) ──
-    // Note: renderScript emits markers but does NOT apply redaction in Phase 2 pipeline.
-    // We pass undefined for speakerName to prevent the old redaction path inside renderScript.
-    // Redaction happens at stage 7 via the dedicated redact() method.
-    this.log("INFO", `Rendering evaluation script with markers for session ${sessionId}`);
-    let script = this.deps.evaluationGenerator.renderScript(
-      evaluation,
-      undefined, // No speakerName — prevents old redaction path; redaction at stage 7
-      metrics,
-    );
-
-    // RunId check after rendering
-    if (session.runId !== capturedRunId) {
-      return undefined;
-    }
-
-    // ── Stage 4: Tone Check + Fix ──
-    // Input: marked script with [[Q:*]] / [[M:*]] markers
-    // Output: clean script with no markers, no violations
-    if (this.deps.toneChecker) {
-      const hasVideo = session.visualObservations != null;
-      this.log("INFO", `Running tone check for session ${sessionId}`);
-      const toneResult = this.deps.toneChecker.check(script, evaluation, metrics, { hasVideo });
-
-      if (!toneResult.passed) {
-        this.log("WARN", `Tone check found ${toneResult.violations.length} violation(s) for session ${sessionId}`);
-
-        // Strip violations from the marked script (markers still present)
-        script = this.deps.toneChecker.stripViolations(script, toneResult.violations);
-      }
-
-      // Strip markers exactly once at the end of stage 4 (marker invariant)
-      script = this.deps.toneChecker.stripMarkers(script);
-    } else {
-      // No ToneChecker — still need to strip markers if renderScript emitted them
-      // Use a simple regex fallback to strip markers
-      script = script.replace(/\s*\[\[(Q|M):[^\]]+\]\]/g, "").replace(/\s{2,}/g, " ").trim();
-    }
-
-    // RunId check after tone check
-    if (session.runId !== capturedRunId) {
-      return undefined;
-    }
-
-    // ── Stage 5: Timing Trim ──
-    if (this.deps.ttsEngine) {
-      this.log("INFO", `Trimming script to fit ${session.timeLimitSeconds}s time limit for session ${sessionId}`);
-      script = this.deps.ttsEngine.trimToFit(
-        script,
-        session.timeLimitSeconds,
-      );
-    }
-
-    // ── Stage 6: Scope Acknowledgment Check ──
-    // Append only when qualityWarning is true OR hasStructureCommentary is true. Idempotent.
-    if (this.deps.toneChecker) {
-      const hasStructureCommentary = !!(
-        evaluation.structure_commentary?.opening_comment ||
-        evaluation.structure_commentary?.body_comment ||
-        evaluation.structure_commentary?.closing_comment
-      );
-      const hasVideo = session.visualObservations != null;
-      script = this.deps.toneChecker.appendScopeAcknowledgment(
-        script,
-        session.qualityWarning,
-        hasStructureCommentary,
-        { hasVideo },
-      );
-    }
-
-    // RunId check before redaction
-    if (session.runId !== capturedRunId) {
-      return undefined;
-    }
-
-    // Store the unredacted script on the session (for internal use)
-    session.evaluationScript = script;
-
-    // ── Stage 7: Name Redaction ──
-    // Only apply redaction if consent exists (backward compat with Phase 1)
-    // Produces both scriptRedacted (for TTS) and evaluationPublic (for UI/save)
-    let scriptForTTS = script;
-    let evaluationPublic: StructuredEvaluationPublic | undefined;
-
-    if (session.consent && this.deps.evaluationGenerator) {
-      this.log("INFO", `Applying name redaction for session ${sessionId}`);
-      const redactionResult = this.deps.evaluationGenerator.redact({
-        script,
-        evaluation,
-        consent: session.consent,
-      });
-      scriptForTTS = redactionResult.scriptRedacted;
-      evaluationPublic = redactionResult.evaluationPublic;
-
-      // Store the redacted script as the session's evaluation script (user-facing)
-      session.evaluationScript = scriptForTTS;
-      // Store the public (redacted) evaluation for UI/save
-      session.evaluationPublic = evaluationPublic;
-    }
-
-    // RunId check before TTS synthesis
-    if (session.runId !== capturedRunId) {
-      return undefined;
-    }
-
-    // ── Stage 8: TTS Synthesis ──
-    if (this.deps.ttsEngine) {
+    // Fire-and-forget: Log consistency telemetry (Design Decision #7)
+    if (this.deps.evaluationGenerator && result.evaluation) {
       try {
-        this.log("INFO", `Synthesizing TTS audio for session ${sessionId} (${scriptForTTS.split(/\s+/).length} words)`);
-        const audioBuffer = await this.deps.ttsEngine.synthesize(scriptForTTS);
-
-        // RunId check before committing audio
-        if (session.runId !== capturedRunId) {
-          return undefined;
-        }
-
-        this.log("INFO", `TTS synthesis complete: ${audioBuffer.length} bytes for session ${sessionId}`);
-        session.ttsAudioCache = audioBuffer;
-
-        // ── Stage 9 (async, non-blocking): Log consistency telemetry ──
-        // Fire-and-forget — does NOT block evaluation delivery (Design Decision #7)
-        if (this.deps.evaluationGenerator && evaluation) {
-          try {
-            const telemetryPromise = this.deps.evaluationGenerator.logConsistencyTelemetry(evaluation);
-            if (telemetryPromise && typeof telemetryPromise.catch === "function") {
-              telemetryPromise.catch((err: unknown) => {
-                this.log("WARN", `Consistency telemetry failed: ${err}`);
-              });
-            }
-          } catch (err) {
+        const telemetryPromise = this.deps.evaluationGenerator.logConsistencyTelemetry(result.evaluation);
+        if (telemetryPromise && typeof telemetryPromise.catch === "function") {
+          telemetryPromise.catch((err: unknown) => {
             this.log("WARN", `Consistency telemetry failed: ${err}`);
-          }
+          });
         }
-
-        return audioBuffer;
       } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        this.log("ERROR", `TTS synthesis failed for session ${sessionId}: ${errMsg}. Falling back to written evaluation.`);
-        // TTS failure: evaluation and script are already stored in session (Req 7.4)
-        return undefined;
+        this.log("WARN", `Consistency telemetry failed: ${err}`);
       }
-    } else {
-      this.log("WARN", `No TTSEngine configured — TTS synthesis skipped`);
     }
 
-    return undefined;
+    return result.ttsAudio;
   }
 
 
@@ -1279,7 +1146,6 @@ export class SessionManager {
 
         const metrics = session.metrics;
 
-        // ── Stage 1: LLM Generation ──
         // Build EvaluationConfig from session.projectContext (Req 4.5, 5.1, 5.5)
         const config: EvaluationConfig | undefined = session.projectContext
           ? {
@@ -1289,145 +1155,79 @@ export class SessionManager {
             }
           : undefined;
 
-        this.log("INFO", `[eager] Generating evaluation for session ${sessionId}`);
-        const generateResult = await this.deps.evaluationGenerator.generate(
-          session.transcript,
-          metrics,
-          config,
-        );
+        // Delegate stages 1-8 to shared pipeline
+        this.log("INFO", `[eager] Running shared pipeline for session ${sessionId}`);
 
-        // RunId check after LLM generation
-        if (session.runId !== capturedRunId) {
-          this.log("WARN", `[eager] RunId changed during LLM generation for session ${sessionId}, discarding`);
-          return;
-        }
-
-        const evaluation = generateResult.evaluation;
-        session.evaluationPassRate = generateResult.passRate;
-
-        // ── Stage 2: Compute energy profile from audio chunks ──
-        if (this.deps.metricsExtractor && session.audioChunks.length > 0) {
-          const energyProfile = this.deps.metricsExtractor.computeEnergyProfile(session.audioChunks);
-          metrics.energyProfile = energyProfile;
-          metrics.energyVariationCoefficient = energyProfile.coefficientOfVariation;
-        }
-
-        // ── Stage 3: Script Rendering (with markers, UNREDACTED) ──
-        let script = this.deps.evaluationGenerator.renderScript(
-          evaluation,
-          undefined, // No speakerName — prevents old redaction path; redaction at stage 7
-          metrics,
-        );
-
-        // RunId check after rendering
-        if (session.runId !== capturedRunId) {
-          return;
-        }
-
-        // ── Stage 4: Tone Check + Fix ──
-        if (this.deps.toneChecker) {
-          const hasVideo = session.visualObservations != null;
-          const toneResult = this.deps.toneChecker.check(script, evaluation, metrics, { hasVideo });
-          if (!toneResult.passed) {
-            script = this.deps.toneChecker.stripViolations(script, toneResult.violations);
-          }
-          // Strip markers exactly once at the end of stage 4
-          script = this.deps.toneChecker.stripMarkers(script);
-        } else {
-          // No ToneChecker — strip markers with regex fallback
-          script = script.replace(/\s*\[\[(Q|M):[^\]]+\]\]/g, "").replace(/\s{2,}/g, " ").trim();
-        }
-
-        // RunId check after tone check
-        if (session.runId !== capturedRunId) {
-          return;
-        }
-
-        // ── Stage 5: Timing Trim ──
-        if (this.deps.ttsEngine) {
-          script = this.deps.ttsEngine.trimToFit(script, capturedTimeLimit);
-        }
-
-        // ── Stage 6: Scope Acknowledgment Check ──
-        if (this.deps.toneChecker) {
-          const hasStructureCommentary = !!(
-            evaluation.structure_commentary?.opening_comment ||
-            evaluation.structure_commentary?.body_comment ||
-            evaluation.structure_commentary?.closing_comment
-          );
-          const hasVideo = session.visualObservations != null;
-          script = this.deps.toneChecker.appendScopeAcknowledgment(
-            script,
-            session.qualityWarning,
-            hasStructureCommentary,
-            { hasVideo },
-          );
-        }
-
-        // RunId check before redaction
-        if (session.runId !== capturedRunId) {
-          return;
-        }
-
-        // ── Stage 7: Name Redaction ──
-        // Evidence validation runs against raw (unredacted) transcript; redaction applied after
-        let scriptForTTS = script;
-        let evaluationPublic: StructuredEvaluationPublic | null = null;
-
-        if (session.consent && this.deps.evaluationGenerator) {
-          const redactionResult = this.deps.evaluationGenerator.redact({
-            script,
-            evaluation,
+        const pipelineResult = await runEvaluationStages(
+          {
+            transcript: session.transcript,
+            metrics,
+            evalConfig: config,
+            // Eager pipeline runs during PROCESSING (before video finalization),
+            // so visualObservations are not yet available
+            visualObservations: null,
+            audioChunks: session.audioChunks,
             consent: session.consent,
-          });
-          scriptForTTS = redactionResult.scriptRedacted;
-          evaluationPublic = redactionResult.evaluationPublic;
-        }
+            timeLimitSeconds: capturedTimeLimit,
+            qualityWarning: session.qualityWarning,
+            hasVideo: session.visualObservations != null,
+            isCancelled: () => session.runId !== capturedRunId,
+            log: (level, msg) => this.log(level, `[eager] ${msg}`),
+            onBeforeTTS: () => {
+              session.eagerStatus = "synthesizing";
+              safeProgress("synthesizing_audio");
+            },
+          },
+          {
+            evaluationGenerator: this.deps.evaluationGenerator,
+            metricsExtractor: this.deps.metricsExtractor,
+            ttsEngine: this.deps.ttsEngine,
+            toneChecker: this.deps.toneChecker,
+          },
+        );
 
-        // RunId check before TTS synthesis
-        if (session.runId !== capturedRunId) {
+        // Pipeline was cancelled (runId changed)
+        if (!pipelineResult) {
+          this.log("WARN", `[eager] Pipeline cancelled for session ${sessionId} (runId changed)`);
           return;
         }
 
-        // ── Stage 8: TTS Synthesis ──
-        session.eagerStatus = "synthesizing";
-        safeProgress("synthesizing_audio");
+        // Update pass rate
+        session.evaluationPassRate = pipelineResult.passRate;
 
-        if (this.deps.ttsEngine) {
-          this.log("INFO", `[eager] Synthesizing TTS audio for session ${sessionId}`);
-          const audioBuffer = await this.deps.ttsEngine.synthesize(scriptForTTS);
-
-          // RunId check before committing
-          if (session.runId !== capturedRunId) {
-            this.log("WARN", `[eager] RunId changed during TTS synthesis for session ${sessionId}, discarding`);
-            return;
-          }
-
-          // Build EvaluationCache atomically
-          const cache: EvaluationCache = {
-            runId: capturedRunId,
-            timeLimitSeconds: capturedTimeLimit,
-            voiceConfig: capturedVoice,
-            evaluation,
-            evaluationScript: scriptForTTS,
-            ttsAudio: audioBuffer,
-            evaluationPublic,
-          };
-
-          // Confirm artifact.runId === session.runId before publishing
-          if (cache.runId === session.runId) {
-            session.evaluationCache = cache;
-            session.eagerStatus = "ready";
-            this.log("INFO", `[eager] Pipeline complete for session ${sessionId}: cache published (runId=${capturedRunId})`);
-            safeProgress("ready");
-          }
-        } else {
-          this.log("WARN", `[eager] No TTSEngine configured — eager pipeline cannot complete`);
+        if (!pipelineResult.ttsAudio) {
+          this.log("WARN", `[eager] No TTS audio returned — eager pipeline cannot complete`);
           if (capturedRunId === session.runId) {
             session.eagerStatus = "failed";
             session.evaluationCache = null;
             safeProgress("failed");
           }
+          return;
+        }
+
+        // RunId check before committing
+        if (session.runId !== capturedRunId) {
+          this.log("WARN", `[eager] RunId changed after pipeline for session ${sessionId}, discarding`);
+          return;
+        }
+
+        // Build EvaluationCache atomically
+        const cache: EvaluationCache = {
+          runId: capturedRunId,
+          timeLimitSeconds: capturedTimeLimit,
+          voiceConfig: capturedVoice,
+          evaluation: pipelineResult.evaluation,
+          evaluationScript: pipelineResult.scriptForTTS,
+          ttsAudio: pipelineResult.ttsAudio,
+          evaluationPublic: pipelineResult.evaluationPublic,
+        };
+
+        // Confirm artifact.runId === session.runId before publishing
+        if (cache.runId === session.runId) {
+          session.evaluationCache = cache;
+          session.eagerStatus = "ready";
+          this.log("INFO", `[eager] Pipeline complete for session ${sessionId}: cache published (runId=${capturedRunId})`);
+          safeProgress("ready");
         }
       } catch (err) {
         // Encode failure — never rethrow

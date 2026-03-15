@@ -27,6 +27,7 @@ import type { TTSEngine } from "./tts-engine.js";
 import type { TranscriptSegment, DeliveryMetrics } from "./types.js";
 import { type GCSUploadService } from "./gcs-upload.js";
 import { extractFormText, isFormMimeType } from "./form-extractor.js";
+import { runEvaluationStages } from "./evaluation-pipeline.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────────
 
@@ -189,8 +190,8 @@ async function runEvaluationPipeline(
         const metrics: DeliveryMetrics = deps.metricsExtractor.extract(transcript);
         log(`Metrics: ${metrics.totalWords} words, ${Math.round(metrics.wordsPerMinute)} WPM`);
 
-        // ── Generate evaluation ──
-        log("Generating evaluation...");
+        // ── Run shared evaluation pipeline (stages 1-8) ──
+        log("Running evaluation pipeline...");
         const evalConfig = formData.speechTitle || formData.projectType || formData.evaluationFormText
             ? {
                 speechTitle: formData.speechTitle,
@@ -200,41 +201,44 @@ async function runEvaluationPipeline(
             }
             : undefined;
 
-        const evalResult = await deps.evaluationGenerator.generate(
-            transcript,
-            metrics,
-            evalConfig,
-            null, // no visual observations for uploaded video (yet)
+        const pipelineResult = await runEvaluationStages(
+            {
+                transcript,
+                metrics,
+                evalConfig,
+                visualObservations: null, // no visual observations for uploaded video (yet)
+                log: (_level, msg) => log(msg),
+            },
+            {
+                evaluationGenerator: deps.evaluationGenerator,
+                metricsExtractor: deps.metricsExtractor,
+                ttsEngine: deps.ttsEngine,
+            },
         );
-        log(`Evaluation: ${evalResult.evaluation.items.length} items, pass rate ${(evalResult.passRate * 100).toFixed(0)}%`);
-        if (evalResult.evaluation.completed_form) {
-            log(`Completed form: ${evalResult.evaluation.completed_form.length} chars`);
+
+        if (!pipelineResult) {
+            throw new Error("Evaluation pipeline returned no result");
+        }
+
+        log(`Evaluation: ${pipelineResult.evaluation.items.length} items, pass rate ${(pipelineResult.passRate * 100).toFixed(0)}%`);
+        if (pipelineResult.evaluation.completed_form) {
+            log(`Completed form: ${pipelineResult.evaluation.completed_form.length} chars`);
         } else {
             log(`Completed form: not returned by LLM (hasForm=${!!formData.evaluationFormText})`);
         }
 
-        // ── Render script ──
-        const script = deps.evaluationGenerator.renderScript(evalResult.evaluation, undefined, metrics);
-
-        // ── TTS (optional) ──
         let ttsAudioBase64: string | undefined;
-        if (deps.ttsEngine) {
-            try {
-                log("Synthesizing TTS...");
-                const ttsBuffer = await deps.ttsEngine.synthesize(script);
-                ttsAudioBase64 = ttsBuffer.toString("base64");
-                log(`TTS: ${(ttsBuffer.length / 1024).toFixed(0)}KB`);
-            } catch (ttsErr) {
-                log(`TTS skipped: ${ttsErr instanceof Error ? ttsErr.message : String(ttsErr)}`);
-            }
+        if (pipelineResult.ttsAudio) {
+            ttsAudioBase64 = pipelineResult.ttsAudio.toString("base64");
+            log(`TTS: ${(pipelineResult.ttsAudio.length / 1024).toFixed(0)}KB`);
         }
 
         return {
             durationSeconds,
             transcript,
             metrics,
-            evaluation: evalResult,
-            script,
+            evaluation: { evaluation: pipelineResult.evaluation, passRate: pipelineResult.passRate },
+            script: pipelineResult.scriptForTTS,
             ttsAudioBase64,
         };
     } finally {
