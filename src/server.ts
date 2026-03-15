@@ -1,4 +1,5 @@
-// AI Speech Evaluator - WebSocket Handler and Express Server
+// AI Speech Evaluator — Express + WebSocket server
+import { RoleRegistry } from "./role-registry.js";
 // Requirements: 1.2 (start recording), 1.3 (elapsed time), 1.4 (stop recording),
 //               1.6 (deliver evaluation), 1.7 (panic mute), 2.5 (echo prevention)
 //
@@ -108,6 +109,8 @@ export interface CreateServerOptions {
   wsAuthVerify?: (req: IncomingMessage) => Promise<boolean>;
   /** Firebase client-side config served at /api/config (no auth required). */
   firebaseConfig?: Record<string, string>;
+  /** RoleRegistry for meeting roles (Phase 9). */
+  roleRegistry?: RoleRegistry;
 }
 
 export interface AppServer {
@@ -170,6 +173,22 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
   // Version endpoint — serves package.json version for the UI footer
   app.get("/api/version", (_req, res) => {
     res.json({ version });
+  });
+
+  // Roles endpoint — lists available meeting roles (Phase 9, #72)
+  const roleRegistry = options.roleRegistry ?? null;
+  app.get("/api/roles", (_req, res) => {
+    if (!roleRegistry) {
+      res.json({ roles: [] });
+      return;
+    }
+    const roles = roleRegistry.list().map((role) => ({
+      id: role.id,
+      name: role.name,
+      description: role.description,
+      requiredInputs: role.requiredInputs,
+    }));
+    res.json({ roles });
   });
 
   // User info endpoint (issue #41)

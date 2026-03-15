@@ -135,6 +135,15 @@
       </div>
     </div>
 
+    <!-- Meeting Roles Selector (Phase 9, #72) -->
+    <div id="role-selector" class="project-context-form" role="group" aria-label="Meeting roles" style="display:none;">
+      <div class="project-context-form-title">Meeting Roles</div>
+      <p style="font-size: 0.85em; color: var(--text-secondary); margin: 0 0 10px 0;">
+        Select additional AI meeting roles to run alongside the evaluation.
+      </p>
+      <div id="role-checkboxes"></div>
+    </div>
+
     <!-- Time Limit Control (visible in IDLE and PROCESSING states) -->
     <div id="time-limit-control" class="time-limit-control" aria-label="Evaluation time limit">
       <label for="time-limit-input">Evaluation time limit</label>
@@ -350,6 +359,51 @@
     }
 
     loadUserInfo();
+
+    // ─── Meeting Roles (Phase 9, #72) ──────────────────────────────────
+    const activeRoles = new Set();
+
+    async function loadRoles() {
+      try {
+        const res = await fetch("/api/roles");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.roles || data.roles.length === 0) return;
+
+        const container = document.getElementById("role-checkboxes");
+        const selector = document.getElementById("role-selector");
+
+        for (const role of data.roles) {
+          const div = document.createElement("div");
+          div.style.cssText = "display:flex; align-items:center; gap:8px; padding:6px 0;";
+
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.id = `role-${role.id}`;
+          checkbox.addEventListener("change", () => {
+            if (checkbox.checked) {
+              activeRoles.add(role.id);
+            } else {
+              activeRoles.delete(role.id);
+            }
+          });
+
+          const label = document.createElement("label");
+          label.htmlFor = checkbox.id;
+          label.style.cssText = "cursor:pointer; font-size:0.9em;";
+          label.innerHTML = `<strong>${role.name}</strong> — ${role.description}`;
+
+          div.appendChild(checkbox);
+          div.appendChild(label);
+          container.appendChild(div);
+        }
+
+        selector.style.display = "block";
+      } catch (e) {
+        console.warn("[Roles] Failed to load roles:", e);
+      }
+    }
+    loadRoles();
 
     // ─── Application State ────────────────────────────────────────────
     let currentState = SessionState.IDLE;

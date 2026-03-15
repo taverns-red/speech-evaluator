@@ -205,7 +205,15 @@ if (!firebaseConfig) {
 
 // ─── Start server ───────────────────────────────────────────────────────────────
 
-const server = createAppServer({ sessionManager, uploadRouter, version: APP_VERSION, authMiddleware, wsAuthVerify, firebaseConfig });
+// ─── Meeting Roles (Phase 9, #72) ───────────────────────────────────────────────
+import { RoleRegistry } from "./role-registry.js";
+import { AhCounterRole } from "./roles/ah-counter-role.js";
+
+const roleRegistry = new RoleRegistry();
+roleRegistry.register(new AhCounterRole());
+console.log(`[Roles] Registered ${roleRegistry.size} role(s): ${roleRegistry.list().map((r) => r.name).join(", ")}`);
+
+const server = createAppServer({ sessionManager, uploadRouter, version: APP_VERSION, authMiddleware, wsAuthVerify, firebaseConfig, roleRegistry });
 
 server.listen(port).then(() => {
   logInit(`${APP_NAME} v${APP_VERSION} running at http://localhost:${port}`);
