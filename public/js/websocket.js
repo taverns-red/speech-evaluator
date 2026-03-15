@@ -194,6 +194,26 @@ export function sendAudioFormatHandshake() {
   S.audioFormatSent = true;
 }
 
+// ─── Stop Speech ──────────────────────────────────────────────────
+
+/**
+ * Stops the current speech recording session.
+ * Moved here from app.js to eliminate circular import (consent.js → app.js).
+ */
+export function onStopSpeech() {
+  // Stop the AudioWorklet but keep MediaStream alive for potential restart
+  stopAudioCapture();
+
+  // Phase 4: Stop video frame capture (camera stays alive for potential restart)
+  stopVideoCapture();
+
+  // Send stop_recording command to server
+  wsSend({ type: "stop_recording" });
+
+  // Optimistic UI update
+  updateUI(SessionState.PROCESSING);
+}
+
 // ─── Server Message Handler ───────────────────────────────────────
 
 /**

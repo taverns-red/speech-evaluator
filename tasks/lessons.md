@@ -407,10 +407,26 @@
 
 **Future Warning**: The test count (1506) should only increase. A decrease indicates deleted tests, which requires justification.
 
-## 2026-03-15 — ES Module Circular Imports Are Safe When Functions Are Called Late
+## 🗓️ 2026-03-15 — Lesson 35: Missing ES Module Exports Cause Silent Evaluation Failure
 
-When decomposing a monolithic JS file into ES modules, circular imports are safe as long as the imported bindings are only called inside function bodies (post-initialization), never at module top-level. ES modules resolve bindings by reference — by the time any function is called, both modules have fully evaluated. However, missing exports cause **silent module evaluation failure**: the entire module + all its dependents silently stop executing with no console error. Debug by manually calling `import('/js/module.js')` in the console to surface the actual `SyntaxError`.
+**The Discovery**: During the `app.js` decomposition, `video.js` was missing the `toggleVideoSize` export. Because ES modules validate all imports at load time, the entire `app.js` module silently failed to evaluate — no console errors, no stack traces. The Module→Global Bridge at the bottom of `app.js` never ran, so all `onclick` handlers returned `ReferenceError`.
 
-## 2026-03-15 — Batch Module Extraction: Remove Lines in Reverse Order
+**The Scientific Proof**: Running `import('/js/app.js')` manually in the browser console surfaced the real error: `SyntaxError: The requested module './video.js' does not provide an export named 'toggleVideoSize'`. Adding the missing function to `video.js` and reloading restored all functionality.
 
-When extracting multiple line ranges from a single file, remove blocks in reverse order (highest line numbers first) to preserve line numbers for subsequent removals. Also: always verify the init code at the bottom of the file wasn't accidentally included in an extraction range — check line numbers AFTER all previous removals, not from the original file.
+**The Farley Principle Applied**: Falsifiability — the failure was invisible because the module loader silently aborts. The manual import provided the falsifiable test.
+
+**The Resulting Rule**: After any module extraction, run `import('/js/entry.js')` in the browser console to surface SyntaxErrors. Never trust a clean page load with no errors as proof that modules loaded correctly.
+
+**Future Warning**: Any batch extraction of functions across multiple line ranges risks missing functions that aren't adjacent to the main block. Always `grep` for every import name in the target module to confirm it exists.
+
+## 🗓️ 2026-03-15 — Lesson 36: Batch Module Extraction — Remove Lines in Reverse Order
+
+**The Discovery**: When extracting multiple line ranges from `app.js` into separate modules, removing blocks from top-to-bottom shifted line numbers for subsequent removals. The initialization code at the bottom of `app.js` was accidentally included in a later extraction range because line numbers were calculated from the original file, not the file as modified by prior removals.
+
+**The Scientific Proof**: After batch extraction, `app.js` was missing its initialization code (theme toggle, `switchMode("live")`, event listeners). Recovering from git history and re-applying confirmed that the root cause was shifted line numbers.
+
+**The Farley Principle Applied**: Evolutionary Architecture — each extraction should leave the system in a releasable state. Processing ranges bottom-to-top preserves line number stability.
+
+**The Resulting Rule**: When removing multiple non-contiguous blocks from a file, always process them in reverse order (highest line numbers first). Verify the remaining file after each removal, not just at the end.
+
+**Future Warning**: Any future large-scale extraction should prefer incremental extract-and-commit cycles over batch processing. Each cycle should include a browser verification.

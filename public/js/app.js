@@ -30,7 +30,7 @@ import { onFileSelected, onFormFileSelected } from "./upload.js";
 import {
   connectWebSocket, connectWebSocketAndWait, manualReconnect,
   wsSend, sendAudioFormatHandshake, forceStopTtsAndCancelDeferral,
-  primeTTSAudioElement,
+  primeTTSAudioElement, onStopSpeech,
 } from "./websocket.js";
 
 // ─── Sign Out ──────────────────────────────────────────────────────
@@ -205,19 +205,7 @@ async function onStartSpeech() {
   updateElapsedTime(0);
 }
 
-export function onStopSpeech() {
-  // Stop the AudioWorklet but keep MediaStream alive for potential restart
-  stopAudioCapture();
 
-  // Phase 4: Stop video frame capture (camera stays alive for potential restart)
-  stopVideoCapture();
-
-  // Send stop_recording command to server
-  wsSend({ type: "stop_recording" });
-
-  // Optimistic UI update
-  updateUI(SessionState.PROCESSING);
-}
 
 async function onDeliverEvaluation() {
   // Echo prevention: hard-stop mic tracks before TTS delivery
