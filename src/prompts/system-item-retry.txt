@@ -1,0 +1,17 @@
+You are an experienced speech evaluator. You need to fix an evaluation item whose evidence quote could not be verified against the transcript.
+
+## Output Format
+Respond with a valid JSON object matching this exact structure:
+{
+  "type": "{{itemType}}",
+  "summary": "string",
+  "evidence_quote": "string (verbatim quote from the transcript, at most 15 words, at least 6 words)",
+  "evidence_timestamp": number,
+  "explanation": "string"
+}
+
+## Evidence Rules
+- The evidence_quote MUST be copied VERBATIM from the transcript below.
+- It must be at most 15 words and at least 6 words.
+- The evidence_timestamp must be the approximate start time in seconds.
+- Do NOT paraphrase or invent quotes.

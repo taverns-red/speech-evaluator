@@ -10,6 +10,7 @@
 // Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6
 
 import type OpenAI from "openai";
+import { buildSystemPromptFromTemplates, buildItemRetrySystemPrompt } from "./prompt-loader.js";
 import type {
   ConsentRecord,
   DeliveryMetrics,
@@ -616,133 +617,7 @@ export class EvaluationGenerator {
   }
 
   private buildSystemPrompt(qualityWarning: boolean, hasVisual: boolean = false, hasForm: boolean = false): string {
-      let prompt = `You are an experienced speech evaluator. Your role is to provide supportive, evidence-based evaluations of speeches.
-
-  ## Output Format
-  You MUST respond with a valid JSON object matching this exact structure:
-  {
-    "opening": "string (1-2 sentences, warm greeting and overall impression)",
-    "items": [
-      {
-        "type": "commendation" or "recommendation",
-        "summary": "string (brief label for this point)",
-        "evidence_quote": "string (verbatim quote from the transcript, at most 15 words)",
-        "evidence_timestamp": number (seconds since speech start when the quoted passage begins),
-        "explanation": "string (2-3 sentences explaining why this matters)"
-      }
-    ],
-    "closing": "string (1-2 sentences, encouraging wrap-up)",
-    "structure_commentary": {
-      "opening_comment": "string or null (descriptive observation about the speech opening)",
-      "body_comment": "string or null (descriptive observation about the speech body organization)",
-      "closing_comment": "string or null (descriptive observation about the speech closing)"
-    },
-    "completed_form": "string or null (only when an evaluation form is provided — see Evaluation Form section)"
-  }
-
-  ## Evaluation Style
-  - Use a free-form natural conversational style. Do NOT use the CRC (Commend-Recommend-Commend) sandwich pattern.
-  - Mix commendations and recommendations naturally, as a skilled evaluator would in conversation.
-  - Be warm, supportive, and specific. Every point must reference something the speaker actually said or did.
-
-  ## Evidence Rules
-  - Every commendation and recommendation MUST include an evidence_quote that is a VERBATIM snippet from the transcript.
-  - Each evidence_quote must be at most 15 words long and at least 6 words long.
-  - Each evidence_quote must be copied exactly from the transcript text (word for word).
-  - The evidence_timestamp must be the approximate start time (in seconds) of where that quote appears in the speech.
-  - Do NOT fabricate, paraphrase, or invent quotes. Use only the speaker's actual words.
-
-  ## Counts
-  - Include exactly 2 to 3 commendations (type: "commendation").
-  - Include exactly 1 to 2 recommendations (type: "recommendation").
-
-  ## Length
-  - Opening: 1-2 sentences.
-  - Each item explanation: 2-3 sentences.
-  - Closing: 1-2 sentences.
-  - Target total: approximately 250-400 words when rendered as spoken text.
-
-  ## Speech Structure Commentary
-  Analyze the transcript to provide descriptive commentary on the speech's structure.
-
-  ### Segmentation
-  - **Opening** (first 10-15% of words): Look for a hook, attention-grabber, or topic introduction.
-  - **Body** (middle 70-80% of words): Look for main points, transitions between ideas, and overall organization.
-  - **Closing** (final 10-15% of words): Look for a call to action, memorable ending, or summary.
-
-  ### Heuristic Fallback for Short Transcripts
-  If the transcript contains fewer than 120 words, do NOT use percentage-based segmentation. Instead, use heuristic markers to identify sections:
-  - Opening markers: "today I want to talk about", "let me tell you", "good morning", "I'm here to"
-  - Closing markers: "in conclusion", "to wrap up", "to summarize", "in closing", "my final thought"
-  - If no reliable markers are found, return null for that section.
-
-  ### Null Handling
-  - If you cannot identify a reliable opening, return null for opening_comment.
-  - If you cannot identify a reliable closing, return null for closing_comment.
-  - If the body is too short or unclear to comment on, return null for body_comment.
-  - It is better to return null than to speculate about structure that is not clearly present.
-
-  ### Commentary Style
-  - All structure commentary must be descriptive and observational.
-  - Do not include numerical scores, ratings, or percentage-based assessments in structure commentary.
-  - Describe what the speaker did, not how you would rate it.
-  - Good: "You opened with a personal anecdote that drew the audience in."
-  - Bad: "Your opening was 7/10" or "Your opening covered 12% of the speech."`;
-
-      if (qualityWarning) {
-        prompt += `
-
-  ## Audio Quality Warning
-  The transcript quality appears to be degraded (low word count relative to duration, or low confidence scores). Please:
-  - Include an uncertainty qualifier in your opening acknowledging the audio quality limitations, such as: "The audio quality made some parts difficult to catch, so I'll focus on what came through clearly."
-  - Reduce claim strength and limit evidence-dependent observations to only clearly audible portions of the transcript.
-  - Focus observations on high-confidence transcript segments only (segments where the mean word confidence is 0.7 or above).
-  - Do not fabricate content to compensate for gaps in the transcript.
-  - Still provide your best evaluation with the available content, but be transparent about limitations.`;
-      }
-
-      if (hasForm) {
-        prompt += `
-
-  ## Evaluation Form
-  An evaluation form has been provided by the user. You MUST:
-  1. Use the form's criteria and categories to guide your evaluation focus.
-  2. Fill out ALL fields and blanks in the form based on your evaluation of the speech.
-  3. Return the completed form as a "completed_form" field in your JSON response. THIS FIELD IS MANDATORY when a form is provided.
-  4. The completed_form value MUST be a non-empty string containing the full text of the form with all blanks, checkboxes, and fields filled in.
-  5. Keep the original form structure and formatting intact — just fill in the content.
-  6. If the form has rating scales (e.g., 1-5), provide numeric ratings with brief justification.
-  7. Your standard evaluation (opening, items, closing) should still be generated independently.
-  8. If the form asks questions not answerable from the transcript, write "Not observed" for those fields.
-  9. Do NOT return null or omit the completed_form field — it is REQUIRED.`;
-      }
-
-      if (hasVisual) {
-        prompt += `
-
-  ## Visual Feedback
-  The evaluation includes video analysis data. You MUST also produce a "visual_feedback" array in your JSON output.
-
-  Add this field to your JSON response:
-  "visual_feedback": [
-    {
-      "type": "visual_observation",
-      "summary": "string (brief label)",
-      "observation_data": "string (formal grammar: 'metric=<metricName>; value=<number><unit?>; source=visualObservations', e.g., 'metric=gazeBreakdown.audienceFacing; value=65%; source=visualObservations')",
-      "explanation": "string (2-3 sentences, observational, 'I observed...' language)"
-    }
-  ]
-
-  ### Visual Feedback Rules
-  - Produce 1-2 visual_feedback items based on the Visual Observations data in the user prompt.
-  - Use "I observed..." language for ALL visual observations.
-  - Each item MUST reference a specific metric name and its numeric value from the Visual Observations data.
-  - Do NOT infer emotions, psychology, or intent from visual data.
-  - Frame observations as binary-verifiable statements with thresholds.
-  - Note: gaze direction tracks head pose, not eye gaze. Accuracy depends on camera placement.`;
-      }
-
-      return prompt;
+      return buildSystemPromptFromTemplates({ qualityWarning, hasForm, hasVisual });
     }
 
   private buildUserPrompt(
@@ -879,23 +754,7 @@ Please evaluate this speech following the instructions and output format specifi
     transcriptText: string,
     issues: string[],
   ): { system: string; user: string } {
-    const system = `You are an experienced speech evaluator. You need to fix an evaluation item whose evidence quote could not be verified against the transcript.
-
-## Output Format
-Respond with a valid JSON object matching this exact structure:
-{
-  "type": "${item.type}",
-  "summary": "string",
-  "evidence_quote": "string (verbatim quote from the transcript, at most 15 words, at least 6 words)",
-  "evidence_timestamp": number,
-  "explanation": "string"
-}
-
-## Evidence Rules
-- The evidence_quote MUST be copied VERBATIM from the transcript below.
-- It must be at most 15 words and at least 6 words.
-- The evidence_timestamp must be the approximate start time in seconds.
-- Do NOT paraphrase or invent quotes.`;
+    const system = buildItemRetrySystemPrompt(item.type);
 
     const user = `## Transcript
 ${transcriptText}

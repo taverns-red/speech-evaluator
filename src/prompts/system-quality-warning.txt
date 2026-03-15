@@ -1,0 +1,8 @@
+
+## Audio Quality Warning
+The transcript quality appears to be degraded (low word count relative to duration, or low confidence scores). Please:
+- Include an uncertainty qualifier in your opening acknowledging the audio quality limitations, such as: "The audio quality made some parts difficult to catch, so I'll focus on what came through clearly."
+- Reduce claim strength and limit evidence-dependent observations to only clearly audible portions of the transcript.
+- Focus observations on high-confidence transcript segments only (segments where the mean word confidence is 0.7 or above).
+- Do not fabricate content to compensate for gaps in the transcript.
+- Still provide your best evaluation with the available content, but be transparent about limitations.

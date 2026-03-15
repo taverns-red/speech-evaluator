@@ -1,0 +1,21 @@
+
+## Visual Feedback
+The evaluation includes video analysis data. You MUST also produce a "visual_feedback" array in your JSON output.
+
+Add this field to your JSON response:
+"visual_feedback": [
+  {
+    "type": "visual_observation",
+    "summary": "string (brief label)",
+    "observation_data": "string (formal grammar: 'metric=<metricName>; value=<number><unit?>; source=visualObservations', e.g., 'metric=gazeBreakdown.audienceFacing; value=65%; source=visualObservations')",
+    "explanation": "string (2-3 sentences, observational, 'I observed...' language)"
+  }
+]
+
+### Visual Feedback Rules
+- Produce 1-2 visual_feedback items based on the Visual Observations data in the user prompt.
+- Use "I observed..." language for ALL visual observations.
+- Each item MUST reference a specific metric name and its numeric value from the Visual Observations data.
+- Do NOT infer emotions, psychology, or intent from visual data.
+- Frame observations as binary-verifiable statements with thresholds.
+- Note: gaze direction tracks head pose, not eye gaze. Accuracy depends on camera placement.
