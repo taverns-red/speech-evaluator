@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.8](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.7...ai-speech-evaluator-v0.6.8) (2026-03-15)
+
+
+### Features
+
+* add Grammarian role — LLM-based grammar analysis with fallback ([#75](https://github.com/rservant/speech-evaluator/issues/75)) ([5be59f3](https://github.com/rservant/speech-evaluator/commit/5be59f3cc80f2b2cfa9d674268326a7cf421fa34))
+* add Timer role — deterministic timing analysis with zone classification ([#74](https://github.com/rservant/speech-evaluator/issues/74)) ([69cf3be](https://github.com/rservant/speech-evaluator/commit/69cf3bedc9726d7855e2492c7449487a35c6ba6e))
+* register Timer and Grammarian roles in RoleRegistry ([#72](https://github.com/rservant/speech-evaluator/issues/72)) ([96a4401](https://github.com/rservant/speech-evaluator/commit/96a4401e30be8de27e2e0598429d629994975cba))
+
+
+### Bug Fixes
+
+* escape role report title and heading to prevent XSS (CodeQL [#4](https://github.com/rservant/speech-evaluator/issues/4)) ([b03a47e](https://github.com/rservant/speech-evaluator/commit/b03a47ec128ddfe806b4d868976faa5f3a8546b7))
+
 ## [0.6.7](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.6...ai-speech-evaluator-v0.6.7) (2026-03-15)
 
 
