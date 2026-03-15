@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.9](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.8...ai-speech-evaluator-v0.6.9) (2026-03-15)
+
+
+### Features
+
+* upload progress UX — speed, ETA, elapsed timer, cancel, retry ([#95](https://github.com/rservant/speech-evaluator/issues/95) [#97](https://github.com/rservant/speech-evaluator/issues/97) [#98](https://github.com/rservant/speech-evaluator/issues/98) [#100](https://github.com/rservant/speech-evaluator/issues/100)) ([dfe8da6](https://github.com/rservant/speech-evaluator/commit/dfe8da6b16c41b35ed0f3ee2390d79057b7988f5))
+
 ## [0.6.8](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.7...ai-speech-evaluator-v0.6.8) (2026-03-15)
 
 
