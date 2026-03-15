@@ -216,6 +216,12 @@
       </div>
     </div>
 
+    <!-- Mode Tabs (#68) -->
+    <div id="mode-tabs" class="mode-tabs">
+      <button id="tab-live" class="mode-tab active" onclick="switchMode('live')">🎙️ Live</button>
+      <button id="tab-upload" class="mode-tab" onclick="switchMode('upload')">📁 Upload</button>
+    </div>
+
     <!-- Controls -->
     <div class="controls">
       <button id="btn-start" class="btn btn-success" onclick="onStartSpeech()">
@@ -240,6 +246,9 @@
       <button id="btn-save" class="btn btn-save hidden" onclick="onSaveOutputs()">
         💾 Save Outputs
       </button>
+      <button id="btn-pdf" class="btn btn-save hidden" onclick="onExportPDF()">
+        📄 Export PDF
+      </button>
       <button id="btn-revoke" class="btn btn-revoke hidden" onclick="onRevokeConsent()"
         aria-label="Revoke speaker consent and purge data">
         ✕ Revoke Consent
@@ -256,6 +265,26 @@
         <span id="upload-progress-stage" class="upload-progress-stage"></span>
         <span id="upload-elapsed" class="upload-elapsed" style="margin-left: auto; font-size: 0.85em; color: var(--text-secondary, #aaa);"></span>
       </div>
+
+      <!-- Pipeline Steps (#96) -->
+      <div id="upload-pipeline" class="upload-pipeline">
+        <div class="pipeline-step" data-step="Uploading"><span class="pipeline-dot"></span><span class="pipeline-label">Upload</span></div>
+        <div class="pipeline-line"></div>
+        <div class="pipeline-step" data-step="Extracting"><span class="pipeline-dot"></span><span class="pipeline-label">Extract</span></div>
+        <div class="pipeline-line"></div>
+        <div class="pipeline-step" data-step="Transcribing"><span class="pipeline-dot"></span><span class="pipeline-label">Transcribe</span></div>
+        <div class="pipeline-line"></div>
+        <div class="pipeline-step" data-step="Evaluating"><span class="pipeline-dot"></span><span class="pipeline-label">Evaluate</span></div>
+        <div class="pipeline-line"></div>
+        <div class="pipeline-step" data-step="Complete"><span class="pipeline-dot"></span><span class="pipeline-label">Done</span></div>
+      </div>
+
+      <!-- File Thumbnail (#99) -->
+      <div id="upload-thumbnail-container" style="display: none; margin: 8px 0; text-align: center;">
+        <video id="upload-thumbnail-video" style="max-width: 200px; max-height: 120px; border-radius: 8px; object-fit: cover;" muted></video>
+        <p id="upload-thumbnail-name" style="font-size: 0.8em; color: var(--text-secondary, #aaa); margin: 4px 0 0;"></p>
+      </div>
+
       <div class="upload-progress-bar-container">
         <div id="upload-progress-bar" class="upload-progress-bar" style="width: 0%"></div>
       </div>
@@ -535,6 +564,7 @@
       btnDeliver: document.getElementById("btn-deliver"),
       btnReplay: document.getElementById("btn-replay"),
       btnSave: document.getElementById("btn-save"),
+      btnPdf: document.getElementById("btn-pdf"),
       btnPanic: document.getElementById("btn-panic"),
       btnRevoke: document.getElementById("btn-revoke"),
       speakingIndicator: document.getElementById("speaking-indicator"),
@@ -654,8 +684,10 @@
         // Show Save Outputs only if evaluation data exists, not already saved, and not purged
         if (hasEvaluationData && !outputsSaved && !dataPurged) {
           show(dom.btnSave);
+          show(dom.btnPdf);
         } else {
           hide(dom.btnSave);
+          hide(dom.btnPdf);
         }
         // Show Replay button if TTS audio was received and evaluation data exists and not purged
         if (hasTTSAudio && hasEvaluationData && !dataPurged) {
@@ -707,6 +739,7 @@
         show(dom.btnStop);
         hide(dom.btnDeliver);
         hide(dom.btnSave);
+        hide(dom.btnPdf);
         hide(dom.btnReplay);
         enable(dom.btnStop);
         enable(dom.btnPanic);
@@ -754,6 +787,7 @@
         hide(dom.btnStop);
         show(dom.btnDeliver);
         hide(dom.btnSave);
+        hide(dom.btnPdf);
         hide(dom.btnReplay);
         // Deliver button gating based on pipeline stage (Req 4.1-4.4)
         // Disable during in-progress stages and initial idle; enable only on terminal/actionable stages
@@ -807,6 +841,7 @@
         hide(dom.btnStop);
         hide(dom.btnDeliver);
         hide(dom.btnSave);
+        hide(dom.btnPdf);
         hide(dom.btnReplay);
         hide(dom.btnRevoke);
         // Disable all actions except Panic Mute during delivery
@@ -3057,6 +3092,69 @@
       } else {
         cancelBtn.style.display = "inline-block";
       }
+
+      // Pipeline step activation (#96)
+      updatePipelineSteps(stage);
+    }
+
+    // Map upload stages to pipeline step data-step values
+    const PIPELINE_STAGE_MAP = {
+      "Initializing": "Uploading",
+      "Uploading": "Uploading",
+      "Retrying": "Uploading",
+      "Processing": "Extracting",
+      "Extracting": "Extracting",
+      "Transcribing": "Transcribing",
+      "Evaluating": "Evaluating",
+      "Complete": "Complete",
+    };
+
+    const PIPELINE_ORDER = ["Uploading", "Extracting", "Transcribing", "Evaluating", "Complete"];
+
+    function updatePipelineSteps(stage) {
+      const activeStep = PIPELINE_STAGE_MAP[stage] || null;
+      const activeIdx = activeStep ? PIPELINE_ORDER.indexOf(activeStep) : -1;
+
+      const steps = document.querySelectorAll("#upload-pipeline .pipeline-step");
+      const lines = document.querySelectorAll("#upload-pipeline .pipeline-line");
+
+      steps.forEach((stepEl, i) => {
+        stepEl.classList.remove("active", "completed");
+        const stepIdx = PIPELINE_ORDER.indexOf(stepEl.dataset.step);
+        if (stepIdx === activeIdx) stepEl.classList.add("active");
+        else if (stepIdx < activeIdx) stepEl.classList.add("completed");
+      });
+
+      lines.forEach((lineEl, i) => {
+        lineEl.classList.remove("completed");
+        if (i < activeIdx) lineEl.classList.add("completed");
+      });
+    }
+
+    // File thumbnail preview (#99)
+    let thumbnailObjectUrl = null;
+
+    function showUploadThumbnail(file) {
+      const container = document.getElementById("upload-thumbnail-container");
+      const video = document.getElementById("upload-thumbnail-video");
+      const nameEl = document.getElementById("upload-thumbnail-name");
+
+      if (thumbnailObjectUrl) { URL.revokeObjectURL(thumbnailObjectUrl); thumbnailObjectUrl = null; }
+
+      if (file.type.startsWith("video/")) {
+        thumbnailObjectUrl = URL.createObjectURL(file);
+        video.src = thumbnailObjectUrl;
+        video.style.display = "block";
+      } else {
+        video.style.display = "none";
+      }
+      nameEl.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`;
+      container.style.display = "block";
+    }
+
+    function hideUploadThumbnail() {
+      document.getElementById("upload-thumbnail-container").style.display = "none";
+      if (thumbnailObjectUrl) { URL.revokeObjectURL(thumbnailObjectUrl); thumbnailObjectUrl = null; }
     }
 
     function updateSpeedETA(speed, eta) {
@@ -3072,6 +3170,8 @@
       document.getElementById("upload-speed-eta").textContent = "";
       document.getElementById("upload-elapsed").textContent = "";
       stopUploadTimer();
+      hideUploadThumbnail();
+      updatePipelineSteps(""); // Reset
     }
 
     // Cancel button handler (#98)
@@ -3263,6 +3363,7 @@
         };
 
         startUploadTimer();
+        showUploadThumbnail(file);
         updateUploadProgress("Initializing", 5, "Preparing upload...");
 
         // ── Try GCS two-phase upload first ──
@@ -3617,6 +3718,49 @@
 
       // Optimistic UI update to DELIVERING state
       updateUI(SessionState.DELIVERING);
+    }
+
+    // ─── Mode Switching (#68) ─────────────────────────────────────────
+    let currentMode = "live";
+
+    function switchMode(mode) {
+      currentMode = mode;
+      const tabLive = document.getElementById("tab-live");
+      const tabUpload = document.getElementById("tab-upload");
+      const btnStart = document.getElementById("btn-start");
+      const btnUpload = document.getElementById("btn-upload");
+      const btnPanic = document.getElementById("btn-panic");
+      const videoContainer = document.querySelector(".video-preview-container");
+
+      tabLive.classList.toggle("active", mode === "live");
+      tabUpload.classList.toggle("active", mode === "upload");
+
+      // Live mode: show start + panic, hide upload
+      // Upload mode: show upload, hide start + panic
+      if (mode === "live") {
+        btnStart.classList.remove("hidden");
+        btnPanic.classList.remove("hidden");
+        btnUpload.classList.add("hidden");
+        if (videoContainer) videoContainer.classList.add("visible");
+      } else {
+        btnStart.classList.add("hidden");
+        btnPanic.classList.add("hidden");
+        btnUpload.classList.remove("hidden");
+        if (videoContainer) videoContainer.classList.remove("visible");
+      }
+    }
+
+    // ─── PDF Export (#71) ────────────────────────────────────────────────
+    function onExportPDF() {
+      // Use browser print dialog with CSS print stylesheet
+      // This captures the evaluation panel, transcript, and role results
+      const originalTitle = document.title;
+      const speakerName = consentSpeakerName || "Speech";
+      const date = new Date().toISOString().slice(0, 10);
+      document.title = `${speakerName} - Evaluation - ${date}`;
+
+      window.print();
+      document.title = originalTitle;
     }
 
     function onSaveOutputs() {

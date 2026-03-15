@@ -1513,3 +1513,121 @@ body::before {
   margin-top: var(--space-sm);
   margin-bottom: 0;
 }
+
+/* ─── Pipeline Stepper (#96) ─────────────────────────────────────── */
+.upload-pipeline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin: 12px 0 8px;
+}
+
+.pipeline-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.35;
+  transition: opacity 0.3s ease;
+}
+
+.pipeline-step.active {
+  opacity: 1;
+}
+
+.pipeline-step.completed {
+  opacity: 0.7;
+}
+
+.pipeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.pipeline-step.active .pipeline-dot {
+  background: var(--red-primary);
+  box-shadow: 0 0 8px rgba(193, 59, 59, 0.5);
+  animation: pipeline-pulse 1.5s ease-in-out infinite;
+}
+
+.pipeline-step.completed .pipeline-dot {
+  background: var(--color-success, #34d399);
+}
+
+@keyframes pipeline-pulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(193, 59, 59, 0.3); }
+  50% { box-shadow: 0 0 12px rgba(193, 59, 59, 0.7); }
+}
+
+.pipeline-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: inherit;
+}
+
+.pipeline-line {
+  width: 24px;
+  height: 2px;
+  background: var(--border-subtle);
+  margin: 0 2px;
+  margin-bottom: 16px; /* align with dots, not labels */
+  transition: background 0.3s ease;
+}
+
+.pipeline-line.completed {
+  background: var(--color-success, #34d399);
+}
+
+/* ─── Mode Tabs (#68) ────────────────────────────────────────────── */
+.mode-tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 3px;
+  margin-bottom: var(--space-sm);
+}
+
+.mode-tab {
+  flex: 1;
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-family: var(--font-family);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.mode-tab:hover {
+  color: var(--text-primary);
+  background: rgba(193, 59, 59, 0.06);
+}
+
+.mode-tab.active {
+  color: var(--text-primary);
+  background: rgba(193, 59, 59, 0.12);
+  font-weight: 600;
+}
+
+/* ─── Print Styles (PDF Export #71) ──────────────────────────────── */
+@media print {
+  body { background: #fff; color: #222; }
+  .app { padding: 0; gap: 0.5rem; }
+  .header, .controls, .mode-tabs, .footer, .status-bar,
+  .upload-progress, .speaking-indicator, .btn-panic,
+  .video-preview-container, .consent-form, .vad-config,
+  .video-fps-config, .project-context-form, .consent-status,
+  .time-limit-control, .vad-notification, .purge-banner { display: none !important; }
+  .panel { border: 1px solid #ddd; box-shadow: none; break-inside: avoid; }
+  .panel-content { color: #333; }
+}
