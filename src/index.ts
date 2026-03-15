@@ -191,7 +191,7 @@ const firebaseApiKey = process.env.FIREBASE_API_KEY?.trim();
 const firebaseConfig = firebaseApiKey
   ? {
     apiKey: firebaseApiKey,
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN?.trim() || "toast-stats-prod-6d64a.firebaseapp.com",
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN?.trim() || "eval.taverns.red",
     projectId: "toast-stats-prod-6d64a",
     appId: "1:736334703361:web:b7174dfd26dab25cf2c900",
     messagingSenderId: "736334703361",
