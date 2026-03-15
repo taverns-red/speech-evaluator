@@ -1707,11 +1707,11 @@
         card.className = "card";
         card.style.cssText = "margin-bottom: 16px; padding: 20px; border-left: 3px solid var(--red-primary, #e53935);";
 
-        let html = `<h3 style="margin: 0 0 12px; color: var(--text-primary);">${role.report.title}</h3>`;
+        let html = `<h3 style="margin: 0 0 12px; color: var(--text-primary);">${escapeHtml(role.report.title)}</h3>`;
 
         for (const section of role.report.sections) {
-          html += `<h4 style="margin: 12px 0 6px; color: var(--text-secondary); font-size: 0.9em; text-transform: uppercase;">${section.heading}</h4>`;
-          html += `<p style="margin: 0 0 8px; color: var(--text-primary); white-space: pre-wrap;">${section.content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`;
+          html += `<h4 style="margin: 12px 0 6px; color: var(--text-secondary); font-size: 0.9em; text-transform: uppercase;">${escapeHtml(section.heading)}</h4>`;
+          html += `<p style="margin: 0 0 8px; color: var(--text-primary); white-space: pre-wrap;">${escapeHtml(section.content)}</p>`;
         }
 
         card.innerHTML = html;
