@@ -25,7 +25,7 @@
       <div style="display:flex;align-items:center;gap:0.75rem;">
         <button id="theme-toggle" class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">🌙</button>
         <span id="connection-status" style="font-size: 0.8rem; color: var(--text-muted);">Disconnected</span>
-        <button id="btn-reconnect" onclick="window.__reconnectWS && window.__reconnectWS()"
+        <button id="btn-reconnect"
           style="display:none;font-size:0.7rem;padding:0.2rem 0.5rem;background:var(--color-danger);color:#fff;border:none;border-radius:4px;cursor:pointer;">Reconnect</button>
         <div id="user-info" style="display:none;align-items:center;gap:0.5rem;">
           <img id="user-avatar" alt=""
@@ -35,7 +35,7 @@
           <span id="user-name"
             style="font-size:0.8rem;color:var(--text-secondary);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
         </div>
-        <button id="btn-signout" class="btn-signout" onclick="signOut()" title="Sign out"
+        <button id="btn-signout" class="btn-signout" title="Sign out"
           style="background:none;border:1px solid var(--border-subtle);border-radius:8px;padding:0.3rem 0.6rem;color:var(--text-muted);font-family:'Outfit',sans-serif;font-size:0.75rem;cursor:pointer;">Sign
           Out</button>
       </div>
@@ -45,7 +45,7 @@
     <div id="error-banner" class="error-banner" role="alert" aria-live="assertive">
       <span class="error-icon">⚠</span>
       <span id="error-message" class="error-message"></span>
-      <button class="error-dismiss" onclick="dismissError()" aria-label="Dismiss error">&times;</button>
+      <button id="btn-dismiss-error" class="error-dismiss" aria-label="Dismiss error">&times;</button>
     </div>
 
     <!-- Interruption Banner (shown after panic mute) -->
@@ -128,7 +128,7 @@
         <span style="color: var(--text-secondary); font-size: 0.85em;">— or —</span>
       </div>
       <div class="form-group">
-        <button id="btn-attach-form" class="btn" style="width: 100%; font-size: 0.9em; padding: 10px 12px;" onclick="document.getElementById('form-file-input').click()">
+        <button id="btn-attach-form" class="btn" style="width: 100%; font-size: 0.9em; padding: 10px 12px;">
           📋 Upload Evaluation Form (PDF, DOCX, TXT)
         </button>
         <span id="form-file-label" style="display:none; font-size: 0.85em; color: var(--text-secondary); margin-top: 6px; text-align: center;"></span>
@@ -187,8 +187,8 @@
       <span>🔔</span>
       <span class="vad-notification-text">Speech likely ended — confirm stop?</span>
       <div class="vad-notification-actions">
-        <button class="btn-vad-confirm" onclick="onVADConfirmStop()">Confirm Stop</button>
-        <button class="btn-vad-dismiss" onclick="onVADDismiss()">Dismiss</button>
+        <button id="btn-vad-confirm" class="btn-vad-confirm">Confirm Stop</button>
+        <button id="btn-vad-dismiss" class="btn-vad-dismiss">Dismiss</button>
       </div>
     </div>
 
@@ -203,9 +203,9 @@
       <div class="video-preview-header">
         <span class="video-preview-label">Camera</span>
         <div class="video-preview-actions">
-          <button id="btn-camera-flip" class="btn-video-toggle btn-camera-flip" onclick="onCameraFlip()"
+          <button id="btn-camera-flip" class="btn-video-toggle btn-camera-flip"
             title="Switch camera" style="display:none;">🔄</button>
-          <button id="btn-video-toggle" class="btn-video-toggle" onclick="toggleVideoSize()"
+          <button id="btn-video-toggle" class="btn-video-toggle"
             title="Expand/collapse video preview">⤢</button>
         </div>
       </div>
@@ -218,42 +218,42 @@
 
     <!-- Mode Tabs (#68) -->
     <div id="mode-tabs" class="mode-tabs">
-      <button id="tab-live" class="mode-tab active" onclick="switchMode('live')">🎙️ Live</button>
-      <button id="tab-upload" class="mode-tab" onclick="switchMode('upload')">📁 Upload</button>
+      <button id="tab-live" class="mode-tab active">🎙️ Live</button>
+      <button id="tab-upload" class="mode-tab">📁 Upload</button>
     </div>
 
     <!-- Controls -->
     <div class="controls">
-      <button id="btn-start" class="btn btn-success" onclick="onStartSpeech()">
+      <button id="btn-start" class="btn btn-success">
         ● Start Speech
       </button>
-      <button id="btn-upload" class="btn btn-upload" onclick="document.getElementById('upload-file-input').click()">
+      <button id="btn-upload" class="btn btn-upload">
         📁 Upload Video
       </button>
       <input type="file" id="upload-file-input" accept="video/*,audio/*,.mp4,.webm,.mov,.avi,.mkv,.mp3,.wav,.m4a"
-        style="display:none" onchange="onFileSelected(event)">
+        style="display:none">
       <input type="file" id="form-file-input" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
-        style="display:none" onchange="onFormFileSelected(event)">
-      <button id="btn-stop" class="btn btn-primary hidden" onclick="onStopSpeech()">
+        style="display:none">
+      <button id="btn-stop" class="btn btn-primary hidden">
         ■ Stop Speech
       </button>
-      <button id="btn-deliver" class="btn btn-warning hidden" onclick="onDeliverEvaluation()">
+      <button id="btn-deliver" class="btn btn-warning hidden">
         ▶ Deliver Evaluation
       </button>
-      <button id="btn-replay" class="btn btn-primary hidden" onclick="onReplayEvaluation()">
+      <button id="btn-replay" class="btn btn-primary hidden">
         🔁 Replay Evaluation
       </button>
-      <button id="btn-save" class="btn btn-save hidden" onclick="onSaveOutputs()">
+      <button id="btn-save" class="btn btn-save hidden">
         💾 Save Outputs
       </button>
-      <button id="btn-pdf" class="btn btn-save hidden" onclick="onExportPDF()">
+      <button id="btn-pdf" class="btn btn-save hidden">
         📄 Export PDF
       </button>
-      <button id="btn-revoke" class="btn btn-revoke hidden" onclick="onRevokeConsent()"
+      <button id="btn-revoke" class="btn btn-revoke hidden"
         aria-label="Revoke speaker consent and purge data">
         ✕ Revoke Consent
       </button>
-      <button id="btn-panic" class="btn btn-panic" onclick="onPanicMute()">
+      <button id="btn-panic" class="btn btn-panic">
         🔇 Panic Mute
       </button>
     </div>

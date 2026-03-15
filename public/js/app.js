@@ -417,28 +417,35 @@ dom.videoFpsSlider.addEventListener("change", onVideoFpsChange);
 dom.videoFpsSlider.addEventListener("input", onVideoFpsInput);
 
 
-// ─── Module → Global Bridge ──────────────────────────────────────
-// Expose functions referenced by HTML onclick/onchange attributes.
-// These are needed because <script type="module"> scopes all
-// declarations — inline HTML handlers can only call window-level functions.
-// TODO(#80): Remove this bridge when inline handlers are migrated to addEventListener.
-window.signOut = signOut;
-window.dismissError = dismissError;
-window.onVADConfirmStop = onVADConfirmStop;
-window.onVADDismiss = onVADDismiss;
-window.onCameraFlip = onCameraFlip;
-window.toggleVideoSize = toggleVideoSize;
-window.onStartSpeech = onStartSpeech;
-window.onStopSpeech = onStopSpeech;
-window.onDeliverEvaluation = onDeliverEvaluation;
-window.onReplayEvaluation = onReplayEvaluation;
-window.onSaveOutputs = onSaveOutputs;
-window.onExportPDF = onExportPDF;
-window.switchMode = switchMode;
-window.onRevokeConsent = onRevokeConsent;
-window.onPanicMute = onPanicMute;
-window.onFileSelected = onFileSelected;
-window.onFormFileSelected = onFormFileSelected;
+// ─── Button Event Listeners (migrated from inline onclick, #110) ──
+document.getElementById("btn-reconnect").addEventListener("click", function () {
+  if (window.__reconnectWS) window.__reconnectWS();
+});
+document.getElementById("btn-signout").addEventListener("click", signOut);
+document.getElementById("btn-dismiss-error").addEventListener("click", dismissError);
+document.getElementById("btn-attach-form").addEventListener("click", function () {
+  document.getElementById("form-file-input").click();
+});
+document.getElementById("btn-vad-confirm").addEventListener("click", onVADConfirmStop);
+document.getElementById("btn-vad-dismiss").addEventListener("click", onVADDismiss);
+document.getElementById("btn-camera-flip").addEventListener("click", onCameraFlip);
+document.getElementById("btn-video-toggle").addEventListener("click", toggleVideoSize);
+document.getElementById("tab-live").addEventListener("click", function () { switchMode("live"); });
+document.getElementById("tab-upload").addEventListener("click", function () { switchMode("upload"); });
+document.getElementById("btn-start").addEventListener("click", onStartSpeech);
+document.getElementById("btn-upload").addEventListener("click", function () {
+  document.getElementById("upload-file-input").click();
+});
+document.getElementById("upload-file-input").addEventListener("change", onFileSelected);
+document.getElementById("form-file-input").addEventListener("change", onFormFileSelected);
+document.getElementById("btn-stop").addEventListener("click", onStopSpeech);
+document.getElementById("btn-deliver").addEventListener("click", onDeliverEvaluation);
+document.getElementById("btn-replay").addEventListener("click", onReplayEvaluation);
+document.getElementById("btn-save").addEventListener("click", onSaveOutputs);
+document.getElementById("btn-pdf").addEventListener("click", onExportPDF);
+document.getElementById("btn-revoke").addEventListener("click", onRevokeConsent);
+document.getElementById("btn-panic").addEventListener("click", onPanicMute);
 
 // Set initial mode state (#68)
 switchMode("live");
+
