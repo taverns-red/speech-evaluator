@@ -2711,15 +2711,20 @@ function stopUploadTimer() {
 
 function computeSpeedAndETA(loaded, total) {
   const now = Date.now();
-  uploadProgressSamples.push({ time: now, loaded });
-  // Keep last 5 samples for smoothing
-  while (uploadProgressSamples.length > 5) uploadProgressSamples.shift();
+  const last = uploadProgressSamples[uploadProgressSamples.length - 1];
+  // Throttle: only add sample if ≥200ms since last (prevents rapid XHR events
+  // from filling the window with sub-millisecond deltas that never compute)
+  if (!last || (now - last.time) >= 200) {
+    uploadProgressSamples.push({ time: now, loaded });
+    // Keep last 10 samples for smoothing (~2s window at 200ms throttle)
+    while (uploadProgressSamples.length > 10) uploadProgressSamples.shift();
+  }
   if (uploadProgressSamples.length < 2) return { speed: "Calculating...", eta: null };
   const first = uploadProgressSamples[0];
-  const last = uploadProgressSamples[uploadProgressSamples.length - 1];
-  const dtSec = (last.time - first.time) / 1000;
+  const newest = uploadProgressSamples[uploadProgressSamples.length - 1];
+  const dtSec = (newest.time - first.time) / 1000;
   if (dtSec < 0.2) return { speed: "Calculating...", eta: null };
-  const bytesPerSec = (last.loaded - first.loaded) / dtSec;
+  const bytesPerSec = (newest.loaded - first.loaded) / dtSec;
   const speed = bytesPerSec > 0 ? (bytesPerSec / 1024 / 1024).toFixed(1) + " MB/s" : null;
   const remaining = total - loaded;
   const etaSec = bytesPerSec > 0 ? Math.ceil(remaining / bytesPerSec) : null;
