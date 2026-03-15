@@ -210,11 +210,17 @@ import { RoleRegistry } from "./role-registry.js";
 import { AhCounterRole } from "./roles/ah-counter-role.js";
 import { TimerRole } from "./roles/timer-role.js";
 import { GrammarianRole } from "./roles/grammarian-role.js";
+import { TableTopicsMasterRole } from "./roles/table-topics-master-role.js";
+import { TableTopicsEvaluatorRole } from "./roles/table-topics-evaluator-role.js";
+import { GeneralEvaluatorRole } from "./roles/general-evaluator-role.js";
 
 const roleRegistry = new RoleRegistry();
 roleRegistry.register(new AhCounterRole());
 roleRegistry.register(new TimerRole());
 roleRegistry.register(new GrammarianRole());
+roleRegistry.register(new TableTopicsMasterRole());
+roleRegistry.register(new TableTopicsEvaluatorRole());
+roleRegistry.register(new GeneralEvaluatorRole());
 console.log(`[Roles] Registered ${roleRegistry.size} role(s): ${roleRegistry.list().map((r) => r.name).join(", ")}`);
 
 const server = createAppServer({ sessionManager, uploadRouter, version: APP_VERSION, authMiddleware, wsAuthVerify, firebaseConfig, roleRegistry });
