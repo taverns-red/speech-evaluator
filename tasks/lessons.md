@@ -1,8 +1,5 @@
 # 📚 Lessons Learned
 
-<!-- TEMPLATE — Every lesson MUST use this exact structure. Newest entries go at the top. -->
-<!-- The agent reads the last 5 entries before starting any task.                         -->
-<!--                                                                                      -->
 <!-- ## 🗓️ [YYYY-MM-DD] — Lesson NN: [Title]                                             -->
 <!--                                                                                      -->
 <!-- **The Discovery**: [What unexpected behavior or coupling was found]                   -->
@@ -14,6 +11,14 @@
 <!-- **The Resulting Rule**: [The new rule or constraint going forward]                    -->
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
+
+## 🗓️ 2026-03-14 — Lesson 33: ES Module Scoping Breaks Inline onclick Handlers
+
+**The Discovery**: New functions (`switchMode`, `onExportPDF`) defined inside `<script type="module">` were invisible to inline HTML `onclick` attributes. The existing codebase already had a "Module → Global Bridge" section at the bottom of the script that explicitly assigns `window.functionName = functionName` for every onclick-referenced function. Adding new functions without registering them in this bridge means they silently fail when clicked.
+
+**The Scientific Proof**: Browser console showed `ReferenceError: switchMode is not defined` when clicking the mode tabs. Adding `window.switchMode = switchMode` to the bridge fixed it immediately.
+
+**The Resulting Rule**: Every function referenced by an inline HTML `onclick`/`onchange` attribute in a `<script type="module">` MUST be registered in the Module → Global Bridge. Also prefer `addEventListener` over inline handlers when practical.
 
 ## 🗓️ 2026-03-14 — Lesson 32: Injectable LLM Functions Enable Role Testability
 
@@ -32,16 +37,6 @@
 **The Scientific Proof**: TypeScript build error `TS2552: Cannot find name 'roleRegistry'` at 3 call sites. Fixed by adding `roleRegistry` parameter to `handleConnection` → `handleClientMessage` → `handleDeliverEvaluation`.
 
 **The Resulting Rule**: When adding a dependency to deeply nested handlers, trace the full call chain and add the parameter to every standalone function. Don't assume closure capture.
-
-## 🗓️ 2026-03-14 — Lesson 33: ES Module Scoping Breaks Inline onclick Handlers
-
-**The Discovery**: New functions (`switchMode`, `onExportPDF`) defined inside `<script type="module">` were invisible to inline HTML `onclick` attributes. The existing codebase already had a "Module → Global Bridge" section at the bottom of the script that explicitly assigns `window.functionName = functionName` for every onclick-referenced function. Adding new functions without registering them in this bridge means they silently fail when clicked.
-
-**The Scientific Proof**: Browser console showed `ReferenceError: switchMode is not defined` when clicking the mode tabs. Adding `window.switchMode = switchMode` to the bridge fixed it immediately.
-
-**The Resulting Rule**: Every function referenced by an inline HTML `onclick`/`onchange` attribute in a `<script type="module">` MUST be registered in the Module → Global Bridge. Also prefer `addEventListener` over inline handlers when practical.
-
-**Future Warning**: `server.ts` has many standalone handler functions. Any new dependency from `createAppServer` must be threaded through the entire chain.
 
 ## 🗓️ 2026-03-14 — Lesson 30: OpenAI Whisper 25MB Limit Includes Multipart Encoding Overhead
 
@@ -115,6 +110,25 @@
 
 **rules.md**: none (API-specific)
 
+## 🗓️ 2026-03-14 — Lesson 23: Multer Middleware Errors Escape to Express Default 500 Handler
+
+**The Discovery**: When `uploadMiddleware.single("file")` is passed as Express middleware in `router.post("/", ..., uploadMiddleware.single("file"), handler)`, errors thrown by multer (e.g., `LIMIT_FILE_SIZE`) are passed to Express's `next()` callback, bypassing the route handler's `try/catch` entirely. Express's default error handler returns HTTP 500 with no JSON body. The client receives a generic 500 and the browser's `fetch().json()` throws "The string did not match the expected pattern" because the body isn't valid JSON.
+
+**The Scientific Proof**: Server logs showed `MulterError: File too large` stack trace (not caught by route handler), HTTP 500 returned. Client console showed `ReferenceError: Can't find variable: showNotification` at line 2781 (a secondary bug masking the real error). The upload never even reached the route handler.
+
+**The Resulting Rule**: Wrap multer invocation inside the route handler using `await new Promise((resolve, reject) => { multerMiddleware(req, res, (err) => err ? reject(err) : resolve()); })`. This keeps multer errors within the handler's control, allowing proper HTTP status codes (413 for file-too-large, 415 for unsupported type).
+
+**rules.md**: none (Express middleware pattern)
+## 🗓️ 2026-03-14 — Lesson 22: Cloud Run Container Disk is Ephemeral — Never Rely on It for User Data
+
+**The Discovery**: `FilePersistence.saveSession()` wrote evaluation outputs (transcript, metrics, evaluation, audio) to the container's `output/` directory. Users clicked "Save Outputs" and got a confirmation message, but the files were invisible and lost on the next deploy, scale event, or container restart. The user's latest evaluation was irrecoverably deleted when we deployed the timeout fix (#53).
+
+**The Scientific Proof**: After deploying commit `969dfa2` (Cloud Run timeout fix), the user reported their saved evaluation was gone. Cloud Run documentation confirms: container filesystem is in-memory tmpfs, cleared on every new instance.
+
+**The Resulting Rule**: Any "save" operation on Cloud Run must deliver data to the client (download, email, external storage), not to the container's local filesystem. Server-side disk persistence is acceptable only as a secondary/debug mechanism, never as the primary user-facing path. For this app: serialize files in the WebSocket `outputs_saved` response and trigger a client-side ZIP download.
+
+**rules.md**: none (infrastructure pattern)
+
 ## 🗓️ 2026-03-14 — Lesson 21: Cloud Run timeoutSeconds Applies to WebSocket Upgrade Requests
 
 **The Discovery**: Cloud Run's `timeoutSeconds` (default 300s = 5 minutes) applies to the HTTP upgrade request that initiates a WebSocket connection. Once the timeout elapses, the entire WebSocket connection is silently killed — no error, no close frame, no server-side log. The client sees a sudden `onclose` event.
@@ -142,6 +156,136 @@
 **Future Warning**: `enumerateDevices()` may return empty labels until the user grants camera permission (privacy restriction). The flip button detection should be called AFTER `getUserMedia` succeeds, not before.
 
 **rules.md**: none (browser API pattern)
+
+## 🗓️ 2026-02-28 — Lesson 19: Always .trim() API Keys from Environment Variables
+
+**The Discovery**: `DEEPGRAM_API_KEY` from Google Cloud Secret Manager contained a trailing newline. The Deepgram SDK passed it as the `Authorization` header value when opening a WebSocket. Node.js's `ClientRequest.setHeader` rejects headers with control characters (`ERR_INVALID_CHAR`), crashing the server with exit code 7.
+
+**The Scientific Proof**: Server logs showed `TypeError [ERR_INVALID_CHAR]: Invalid character in header content ["Authorization"]` at `AbstractLiveClient.js:165` (Deepgram SDK), traced to `ws/lib/websocket.js:88`. The crash killed WebSocket connections mid-session, causing the client to show "Audio playback failed."
+
+**The Resulting Rule**: Always `.trim()` API keys loaded from `process.env`. Secret Manager, dotenv, and dashboard copy-paste frequently introduce trailing newlines. Also: add `uncaughtException`/`unhandledRejection` handlers to prevent individual errors from crashing the entire server.
+
+**rules.md**: none (ops hygiene)
+
+## 🗓️ 2026-02-28 — Lesson 18: Property Test Arbitraries Must Mirror Production Logic
+
+**The Discovery**: The `gestureDisplacementArb` computed `normalizedDisplacement` as `maxDisplacement / bodyBboxHeight`, where `bodyBboxHeight` was the nose-to-hip distance. But `extractBodyBboxHeight` in production uses `max(y) - min(y)` over ALL confident keypoints — including wrists and elbows. When wrist Y values exceeded `hipY`, the actual bbox height was larger than assumed, making the normalized displacement smaller, causing a false expectation.
+
+**The Scientific Proof**: Counterexample: threshold=0.05, bodyBboxHeight=50, wrist at y=176→179. Test expected normalized displacement = 3/50 = 0.06 > threshold → gesture. Production: actual bbox = 179-100 = 79, normalized = 3/79 = 0.038 < threshold → no gesture. Mismatch → flaky test.
+
+**The Resulting Rule**: Property test arbitraries must replicate the exact computation used in production code. When testing derived thresholds, compute the expected outcome using the same algorithm as the SUT, not a simplified version.
+
+**rules.md**: none (testing pattern)
+
+## 🗓️ 2026-02-28 — Lesson 17: Firebase Auth API Key Must Match Hosting init.json
+
+**The Discovery**: `signInWithPopup` opens the auth handler at `{authDomain}/__/auth/handler?apiKey={key}`. The handler validates the API key against its own `/__/firebase/init.json`. If the key doesn't match, it returns "The requested action is invalid." — a misleading error that doesn't mention the key mismatch.
+
+**The Scientific Proof**: The web app registration created a second API key (`AIzaSyDq...`), different from the browser key in `init.json` (`AIzaSyCqc...`). Using the web app key → "The requested action is invalid." Switching to the browser key → sign-in works. The URL bar in the failing popup visibly showed `apiKey=AIzaSyDq...`.
+
+**The Farley Principle Applied**: When a Firebase project has multiple API keys (auto-created browser key, web app key), use the one from `https://{project}.firebaseapp.com/__/firebase/init.json`. The auth handler page on `firebaseapp.com` validates against THIS key specifically, regardless of which keys are valid for the project.
+
+**The Resulting Rule**: For Firebase Auth with `signInWithPopup`/`signInWithRedirect`, always use the API key from the Firebase Hosting `init.json` endpoint (the browser key), not the web app SDK config key. Verify with: `curl https://{project}.firebaseapp.com/__/firebase/init.json`.
+
+**Future Warning**: `signInWithRedirect` has additional issues — the auth result can be lost in the cross-origin redirect chain (origin → firebaseapp.com → Google → firebaseapp.com → origin). Prefer `signInWithPopup` unless popups are blocked by browser policy.
+
+**rules.md**: none (Firebase-specific)
+
+## 🗓️ 2026-02-27 — Lesson 16: Cloud Run GCLB Ingress and IAM Compatibility
+
+**The Discovery**: When org policy blocks `allUsers` as Cloud Run invoker, use `--no-invoker-iam-check` to disable IAM auth at the service level. Combined with `ingress=all`, this lets the GCLB route unauthenticated traffic to the app, which handles auth itself via Firebase Auth.
+
+**The Scientific Proof**: `ingress=internal-and-cloud-load-balancing` returned persistent 404 from Google infrastructure — the LB traffic was being rejected before reaching the container. The `EXTERNAL_MANAGED` LB scheme also returned 404. Classic `EXTERNAL` scheme with `ingress=all` + `--no-invoker-iam-check` is the working combination.
+
+**The Farley Principle Applied**: When multiple infrastructure layers can handle auth (Cloud Run IAM, Cloud Run ingress, app middleware), pick ONE authoritative layer and disable the others. Trying to layer all three creates hard-to-debug interactions.
+
+**The Resulting Rule**: For Cloud Run behind a GCLB with app-level auth: use `ingress=all` + `--no-invoker-iam-check` + classic `EXTERNAL` scheme. Don't use `internal-and-cloud-load-balancing` ingress — it may not recognize GCLB traffic correctly. Serverless NEGs don't support `portName` so avoid `--protocol=HTTPS` on the backend service.
+
+**rules.md**: none (GCP-specific)
+
+## 🗓️ 2026-02-27 — Lesson 15: Cloud Run Cookie Stripping and Firebase Auth Design
+
+**The Discovery**: Cloud Run strips all cookies from incoming requests except `__session`. This means standard session cookies (e.g., `connect.sid`, custom names) are invisible to the server. Firebase Auth tokens must be stored in a cookie named `__session`.
+
+**The Scientific Proof**: Firebase Auth compat SDK sets the token client-side. The `cookie-parser` middleware reads `req.cookies.__session` server-side. The `createAuthMiddleware` extracts, verifies via `firebase-admin`, and checks the email against `ALLOWED_EMAILS`. WebSocket upgrade uses `cookie` module to parse the raw `Cookie` header from the upgrade request.
+
+**The Farley Principle Applied**: When deploying behind a managed proxy that strips cookies, use the one cookie name the proxy preserves rather than fighting the proxy configuration.
+
+**The Resulting Rule**: For Cloud Run with Firebase Auth, always use `__session` as the cookie name. Auth should be opt-in via `ALLOWED_EMAILS`: when empty, auth is disabled (dev mode). Mount the auth middleware after `/health` but before `express.static()` so login assets are accessible but the app is protected.
+
+**Future Warning**: Firebase Auth compat SDK (v9 compat) is in maintenance mode. The modular v10+ SDK requires a bundler. If adding a build step later, migrate to modular imports.
+
+**rules.md**: none (GCP-specific)
+
+## 🗓️ 2026-02-27 — Lesson 14: WIF Credentials Cannot Generate Identity Tokens for Cloud Run Health Checks
+
+**The Discovery**: `gcloud auth print-identity-token --audiences=$URL` fails with WIF federated credentials ("Invalid account type for `--audiences`"). Using `--impersonate-service-account` also fails because the service account can't impersonate itself without `roles/iam.serviceAccountTokenCreator` on itself (circular dependency).
+
+**The Scientific Proof**: Three CI/CD deploy runs failed at the verify step. Run 1: WIF identity missing `workloadIdentityUser`. Run 2: Artifact Registry `uploadArtifacts` denied. Run 3: `--audiences` not supported for WIF. Run 4: `--impersonate-service-account` self-impersonation denied. Run 5: Switched to `gcloud run services describe` readiness check → ✅ passed.
+
+**The Farley Principle Applied**: When a tool's API doesn't support your auth model, change the approach rather than fighting the auth chain. GCP Cloud Run readiness conditions provide the same signal as an HTTP health check without requiring an identity token.
+
+**The Resulting Rule**: For CI/CD deploy verification on authenticated Cloud Run services using WIF, use `gcloud run services describe --format='value(status.conditions[0].status)'` to check readiness instead of HTTP health checks. This avoids the WIF identity token limitation entirely.
+
+**Future Warning**: If the service is ever made public (`allUsers` invoker), switch back to `curl $URL/health` for a stronger end-to-end check. The WIF deployer service account also needs: `roles/iam.workloadIdentityUser` (on itself), `roles/artifactregistry.writer`, `roles/run.admin`, `roles/iam.serviceAccountUser` (project-level).
+
+**rules.md**: none (GCP-specific, not generalizable)
+
+## 🗓️ 2026-02-27 — Lesson 13: @tensorflow/tfjs-node vs WASM Backend on Node.js v25
+
+**The Discovery**: `@tensorflow/tfjs-node` native bindings use `util.isNullOrUndefined()` and `util.isNull()`, both removed in Node.js v25. The `util` module is now frozen — polyfilling is impossible (`Object is not extensible`).
+
+**The Scientific Proof**: `npx tsx experiment_canary.ts` with tfjs-node crashed on `cast()`. Switching to `@tensorflow/tfjs` + `@tensorflow/tfjs-backend-wasm` worked: BlazeFace face detection at 5-8ms/frame, MoveNet pose at 18-21ms/frame (total 25-34ms, well under 500ms budget).
+
+**The Farley Principle Applied**: When a native dependency breaks on a new runtime, check for WASM/pure-JS alternatives before downgrading Node.js. WASM backends are portable and avoid native compilation issues.
+
+**The Resulting Rule**: For TF.js on Node.js v25+, use `@tensorflow/tfjs` + `@tensorflow/tfjs-backend-wasm`. Do NOT use `@tensorflow/tfjs-node`. Call `setWasmPaths()` with the dist/ directory before `setBackend("wasm")`. Point at `node_modules/@tensorflow/tfjs-backend-wasm/dist/` relative to the importing file.
+
+**Future Warning**: When Node.js v26 ships, re-test WASM backend compatibility. Also test `@tensorflow/tfjs-node` in case they fix the `util` polyfill.
+
+**rules.md**: Should add R12 — TF.js must use WASM backend on Node.js v25+
+
+## 🗓️ 2026-02-27 — Lesson 12: commit-and-tag-version Treats feat as Patch in 0.x
+
+**The Discovery**: `commit-and-tag-version` auto-detected `0.4.1` (patch) despite having `feat:` commits since `v0.4.0`. Per strict semver, 0.x versions treat the minor number as the "breaking change" indicator and patch as the "feature" indicator. This is documented in semver.org §4: "Major version zero is for initial development. Anything MAY change at any time."
+
+**The Scientific Proof**: `npx commit-and-tag-version --dry-run` showed `0.4.1`. `npx commit-and-tag-version --dry-run --release-as minor` showed `0.5.0`. The auto-detect behavior is deliberate, not a bug.
+
+**The Farley Principle Applied**: Tools encode opinions. When a tool's default conflicts with project intent, configure it explicitly rather than hoping it "just works."
+
+**The Resulting Rule**: For 0.x projects using commit-and-tag-version, always use `--release-as minor` when feat commits are present, or `--release-as patch` for fix-only releases. Auto-detect is only reliable at 1.0+. The `/release` workflow documents this.
+
+**Future Warning**: Once the project reaches 1.0, auto-detect (`npm run release` with no flags) will correctly treat `feat:` as minor and `fix:` as patch.
+
+**rules.md**: none
+
+## 🗓️ 2026-02-26 — Lesson 11: Optimistic UI Button Guards Prevent Double-Submit
+
+**The Discovery**: The "Start Speech" button's `onclick` handler was async (it `await`s `startAudioCapture()`). During the await, the button remained clickable, allowing rapid double-clicks to send two `start_recording` messages. The server correctly rejected the second with an "Invalid state transition" error, but the error banner alarmed users.
+
+**The Scientific Proof**: Browser inspection reproduced the bug: triple-clicking Start Speech produced two server-side errors. After adding `disable(dom.btnStart)` as the first line of `onStartSpeech()`, the same triple-click produced zero errors.
+
+**The Farley Principle Applied**: Optimistic UI — disable interactive elements before async work begins, not after. Re-enable in early-return guard paths and on error.
+
+**The Resulting Rule**: Any button handler that triggers an async operation (network request, mic acquisition, etc.) must `disable()` the button as its first action. Guard clauses that return early must `enable()` it again. The "happy path" re-enable happens via `updateUI()` on state transition.
+
+**Future Warning**: This pattern must be applied to any new async button handlers. The Upload Video button also triggers async work and should be reviewed for the same vulnerability.
+
+**rules.md**: none
+
+## 🗓️ 2026-02-26 — Lesson 10: Bulk Rename Requires Multi-Pass Grep Verification
+
+**The Discovery**: Renaming "AI Toastmasters Evaluator" to "AI Speech Evaluator" initially appeared to be a simple 23-hit sed across 15 files. After the first sed pass, a comprehensive grep revealed 40+ additional references in test describe names (`Feature: ai-toastmasters-evaluator`), AI prompt strings, output format headers, `.kiro/specs/` design docs, `package-lock.json`, inline JS comments, and test fixture data. Three passes were needed to reach zero.
+
+**The Scientific Proof**: `grep -rni "Toastmasters" . | wc -l` returned 0 after the third pass. The first pass caught 23/~60 references, the second caught ~35 more, the third caught the final 5 in `.kiro/specs/`.
+
+**The Farley Principle Applied**: Rename operations have a long tail. The obvious hits (user-facing strings) are only the tip. Test assertions that validate prompt content, design docs, and auto-generated files (`package-lock.json`) all carry the old name.
+
+**The Resulting Rule**: After a brand/name rename, run `grep -rni "OLD_NAME" . | grep -v node_modules | grep -v dist` and iterate until the count is zero. Budget for 2-3 passes minimum. Include `.kiro/`, `package-lock.json`, test assertions that validate string content, and JS comments.
+
+**Future Warning**: The `package-lock.json` must be regenerated via `npm install --package-lock-only` — sed cannot reliably edit it. Test assertions that `toContain("old prompt text")` will fail silently if the source prompt was changed but the test expectation was not.
+
+**rules.md**: none
 
 ## 🗓️ 2026-02-26 — Lesson 09: Stub Detectors Unblock Grading; Upload Pipeline Needs Direct Dep Injection
 
@@ -250,153 +394,3 @@
 **The Resulting Rule**: Always run the full test suite before making changes in a new codebase. The baseline count becomes the regression target.
 
 **Future Warning**: The test count (1506) should only increase. A decrease indicates deleted tests, which requires justification.
-
-## 🗓️ 2026-02-26 — Lesson 10: Bulk Rename Requires Multi-Pass Grep Verification
-
-**The Discovery**: Renaming "AI Toastmasters Evaluator" to "AI Speech Evaluator" initially appeared to be a simple 23-hit sed across 15 files. After the first sed pass, a comprehensive grep revealed 40+ additional references in test describe names (`Feature: ai-toastmasters-evaluator`), AI prompt strings, output format headers, `.kiro/specs/` design docs, `package-lock.json`, inline JS comments, and test fixture data. Three passes were needed to reach zero.
-
-**The Scientific Proof**: `grep -rni "Toastmasters" . | wc -l` returned 0 after the third pass. The first pass caught 23/~60 references, the second caught ~35 more, the third caught the final 5 in `.kiro/specs/`.
-
-**The Farley Principle Applied**: Rename operations have a long tail. The obvious hits (user-facing strings) are only the tip. Test assertions that validate prompt content, design docs, and auto-generated files (`package-lock.json`) all carry the old name.
-
-**The Resulting Rule**: After a brand/name rename, run `grep -rni "OLD_NAME" . | grep -v node_modules | grep -v dist` and iterate until the count is zero. Budget for 2-3 passes minimum. Include `.kiro/`, `package-lock.json`, test assertions that validate string content, and JS comments.
-
-**Future Warning**: The `package-lock.json` must be regenerated via `npm install --package-lock-only` — sed cannot reliably edit it. Test assertions that `toContain("old prompt text")` will fail silently if the source prompt was changed but the test expectation was not.
-
-**rules.md**: none
-
-## 🗓️ 2026-02-26 — Lesson 11: Optimistic UI Button Guards Prevent Double-Submit
-
-**The Discovery**: The "Start Speech" button's `onclick` handler was async (it `await`s `startAudioCapture()`). During the await, the button remained clickable, allowing rapid double-clicks to send two `start_recording` messages. The server correctly rejected the second with an "Invalid state transition" error, but the error banner alarmed users.
-
-**The Scientific Proof**: Browser inspection reproduced the bug: triple-clicking Start Speech produced two server-side errors. After adding `disable(dom.btnStart)` as the first line of `onStartSpeech()`, the same triple-click produced zero errors.
-
-**The Farley Principle Applied**: Optimistic UI — disable interactive elements before async work begins, not after. Re-enable in early-return guard paths and on error.
-
-**The Resulting Rule**: Any button handler that triggers an async operation (network request, mic acquisition, etc.) must `disable()` the button as its first action. Guard clauses that return early must `enable()` it again. The "happy path" re-enable happens via `updateUI()` on state transition.
-
-**Future Warning**: This pattern must be applied to any new async button handlers. The Upload Video button also triggers async work and should be reviewed for the same vulnerability.
-
-**rules.md**: none
-
-## 🗓️ 2026-02-27 — Lesson 12: commit-and-tag-version Treats feat as Patch in 0.x
-
-**The Discovery**: `commit-and-tag-version` auto-detected `0.4.1` (patch) despite having `feat:` commits since `v0.4.0`. Per strict semver, 0.x versions treat the minor number as the "breaking change" indicator and patch as the "feature" indicator. This is documented in semver.org §4: "Major version zero is for initial development. Anything MAY change at any time."
-
-**The Scientific Proof**: `npx commit-and-tag-version --dry-run` showed `0.4.1`. `npx commit-and-tag-version --dry-run --release-as minor` showed `0.5.0`. The auto-detect behavior is deliberate, not a bug.
-
-**The Farley Principle Applied**: Tools encode opinions. When a tool's default conflicts with project intent, configure it explicitly rather than hoping it "just works."
-
-**The Resulting Rule**: For 0.x projects using commit-and-tag-version, always use `--release-as minor` when feat commits are present, or `--release-as patch` for fix-only releases. Auto-detect is only reliable at 1.0+. The `/release` workflow documents this.
-
-**Future Warning**: Once the project reaches 1.0, auto-detect (`npm run release` with no flags) will correctly treat `feat:` as minor and `fix:` as patch.
-
-**rules.md**: none
-
-## 🗓️ 2026-02-27 — Lesson 13: @tensorflow/tfjs-node vs WASM Backend on Node.js v25
-
-**The Discovery**: `@tensorflow/tfjs-node` native bindings use `util.isNullOrUndefined()` and `util.isNull()`, both removed in Node.js v25. The `util` module is now frozen — polyfilling is impossible (`Object is not extensible`).
-
-**The Scientific Proof**: `npx tsx experiment_canary.ts` with tfjs-node crashed on `cast()`. Switching to `@tensorflow/tfjs` + `@tensorflow/tfjs-backend-wasm` worked: BlazeFace face detection at 5-8ms/frame, MoveNet pose at 18-21ms/frame (total 25-34ms, well under 500ms budget).
-
-**The Farley Principle Applied**: When a native dependency breaks on a new runtime, check for WASM/pure-JS alternatives before downgrading Node.js. WASM backends are portable and avoid native compilation issues.
-
-**The Resulting Rule**: For TF.js on Node.js v25+, use `@tensorflow/tfjs` + `@tensorflow/tfjs-backend-wasm`. Do NOT use `@tensorflow/tfjs-node`. Call `setWasmPaths()` with the dist/ directory before `setBackend("wasm")`. Point at `node_modules/@tensorflow/tfjs-backend-wasm/dist/` relative to the importing file.
-
-**Future Warning**: When Node.js v26 ships, re-test WASM backend compatibility. Also test `@tensorflow/tfjs-node` in case they fix the `util` polyfill.
-
-**rules.md**: Should add R12 — TF.js must use WASM backend on Node.js v25+
-
-## 🗓️ 2026-02-27 — Lesson 14: WIF Credentials Cannot Generate Identity Tokens for Cloud Run Health Checks
-
-**The Discovery**: `gcloud auth print-identity-token --audiences=$URL` fails with WIF federated credentials ("Invalid account type for `--audiences`"). Using `--impersonate-service-account` also fails because the service account can't impersonate itself without `roles/iam.serviceAccountTokenCreator` on itself (circular dependency).
-
-**The Scientific Proof**: Three CI/CD deploy runs failed at the verify step. Run 1: WIF identity missing `workloadIdentityUser`. Run 2: Artifact Registry `uploadArtifacts` denied. Run 3: `--audiences` not supported for WIF. Run 4: `--impersonate-service-account` self-impersonation denied. Run 5: Switched to `gcloud run services describe` readiness check → ✅ passed.
-
-**The Farley Principle Applied**: When a tool's API doesn't support your auth model, change the approach rather than fighting the auth chain. GCP Cloud Run readiness conditions provide the same signal as an HTTP health check without requiring an identity token.
-
-**The Resulting Rule**: For CI/CD deploy verification on authenticated Cloud Run services using WIF, use `gcloud run services describe --format='value(status.conditions[0].status)'` to check readiness instead of HTTP health checks. This avoids the WIF identity token limitation entirely.
-
-**Future Warning**: If the service is ever made public (`allUsers` invoker), switch back to `curl $URL/health` for a stronger end-to-end check. The WIF deployer service account also needs: `roles/iam.workloadIdentityUser` (on itself), `roles/artifactregistry.writer`, `roles/run.admin`, `roles/iam.serviceAccountUser` (project-level).
-
-**rules.md**: none (GCP-specific, not generalizable)
-
-## 🗓️ 2026-02-27 — Lesson 15: Cloud Run Cookie Stripping and Firebase Auth Design
-
-**The Discovery**: Cloud Run strips all cookies from incoming requests except `__session`. This means standard session cookies (e.g., `connect.sid`, custom names) are invisible to the server. Firebase Auth tokens must be stored in a cookie named `__session`.
-
-**The Scientific Proof**: Firebase Auth compat SDK sets the token client-side. The `cookie-parser` middleware reads `req.cookies.__session` server-side. The `createAuthMiddleware` extracts, verifies via `firebase-admin`, and checks the email against `ALLOWED_EMAILS`. WebSocket upgrade uses `cookie` module to parse the raw `Cookie` header from the upgrade request.
-
-**The Farley Principle Applied**: When deploying behind a managed proxy that strips cookies, use the one cookie name the proxy preserves rather than fighting the proxy configuration.
-
-**The Resulting Rule**: For Cloud Run with Firebase Auth, always use `__session` as the cookie name. Auth should be opt-in via `ALLOWED_EMAILS`: when empty, auth is disabled (dev mode). Mount the auth middleware after `/health` but before `express.static()` so login assets are accessible but the app is protected.
-
-**Future Warning**: Firebase Auth compat SDK (v9 compat) is in maintenance mode. The modular v10+ SDK requires a bundler. If adding a build step later, migrate to modular imports.
-
-**rules.md**: none (GCP-specific)
-
-## 🗓️ 2026-02-27 — Lesson 16: Cloud Run GCLB Ingress and IAM Compatibility
-
-**The Discovery**: When org policy blocks `allUsers` as Cloud Run invoker, use `--no-invoker-iam-check` to disable IAM auth at the service level. Combined with `ingress=all`, this lets the GCLB route unauthenticated traffic to the app, which handles auth itself via Firebase Auth.
-
-**The Scientific Proof**: `ingress=internal-and-cloud-load-balancing` returned persistent 404 from Google infrastructure — the LB traffic was being rejected before reaching the container. The `EXTERNAL_MANAGED` LB scheme also returned 404. Classic `EXTERNAL` scheme with `ingress=all` + `--no-invoker-iam-check` is the working combination.
-
-**The Farley Principle Applied**: When multiple infrastructure layers can handle auth (Cloud Run IAM, Cloud Run ingress, app middleware), pick ONE authoritative layer and disable the others. Trying to layer all three creates hard-to-debug interactions.
-
-**The Resulting Rule**: For Cloud Run behind a GCLB with app-level auth: use `ingress=all` + `--no-invoker-iam-check` + classic `EXTERNAL` scheme. Don't use `internal-and-cloud-load-balancing` ingress — it may not recognize GCLB traffic correctly. Serverless NEGs don't support `portName` so avoid `--protocol=HTTPS` on the backend service.
-
-**rules.md**: none (GCP-specific)
-
-## 🗓️ 2026-02-28 — Lesson 17: Firebase Auth API Key Must Match Hosting init.json
-
-**The Discovery**: `signInWithPopup` opens the auth handler at `{authDomain}/__/auth/handler?apiKey={key}`. The handler validates the API key against its own `/__/firebase/init.json`. If the key doesn't match, it returns "The requested action is invalid." — a misleading error that doesn't mention the key mismatch.
-
-**The Scientific Proof**: The web app registration created a second API key (`AIzaSyDq...`), different from the browser key in `init.json` (`AIzaSyCqc...`). Using the web app key → "The requested action is invalid." Switching to the browser key → sign-in works. The URL bar in the failing popup visibly showed `apiKey=AIzaSyDq...`.
-
-**The Farley Principle Applied**: When a Firebase project has multiple API keys (auto-created browser key, web app key), use the one from `https://{project}.firebaseapp.com/__/firebase/init.json`. The auth handler page on `firebaseapp.com` validates against THIS key specifically, regardless of which keys are valid for the project.
-
-**The Resulting Rule**: For Firebase Auth with `signInWithPopup`/`signInWithRedirect`, always use the API key from the Firebase Hosting `init.json` endpoint (the browser key), not the web app SDK config key. Verify with: `curl https://{project}.firebaseapp.com/__/firebase/init.json`.
-
-**Future Warning**: `signInWithRedirect` has additional issues — the auth result can be lost in the cross-origin redirect chain (origin → firebaseapp.com → Google → firebaseapp.com → origin). Prefer `signInWithPopup` unless popups are blocked by browser policy.
-
-**rules.md**: none (Firebase-specific)
-
-## 🗓️ 2026-02-28 — Lesson 18: Property Test Arbitraries Must Mirror Production Logic
-
-**The Discovery**: The `gestureDisplacementArb` computed `normalizedDisplacement` as `maxDisplacement / bodyBboxHeight`, where `bodyBboxHeight` was the nose-to-hip distance. But `extractBodyBboxHeight` in production uses `max(y) - min(y)` over ALL confident keypoints — including wrists and elbows. When wrist Y values exceeded `hipY`, the actual bbox height was larger than assumed, making the normalized displacement smaller, causing a false expectation.
-
-**The Scientific Proof**: Counterexample: threshold=0.05, bodyBboxHeight=50, wrist at y=176→179. Test expected normalized displacement = 3/50 = 0.06 > threshold → gesture. Production: actual bbox = 179-100 = 79, normalized = 3/79 = 0.038 < threshold → no gesture. Mismatch → flaky test.
-
-**The Resulting Rule**: Property test arbitraries must replicate the exact computation used in production code. When testing derived thresholds, compute the expected outcome using the same algorithm as the SUT, not a simplified version.
-
-**rules.md**: none (testing pattern)
-
-## 🗓️ 2026-02-28 — Lesson 19: Always .trim() API Keys from Environment Variables
-
-**The Discovery**: `DEEPGRAM_API_KEY` from Google Cloud Secret Manager contained a trailing newline. The Deepgram SDK passed it as the `Authorization` header value when opening a WebSocket. Node.js's `ClientRequest.setHeader` rejects headers with control characters (`ERR_INVALID_CHAR`), crashing the server with exit code 7.
-
-**The Scientific Proof**: Server logs showed `TypeError [ERR_INVALID_CHAR]: Invalid character in header content ["Authorization"]` at `AbstractLiveClient.js:165` (Deepgram SDK), traced to `ws/lib/websocket.js:88`. The crash killed WebSocket connections mid-session, causing the client to show "Audio playback failed."
-
-**The Resulting Rule**: Always `.trim()` API keys loaded from `process.env`. Secret Manager, dotenv, and dashboard copy-paste frequently introduce trailing newlines. Also: add `uncaughtException`/`unhandledRejection` handlers to prevent individual errors from crashing the entire server.
-
-**rules.md**: none (ops hygiene)
-
-## 🗓️ 2026-03-14 — Lesson 22: Cloud Run Container Disk is Ephemeral — Never Rely on It for User Data
-
-**The Discovery**: `FilePersistence.saveSession()` wrote evaluation outputs (transcript, metrics, evaluation, audio) to the container's `output/` directory. Users clicked "Save Outputs" and got a confirmation message, but the files were invisible and lost on the next deploy, scale event, or container restart. The user's latest evaluation was irrecoverably deleted when we deployed the timeout fix (#53).
-
-**The Scientific Proof**: After deploying commit `969dfa2` (Cloud Run timeout fix), the user reported their saved evaluation was gone. Cloud Run documentation confirms: container filesystem is in-memory tmpfs, cleared on every new instance.
-
-**The Resulting Rule**: Any "save" operation on Cloud Run must deliver data to the client (download, email, external storage), not to the container's local filesystem. Server-side disk persistence is acceptable only as a secondary/debug mechanism, never as the primary user-facing path. For this app: serialize files in the WebSocket `outputs_saved` response and trigger a client-side ZIP download.
-
-**rules.md**: none (infrastructure pattern)
-
-## 🗓️ 2026-03-14 — Lesson 23: Multer Middleware Errors Escape to Express Default 500 Handler
-
-**The Discovery**: When `uploadMiddleware.single("file")` is passed as Express middleware in `router.post("/", ..., uploadMiddleware.single("file"), handler)`, errors thrown by multer (e.g., `LIMIT_FILE_SIZE`) are passed to Express's `next()` callback, bypassing the route handler's `try/catch` entirely. Express's default error handler returns HTTP 500 with no JSON body. The client receives a generic 500 and the browser's `fetch().json()` throws "The string did not match the expected pattern" because the body isn't valid JSON.
-
-**The Scientific Proof**: Server logs showed `MulterError: File too large` stack trace (not caught by route handler), HTTP 500 returned. Client console showed `ReferenceError: Can't find variable: showNotification` at line 2781 (a secondary bug masking the real error). The upload never even reached the route handler.
-
-**The Resulting Rule**: Wrap multer invocation inside the route handler using `await new Promise((resolve, reject) => { multerMiddleware(req, res, (err) => err ? reject(err) : resolve()); })`. This keeps multer errors within the handler's control, allowing proper HTTP status codes (413 for file-too-large, 415 for unsupported type).
-
-**rules.md**: none (Express middleware pattern)
