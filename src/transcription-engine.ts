@@ -230,7 +230,7 @@ export class TranscriptionEngine {
     const useVerboseJson = model === "whisper-1";
 
     // Whisper API has a 25MB file limit. If the WAV exceeds that, chunk the audio.
-    const MAX_CHUNK_BYTES = 25 * 1024 * 1024 - 44; // 25MB minus WAV header
+    const MAX_CHUNK_BYTES = 24 * 1024 * 1024; // 24MB — leaves headroom for WAV header + multipart encoding overhead under OpenAI's 25MB limit
     if (fullAudio.length > MAX_CHUNK_BYTES) {
       return this.finalizeChunked(fullAudio, model, useVerboseJson);
     }
@@ -269,7 +269,7 @@ export class TranscriptionEngine {
     model: string,
     useVerboseJson: boolean,
   ): Promise<TranscriptSegment[]> {
-    const MAX_CHUNK_BYTES = 25 * 1024 * 1024 - 44; // 25MB minus WAV header
+    const MAX_CHUNK_BYTES = 24 * 1024 * 1024; // 24MB — leaves headroom for WAV header + multipart encoding overhead under OpenAI's 25MB limit
     const allSegments: TranscriptSegment[] = [];
     let timeOffset = 0;
 
