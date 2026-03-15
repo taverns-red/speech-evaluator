@@ -406,3 +406,11 @@
 **The Resulting Rule**: Always run the full test suite before making changes in a new codebase. The baseline count becomes the regression target.
 
 **Future Warning**: The test count (1506) should only increase. A decrease indicates deleted tests, which requires justification.
+
+## 2026-03-15 — ES Module Circular Imports Are Safe When Functions Are Called Late
+
+When decomposing a monolithic JS file into ES modules, circular imports are safe as long as the imported bindings are only called inside function bodies (post-initialization), never at module top-level. ES modules resolve bindings by reference — by the time any function is called, both modules have fully evaluated. However, missing exports cause **silent module evaluation failure**: the entire module + all its dependents silently stop executing with no console error. Debug by manually calling `import('/js/module.js')` in the console to surface the actual `SyntaxError`.
+
+## 2026-03-15 — Batch Module Extraction: Remove Lines in Reverse Order
+
+When extracting multiple line ranges from a single file, remove blocks in reverse order (highest line numbers first) to preserve line numbers for subsequent removals. Also: always verify the init code at the bottom of the file wasn't accidentally included in an extraction range — check line numbers AFTER all previous removals, not from the original file.
