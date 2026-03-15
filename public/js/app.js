@@ -1,3 +1,4 @@
+import { S, dom, videoDom } from "./state.js";
 import { SessionState, STATUS_TEXT, PROJECT_TYPES, MAX_UPLOAD_SIZE_MB, COOLDOWN_MS } from "./constants.js";
 import { show, hide, enable, disable, formatTimestamp, escapeHtml } from "./utils.js";
 
@@ -51,7 +52,6 @@ function showInitials(el, nameOrEmail) {
 loadUserInfo();
 
 // ─── Meeting Roles (Phase 9, #72) ──────────────────────────────────
-const activeRoles = new Set();
 
 async function loadRoles() {
   try {
@@ -72,12 +72,12 @@ async function loadRoles() {
       checkbox.id = `role-${role.id}`;
       checkbox.addEventListener("change", () => {
         if (checkbox.checked) {
-          activeRoles.add(role.id);
+          S.activeRoles.add(role.id);
         } else {
-          activeRoles.delete(role.id);
+          S.activeRoles.delete(role.id);
         }
         // Send updated active roles to server via WebSocket
-        wsSend({ type: "set_active_roles", roleIds: Array.from(activeRoles) });
+        wsSend({ type: "set_active_roles", roleIds: Array.from(S.activeRoles) });
       });
 
       const label = document.createElement("label");
@@ -98,82 +98,52 @@ async function loadRoles() {
 loadRoles();
 
 // ─── Application State ────────────────────────────────────────────
-let currentState = SessionState.IDLE;
-let hasEvaluationData = false;
-let hasTTSAudio = false;
-let outputsSaved = false;
-let segments = []; // local transcript segment array
 
 // ─── Phase 2: Consent & Time Limit State ─────────────────────────
-let consentConfirmed = false;
-let consentSpeakerName = "";
-let dataPurged = false;
-let estimatedDuration = null;
-let configuredTimeLimit = 120;
 
 // ─── Eager Pipeline State ─────────────────────────────────────────
 /** @type {string} Current pipeline stage for UI display and button gating */
-let pipelineStage = "idle";
 /** @type {number} RunId for stale-progress filtering; 0 = accept all */
-let pipelineRunId = 0;
 
 // ─── Phase 3: VAD Configuration State ─────────────────────────────
 /** Whether VAD is enabled (default: true, Req 3.5) */
-let vadEnabled = true;
 /** Silence threshold in seconds (default: 5, range 3-15, Req 3.1) */
-let vadSilenceThreshold = 5;
 /** Whether the VAD notification banner is currently visible (Req 2.2) */
-let vadNotificationVisible = false;
 
 // ─── Phase 3: Project Context State (Req 4.1, 4.2, 4.3, 4.4) ────
-/** Client-side project context state, synced to server via set_project_context */
-let projectContext = { speechTitle: "", projectType: "", objectives: [] };
+// projectContext now in S.projectContext (state.js)
 
 // ─── Phase 4: Video Consent State (Req 1.1, 1.2, 1.5, 2.9) ──────
 /** Whether video consent toggle is checked */
-let videoConsentEnabled = false;
 /** Whether camera was successfully acquired after video consent */
-let videoStreamReady = false;
 /** Configured video FPS (1-5, default 2) */
-let videoFpsConfig = 2;
 
 // PROJECT_TYPES imported from ./js/constants.js
 
 // ─── Phase 3: VAD Audio Level Meter State (Req 10.1, 10.3, 10.4) ──
 /** Timestamp (ms) of the last received vad_status message */
-let lastVadStatusTime = 0;
 /** Whether to use server-side VAD energy for the audio level meter.
- *  True when vadEnabled AND we've received a vad_status recently (within 2s). */
-let useVadEnergy = false;
+ *  True when S.vadEnabled AND we've received a vad_status recently (within 2s). */
 
 // ─── TTS Audio Playback State ─────────────────────────────────────
 /** @type {HTMLAudioElement|null} Audio element for TTS playback */
-let ttsAudioElement = null;
 /** @type {string|null} Current Blob URL for TTS audio */
-let ttsBlobUrl = null;
 /** Whether TTS playback is currently active */
-let ttsPlaying = false;
 /** Whether the server has signaled TTS delivery is complete */
-let ttsDeliveryComplete = false;
 /** The last evaluation script text, used as fallback on TTS error */
-let lastEvaluationScript = "";
 /** @type {Object|null} The last StructuredEvaluationPublic object for evidence linking (Phase 3, Req 7.1) */
-let lastEvaluationData = null;
 /** @type {number|null} Timer ID for auto-dismissing segment highlights (Phase 3, Req 7.5) */
-let highlightDismissTimer = null;
 /** Monotonic counter for playback instance identification.
  *  Incremented by handleTTSAudio (new playback) and cancelDeferredIdle (force-stop).
  *  No other code path may increment it — the latch's +1 progression check depends on this. */
-let playbackInstanceToken = 0;
 /** Pending deferred IDLE transition, or null if none.
  *  Shape: { token: number } | null */
-let deferredIdleTransition = null;
 /**
- * Token-stamped latch for the "IDLE arrives before ttsPlaying=true" ordering edge case.
+ * Token-stamped latch for the "IDLE arrives before S.ttsPlaying=true" ordering edge case.
  * Shape: { tokenAtLatch: number } | null
  *
- * Set when state_change: idle arrives while in any non-IDLE state but ttsPlaying is false
- * (uses currentState !== IDLE). Stores the current playbackInstanceToken at latch time.
+ * Set when state_change: idle arrives while in any non-IDLE state but S.ttsPlaying is false
+ * (uses S.currentState !== IDLE). Stores the current S.playbackInstanceToken at latch time.
  * Idempotent: won't re-latch if already set. Does NOT fire on redundant IDLE→IDLE.
  *
  * Consumed by handleTTSAudio with token validation: only creates deferral if
@@ -183,93 +153,25 @@ let deferredIdleTransition = null;
  * Cleared by: handleTTSAudio (consumed or discarded), forceStopTtsAndCancelDeferral()
  * (force-stop paths), and transitionToIdle() (normal IDLE application).
  */
-let pendingIdleFromServer = null;
 
 // ─── Audio Capture State ──────────────────────────────────────────
 /** @type {WebSocket|null} */
-let ws = null;
 /** @type {AudioContext|null} */
-let audioContext = null;
 /** @type {AudioWorkletNode|null} */
-let workletNode = null;
 /** @type {MediaStream|null} */
-let mediaStream = null;
 /** @type {MediaStreamAudioSourceNode|null} */
-let sourceNode = null;
 /** Whether the audio_format handshake has been sent for this connection */
-let audioFormatSent = false;
 
 // ─── Speech Recording (MediaRecorder) (#60) ──────────────────────
 /** @type {MediaRecorder|null} */
-let speechRecorder = null;
 /** @type {Blob[]} Collected recording chunks */
-let speechRecordingChunks = [];
 /** @type {Blob|null} Final assembled recording blob */
-let speechRecordingBlob = null;
 /** Whether we are in the post-TTS cooldown period */
-let inCooldown = false;
 /** Cooldown timer ID */
-let cooldownTimer = null;
 // COOLDOWN_MS imported from ./js/constants.js
 
 // ─── DOM References ───────────────────────────────────────────────
-const dom = {
-  statusIndicator: document.getElementById("status-indicator"),
-  statusText: document.getElementById("status-text"),
-  elapsedTime: document.getElementById("elapsed-time"),
-  btnStart: document.getElementById("btn-start"),
-  btnStop: document.getElementById("btn-stop"),
-  btnDeliver: document.getElementById("btn-deliver"),
-  btnReplay: document.getElementById("btn-replay"),
-  btnSave: document.getElementById("btn-save"),
-  btnPdf: document.getElementById("btn-pdf"),
-  btnPanic: document.getElementById("btn-panic"),
-  btnRevoke: document.getElementById("btn-revoke"),
-  speakingIndicator: document.getElementById("speaking-indicator"),
-  processingIndicator: document.getElementById("processing-indicator"),
-  transcriptPanel: document.getElementById("transcript-panel"),
-  transcriptContent: document.getElementById("transcript-content"),
-  transcriptWordCount: document.getElementById("transcript-word-count"),
-  evaluationPanel: document.getElementById("evaluation-panel"),
-  evaluationContent: document.getElementById("evaluation-content"),
-  errorBanner: document.getElementById("error-banner"),
-  errorMessage: document.getElementById("error-message"),
-  interruptionBanner: document.getElementById("interruption-banner"),
-  savedConfirmation: document.getElementById("saved-confirmation"),
-  savedMessage: document.getElementById("saved-message"),
-  connectionStatus: document.getElementById("connection-status"),
-  audioLevel: document.getElementById("audio-level"),
-  audioLevelBar: document.getElementById("audio-level-bar"),
-  // Phase 2: Consent & Time Limit DOM refs
-  consentForm: document.getElementById("consent-form"),
-  speakerNameInput: document.getElementById("speaker-name-input"),
-  consentCheckbox: document.getElementById("consent-checkbox"),
-  consentStatus: document.getElementById("consent-status"),
-  timeLimitControl: document.getElementById("time-limit-control"),
-  timeLimitInput: document.getElementById("time-limit-input"),
-  durationEstimate: document.getElementById("duration-estimate"),
-  durationEstimateText: document.getElementById("duration-estimate-text"),
-  purgeBanner: document.getElementById("purge-banner"),
-  purgeMessage: document.getElementById("purge-message"),
-  // Phase 3: VAD Config DOM refs
-  vadConfig: document.getElementById("vad-config"),
-  vadEnabledCheckbox: document.getElementById("vad-enabled-checkbox"),
-  vadThresholdSlider: document.getElementById("vad-threshold-slider"),
-  vadThresholdValue: document.getElementById("vad-threshold-value"),
-  // Phase 3: VAD Notification DOM ref
-  vadNotification: document.getElementById("vad-notification"),
-  // Phase 3: Project Context DOM refs
-  projectContextForm: document.getElementById("project-context-form"),
-  speechTitleInput: document.getElementById("speech-title-input"),
-  projectTypeSelect: document.getElementById("project-type-select"),
-  objectivesTextarea: document.getElementById("objectives-textarea"),
-  // Phase 4: Video Consent DOM refs
-  videoConsentCheckbox: document.getElementById("video-consent-checkbox"),
-  videoConsentError: document.getElementById("video-consent-error"),
-  videoFpsConfig: document.getElementById("video-fps-config"),
-  videoFpsSlider: document.getElementById("video-fps-slider"),
-  videoFpsValue: document.getElementById("video-fps-value"),
-};
+
 
 // STATUS_TEXT imported from ./js/constants.js
 
@@ -282,7 +184,7 @@ const dom = {
  * @param {string} state - One of SessionState values
  */
 function updateUI(state) {
-  currentState = state;
+  S.currentState = state;
 
   // Update status indicator
   dom.statusIndicator.className = "status-indicator " + state;
@@ -313,13 +215,13 @@ function updateUI(state) {
     // Show VAD config in IDLE (Req 3.1, 3.4)
     show(dom.vadConfig);
     // Show video FPS config in IDLE only when video consent is enabled (Req 2.9)
-    if (videoConsentEnabled) {
-      show(dom.videoFpsConfig);
+    if (S.videoConsentEnabled) {
+      show(dom.videoFpsConfig_el);
     } else {
-      hide(dom.videoFpsConfig);
+      hide(dom.videoFpsConfig_el);
     }
     // Show video preview in IDLE only when video consent is enabled and camera is active
-    if (videoConsentEnabled && videoStream) {
+    if (S.videoConsentEnabled && S.videoStream) {
       show(videoDom.previewContainer);
     } else {
       hide(videoDom.previewContainer);
@@ -331,7 +233,7 @@ function updateUI(state) {
 
     // Start Speech gated on consent
     show(dom.btnStart);
-    if (consentConfirmed && consentSpeakerName.trim().length > 0 && !inCooldown) {
+    if (S.consentConfirmed && S.consentSpeakerName.trim().length > 0 && !S.inCooldown) {
       enable(dom.btnStart);
     } else {
       disable(dom.btnStart);
@@ -340,7 +242,7 @@ function updateUI(state) {
     hide(dom.btnStop);
     hide(dom.btnDeliver);
     // Show Save Outputs only if evaluation data exists, not already saved, and not purged
-    if (hasEvaluationData && !outputsSaved && !dataPurged) {
+    if (S.hasEvaluationData && !S.outputsSaved && !S.dataPurged) {
       show(dom.btnSave);
       show(dom.btnPdf);
     } else {
@@ -348,13 +250,13 @@ function updateUI(state) {
       hide(dom.btnPdf);
     }
     // Show Replay button if TTS audio was received and evaluation data exists and not purged
-    if (hasTTSAudio && hasEvaluationData && !dataPurged) {
+    if (S.hasTTSAudio && S.hasEvaluationData && !S.dataPurged) {
       show(dom.btnReplay);
     } else {
       hide(dom.btnReplay);
     }
     // Disable replay during cooldown
-    if (inCooldown) {
+    if (S.inCooldown) {
       disable(dom.btnReplay);
     } else {
       enable(dom.btnReplay);
@@ -362,7 +264,7 @@ function updateUI(state) {
     enable(dom.btnPanic);
 
     // Show Revoke Consent button when consent is confirmed (allows opt-out)
-    if (consentConfirmed) {
+    if (S.consentConfirmed) {
       show(dom.btnRevoke);
     } else {
       hide(dom.btnRevoke);
@@ -387,7 +289,7 @@ function updateUI(state) {
     // Hide VAD config during recording (Req 3.4)
     hide(dom.vadConfig);
     // Hide video FPS config during recording (Req 1.4 — immutable after recording starts)
-    hide(dom.videoFpsConfig);
+    hide(dom.videoFpsConfig_el);
     // Disable video consent checkbox during recording (Req 1.4)
     disable(dom.videoConsentCheckbox);
     // Keep video preview visible during recording so operator can verify camera is working
@@ -403,7 +305,7 @@ function updateUI(state) {
     enable(dom.btnPanic);
 
     // Show Revoke Consent during recording (opt-out is always available)
-    if (consentConfirmed) {
+    if (S.consentConfirmed) {
       show(dom.btnRevoke);
     } else {
       hide(dom.btnRevoke);
@@ -431,13 +333,13 @@ function updateUI(state) {
     // Hide VAD config during processing (Req 3.4)
     hide(dom.vadConfig);
     // Hide video FPS config during processing
-    hide(dom.videoFpsConfig);
+    hide(dom.videoFpsConfig_el);
     // Disable video consent checkbox during processing
     disable(dom.videoConsentCheckbox);
     // Hide video preview during processing
     hide(videoDom.previewContainer);
     // Show duration estimate if available
-    if (estimatedDuration !== null) {
+    if (S.estimatedDuration !== null) {
       show(dom.durationEstimate);
     }
 
@@ -450,7 +352,7 @@ function updateUI(state) {
     // Deliver button gating based on pipeline stage (Req 4.1-4.4)
     // Disable during in-progress stages and initial idle; enable only on terminal/actionable stages
     // Server remains authoritative — UI gating is advisory only (Req 4.4)
-    if (pipelineStage === "ready" || pipelineStage === "failed" || pipelineStage === "invalidated") {
+    if (S.pipelineStage === "ready" || S.pipelineStage === "failed" || S.pipelineStage === "invalidated") {
       enable(dom.btnDeliver);
     } else {
       disable(dom.btnDeliver);
@@ -458,7 +360,7 @@ function updateUI(state) {
     enable(dom.btnPanic);
 
     // Show Revoke Consent during processing
-    if (consentConfirmed) {
+    if (S.consentConfirmed) {
       show(dom.btnRevoke);
     } else {
       hide(dom.btnRevoke);
@@ -467,7 +369,7 @@ function updateUI(state) {
     hide(dom.speakingIndicator);
     show(dom.processingIndicator);
     // Update processing indicator text to reflect current pipeline stage
-    updateProcessingIndicator(pipelineStage);
+    updateProcessingIndicator(S.pipelineStage);
     hideElapsedTime();
     hide(dom.audioLevel);
 
@@ -488,7 +390,7 @@ function updateUI(state) {
     // Hide VAD config during delivery (Req 3.4)
     hide(dom.vadConfig);
     // Hide video FPS config during delivery
-    hide(dom.videoFpsConfig);
+    hide(dom.videoFpsConfig_el);
     // Disable video consent checkbox during delivery
     disable(dom.videoConsentCheckbox);
     // Hide video preview during delivery
@@ -538,7 +440,7 @@ function updateUI(state) {
 function updateAudioLevel(rms, source) {
   // If VAD energy is active and this is a worklet update, skip it (Req 10.3).
   // The server-side VAD energy takes priority when available.
-  if (source !== "vad" && useVadEnergy) {
+  if (source !== "vad" && S.useVadEnergy) {
     return;
   }
 
@@ -561,14 +463,14 @@ function updateAudioLevel(rms, source) {
  */
 function handleVADStatus(message) {
   // Only process during RECORDING state
-  if (currentState !== SessionState.RECORDING) return;
+  if (S.currentState !== SessionState.RECORDING) return;
 
   // When VAD is disabled, ignore vad_status messages — use AudioWorklet path
-  if (!vadEnabled) return;
+  if (!S.vadEnabled) return;
 
   // Track the last time we received a vad_status for fallback logic
-  lastVadStatusTime = Date.now();
-  useVadEnergy = true;
+  S.lastVadStatusTime = Date.now();
+  S.useVadEnergy = true;
 
   // Drive the audio level meter with server-side energy
   updateAudioLevel(message.energy, "vad");
@@ -580,12 +482,12 @@ function handleVADStatus(message) {
  * Called from the AudioWorklet onmessage handler during RECORDING.
  */
 function checkVadEnergyFallback() {
-  if (!useVadEnergy) return;
+  if (!S.useVadEnergy) return;
 
   const now = Date.now();
-  if (now - lastVadStatusTime >= 2000) {
+  if (now - S.lastVadStatusTime >= 2000) {
     // VAD energy has gone stale — fall back to AudioWorklet
-    useVadEnergy = false;
+    S.useVadEnergy = false;
   }
 }
 
@@ -594,8 +496,8 @@ function checkVadEnergyFallback() {
  * or when VAD is disabled.
  */
 function resetVadEnergyState() {
-  lastVadStatusTime = 0;
-  useVadEnergy = false;
+  S.lastVadStatusTime = 0;
+  S.useVadEnergy = false;
 }
 
 // ─── UI Update: Elapsed Time ──────────────────────────────────────
@@ -616,8 +518,8 @@ function updateElapsedTime(seconds) {
  * Shows "Speaker: Name ✓ Consent confirmed" when consent is set.
  */
 function updateConsentStatusDisplay() {
-  if (consentConfirmed && consentSpeakerName.trim().length > 0) {
-    dom.consentStatus.textContent = "Speaker: " + consentSpeakerName + " \u2713 Consent confirmed";
+  if (S.consentConfirmed && S.consentSpeakerName.trim().length > 0) {
+    dom.consentStatus.textContent = "Speaker: " + S.consentSpeakerName + " \u2713 Consent confirmed";
     show(dom.consentStatus);
   } else {
     dom.consentStatus.textContent = "";
@@ -671,7 +573,7 @@ function updateProcessingIndicator(stage) {
  * @param {string} stage - One of the PipelineStage values
  */
 function updateDeliverButtonState(stage) {
-  if (currentState !== SessionState.PROCESSING) return;
+  if (S.currentState !== SessionState.PROCESSING) return;
   if (stage === "ready" || stage === "failed" || stage === "invalidated") {
     enable(dom.btnDeliver);
   } else {
@@ -709,18 +611,18 @@ function restoreFormState() {
     if (state.objectives) dom.objectivesTextarea.value = state.objectives;
 
     // Sync local state variables with restored values
-    consentSpeakerName = (state.speakerName || "").trim();
-    consentConfirmed = state.consentConfirmed && consentSpeakerName.length > 0;
-    projectContext.speechTitle = (state.speechTitle || "").trim();
-    projectContext.projectType = state.projectType || "";
+    S.consentSpeakerName = (state.speakerName || "").trim();
+    S.consentConfirmed = state.consentConfirmed && S.consentSpeakerName.length > 0;
+    S.projectContext.speechTitle = (state.speechTitle || "").trim();
+    S.projectContext.projectType = state.projectType || "";
     if (state.objectives) {
-      projectContext.objectives = state.objectives.split("\n")
+      S.projectContext.objectives = state.objectives.split("\n")
         .map(function (l) { return l.trim(); })
         .filter(function (l) { return l.length > 0; });
     }
 
     // Enable video consent checkbox if audio consent is confirmed
-    if (consentConfirmed) {
+    if (S.consentConfirmed) {
       enable(dom.videoConsentCheckbox);
     }
   } catch (e) {
@@ -747,8 +649,8 @@ function onConsentChange() {
   const name = dom.speakerNameInput.value.trim();
   const checked = dom.consentCheckbox.checked;
 
-  consentSpeakerName = name;
-  consentConfirmed = checked && name.length > 0;
+  S.consentSpeakerName = name;
+  S.consentConfirmed = checked && name.length > 0;
 
   // Persist form state across page refreshes (#58)
   saveFormState();
@@ -764,22 +666,22 @@ function onConsentChange() {
   }, 350);
 
   // Enable/disable video consent checkbox based on audio consent (Req 1.1)
-  if (consentConfirmed) {
+  if (S.consentConfirmed) {
     enable(dom.videoConsentCheckbox);
   } else {
     // If audio consent is revoked, also disable and uncheck video consent
     disable(dom.videoConsentCheckbox);
-    if (videoConsentEnabled) {
+    if (S.videoConsentEnabled) {
       dom.videoConsentCheckbox.checked = false;
-      videoConsentEnabled = false;
-      videoStreamReady = false;
+      S.videoConsentEnabled = false;
+      S.videoStreamReady = false;
       releaseCamera();
       hideVideoConsentError();
     }
   }
 
   // Update Start Speech button gating
-  updateUI(currentState);
+  updateUI(S.currentState);
 }
 
 /**
@@ -795,8 +697,8 @@ async function onVideoConsentChange() {
     // Attempt to acquire camera (Req 1.5)
     const acquired = await acquireCamera();
     if (acquired) {
-      videoConsentEnabled = true;
-      videoStreamReady = true;
+      S.videoConsentEnabled = true;
+      S.videoStreamReady = true;
 
       // Send video consent to server (Req 1.2)
       wsSend({
@@ -812,8 +714,8 @@ async function onVideoConsentChange() {
         height: 0,
       };
       // Include dimensions and device label if available (Req 10.2)
-      if (videoStream) {
-        const tracks = videoStream.getVideoTracks();
+      if (S.videoStream) {
+        const tracks = S.videoStream.getVideoTracks();
         if (tracks.length > 0) {
           const settings = tracks[0].getSettings();
           readyMsg.width = settings.width || 0;
@@ -827,19 +729,19 @@ async function onVideoConsentChange() {
     } else {
       // Camera acquisition failed — revert toggle (Req 1.5)
       dom.videoConsentCheckbox.checked = false;
-      videoConsentEnabled = false;
-      videoStreamReady = false;
+      S.videoConsentEnabled = false;
+      S.videoStreamReady = false;
       showVideoConsentError("Camera access denied or unavailable. Video consent requires camera permission.");
     }
   } else {
     // Video consent disabled — release camera
-    videoConsentEnabled = false;
-    videoStreamReady = false;
+    S.videoConsentEnabled = false;
+    S.videoStreamReady = false;
     releaseCamera();
   }
 
   // Update UI to show/hide video preview and FPS config
-  updateUI(currentState);
+  updateUI(S.currentState);
 }
 
 /**
@@ -867,7 +769,7 @@ function onVideoFpsChange() {
   var fps = parseInt(dom.videoFpsSlider.value, 10);
   if (isNaN(fps) || fps < 1 || fps > 5) return;
 
-  videoFpsConfig = fps;
+  S.videoFpsConfig = fps;
   dom.videoFpsValue.textContent = fps + " FPS";
 
   // Send video config to server (Req 2.9)
@@ -892,7 +794,7 @@ function onTimeLimitChange() {
   const seconds = parseInt(dom.timeLimitInput.value, 10);
   if (isNaN(seconds) || seconds < 30) return;
 
-  configuredTimeLimit = seconds;
+  S.configuredTimeLimit = seconds;
 
   // Send time limit to server
   wsSend({
@@ -901,8 +803,8 @@ function onTimeLimitChange() {
   });
 
   // Update duration estimate display if we have an estimate
-  if (estimatedDuration !== null) {
-    updateDurationEstimateDisplay(estimatedDuration, configuredTimeLimit);
+  if (S.estimatedDuration !== null) {
+    updateDurationEstimateDisplay(S.estimatedDuration, S.configuredTimeLimit);
   }
 }
 
@@ -918,12 +820,12 @@ function onTimeLimitChange() {
  */
 function handleVADSpeechEnd(message) {
   // Only show notification during RECORDING state
-  if (currentState !== SessionState.RECORDING) return;
+  if (S.currentState !== SessionState.RECORDING) return;
 
   // If banner is already visible, reset its state (Req 2.8)
   // This is effectively a no-op visually since the banner text is the same,
   // but it resets any internal state associated with the notification.
-  vadNotificationVisible = true;
+  S.vadNotificationVisible = true;
   show(dom.vadNotification);
 }
 
@@ -951,8 +853,8 @@ function onVADDismiss() {
  * from RECORDING, and manual Stop Speech click (Req 2.4, 2.5, 2.6).
  */
 function dismissVADNotification() {
-  if (vadNotificationVisible) {
-    vadNotificationVisible = false;
+  if (S.vadNotificationVisible) {
+    S.vadNotificationVisible = false;
     hide(dom.vadNotification);
   }
 }
@@ -965,22 +867,22 @@ function dismissVADNotification() {
  * (Req 3.1, 3.2, 3.5)
  */
 function onVADConfigChange() {
-  vadEnabled = dom.vadEnabledCheckbox.checked;
-  vadSilenceThreshold = parseInt(dom.vadThresholdSlider.value, 10);
+  S.vadEnabled = dom.vadEnabledCheckbox.checked;
+  S.vadSilenceThreshold = parseInt(dom.vadThresholdSlider.value, 10);
 
   // When VAD is disabled, immediately fall back to AudioWorklet (Req 10.4 note)
-  if (!vadEnabled) {
+  if (!S.vadEnabled) {
     resetVadEnergyState();
   }
 
   // Update the displayed value label
-  dom.vadThresholdValue.textContent = vadSilenceThreshold + "s";
+  dom.vadThresholdValue.textContent = S.vadSilenceThreshold + "s";
 
   // Send VAD config to server
   wsSend({
     type: "set_vad_config",
-    silenceThresholdSeconds: vadSilenceThreshold,
-    enabled: vadEnabled,
+    silenceThresholdSeconds: S.vadSilenceThreshold,
+    enabled: S.vadEnabled,
   });
 }
 
@@ -1000,7 +902,7 @@ function onVADThresholdInput() {
  * (Req 4.1, 4.4)
  */
 function onSpeechTitleChange() {
-  projectContext.speechTitle = dom.speechTitleInput.value.trim();
+  S.projectContext.speechTitle = dom.speechTitleInput.value.trim();
   saveFormState();
   sendProjectContext();
 }
@@ -1013,17 +915,17 @@ function onSpeechTitleChange() {
  */
 function onProjectTypeChange() {
   const selectedType = dom.projectTypeSelect.value;
-  projectContext.projectType = selectedType;
+  S.projectContext.projectType = selectedType;
 
   // Auto-populate objectives for predefined project types (Req 4.3)
   if (selectedType && PROJECT_TYPES[selectedType] && PROJECT_TYPES[selectedType].length > 0) {
     const objectives = PROJECT_TYPES[selectedType];
     dom.objectivesTextarea.value = objectives.join("\n");
-    projectContext.objectives = objectives.slice();
+    S.projectContext.objectives = objectives.slice();
   } else if (selectedType === "") {
     // Cleared selection — clear objectives
     dom.objectivesTextarea.value = "";
-    projectContext.objectives = [];
+    S.projectContext.objectives = [];
   }
   // For "Custom / Other" (empty array), leave objectives as-is so operator can type freely
 
@@ -1039,7 +941,7 @@ function onProjectTypeChange() {
 function onObjectivesChange() {
   const text = dom.objectivesTextarea.value;
   // Parse objectives: one per line, filter out empty lines
-  projectContext.objectives = text.split("\n")
+  S.projectContext.objectives = text.split("\n")
     .map(function (line) { return line.trim(); })
     .filter(function (line) { return line.length > 0; });
   saveFormState();
@@ -1053,9 +955,9 @@ function onObjectivesChange() {
 function sendProjectContext() {
   wsSend({
     type: "set_project_context",
-    speechTitle: projectContext.speechTitle,
-    projectType: projectContext.projectType,
-    objectives: projectContext.objectives,
+    speechTitle: S.projectContext.speechTitle,
+    projectType: S.projectContext.projectType,
+    objectives: S.projectContext.objectives,
   });
 }
 
@@ -1064,7 +966,7 @@ function sendProjectContext() {
  * Called on data_purged and other reset scenarios.
  */
 function resetProjectContextForm() {
-  projectContext = { speechTitle: "", projectType: "", objectives: [] };
+  S.projectContext = { speechTitle: "", projectType: "", objectives: [] };
   dom.speechTitleInput.value = "";
   dom.projectTypeSelect.value = "";
   dom.objectivesTextarea.value = "";
@@ -1074,24 +976,24 @@ function resetProjectContextForm() {
 /**
  * Updates the transcript display using replaceFromIndex splice semantics.
  * The client maintains a local segment array and splices from
- * replaceFromIndex onward with the new segments.
+ * replaceFromIndex onward with the new S.segments.
  *
- * @param {Array} newSegments - Replacement suffix segments
+ * @param {Array} newSegments - Replacement suffix S.segments
  * @param {number} replaceFromIndex - Index to splice from
  */
 function updateTranscript(newSegments, replaceFromIndex) {
   // Splice local segment array
-  segments.splice(replaceFromIndex, segments.length - replaceFromIndex, ...newSegments);
+  S.segments.splice(replaceFromIndex, S.segments.length - replaceFromIndex, ...newSegments);
 
-  // Render segments
+  // Render S.segments
   renderTranscript();
 }
 
 /**
- * Renders the current segments array into the transcript panel.
+ * Renders the current S.segments array into the transcript panel.
  */
 function renderTranscript() {
-  if (segments.length === 0) {
+  if (S.segments.length === 0) {
     dom.transcriptContent.innerHTML =
       '<div class="transcript-empty">Transcript will appear here during recording...</div>';
     dom.transcriptWordCount.textContent = "";
@@ -1101,8 +1003,8 @@ function renderTranscript() {
   let html = "";
   let totalWords = 0;
 
-  for (let idx = 0; idx < segments.length; idx++) {
-    const seg = segments[idx];
+  for (let idx = 0; idx < S.segments.length; idx++) {
+    const seg = S.segments[idx];
     const timeStr = formatTimestamp(seg.startTime);
     const cssClass = seg.isFinal ? "" : " interim";
     const words = seg.text.trim().split(/\s+/).filter(Boolean);
@@ -1145,7 +1047,7 @@ function normalizeForMatch(text) {
  * Uses the same normalization rules as the server-side EvidenceValidator (Req 7.3).
  *
  * @param {string} quote - The evidence quote to find
- * @param {Array} segs - The transcript segments array
+ * @param {Array} segs - The transcript S.segments array
  * @returns {{segmentIndex: number, segment: Object}|null} Match result or null
  */
 function findTranscriptMatch(quote, segs) {
@@ -1173,7 +1075,7 @@ function onEvidenceLinkClick(quote) {
   clearEvidenceHighlight();
 
   // Find the matching segment
-  var match = findTranscriptMatch(quote, segments);
+  var match = findTranscriptMatch(quote, S.segments);
   if (!match) return;
 
   // Find the segment DOM element by data-segment-index
@@ -1193,7 +1095,7 @@ function onEvidenceLinkClick(quote) {
   show(dom.transcriptPanel);
 
   // Auto-dismiss highlight after 3 seconds (Req 7.5)
-  highlightDismissTimer = setTimeout(function () {
+  S.highlightDismissTimer = setTimeout(function () {
     clearEvidenceHighlight();
   }, 3000);
 }
@@ -1204,12 +1106,12 @@ function onEvidenceLinkClick(quote) {
  */
 function clearEvidenceHighlight() {
   // Clear the timer
-  if (highlightDismissTimer !== null) {
-    clearTimeout(highlightDismissTimer);
-    highlightDismissTimer = null;
+  if (S.highlightDismissTimer !== null) {
+    clearTimeout(S.highlightDismissTimer);
+    S.highlightDismissTimer = null;
   }
 
-  // Remove highlight class from all segments
+  // Remove highlight class from all S.segments
   var highlighted = dom.transcriptContent.querySelectorAll(".segment-highlight");
   for (var i = 0; i < highlighted.length; i++) {
     highlighted[i].classList.remove("segment-highlight");
@@ -1252,7 +1154,7 @@ function renderEvaluationWithEvidence(text, evaluationData) {
   for (var i = 0; i < evaluationData.items.length; i++) {
     var item = evaluationData.items[i];
     if (item.evidence_quote && item.evidence_quote.trim().length > 0) {
-      var match = findTranscriptMatch(item.evidence_quote, segments);
+      var match = findTranscriptMatch(item.evidence_quote, S.segments);
       evidenceQuotes.push({
         quote: item.evidence_quote,
         timestamp: item.evidence_timestamp,
@@ -1360,7 +1262,7 @@ function renderEvaluationWithEvidence(text, evaluationData) {
  * @param {string} text - The evaluation script text
  */
 function showEvaluation(text) {
-  hasEvaluationData = true;
+  S.hasEvaluationData = true;
 
   if (!text || text.trim().length === 0) {
     dom.evaluationContent.innerHTML =
@@ -1369,7 +1271,7 @@ function showEvaluation(text) {
   }
 
   // Use evidence-aware rendering when evaluation data is available
-  renderEvaluationWithEvidence(text, lastEvaluationData);
+  renderEvaluationWithEvidence(text, S.lastEvaluationData);
   show(dom.evaluationPanel);
 }
 
@@ -1446,7 +1348,7 @@ function dismissError() {
  * @param {Array<{name: string, content: string, encoding: string}>} files - File contents for download
  */
 function showSavedConfirmation(paths, files) {
-  outputsSaved = true;
+  S.outputsSaved = true;
   dom.savedMessage.textContent = "Outputs saved — downloading...";
   show(dom.savedConfirmation);
   // Hide save button after successful save
@@ -1468,16 +1370,16 @@ function showSavedConfirmation(paths, files) {
  */
 function downloadOutputsAsZip(files) {
   // Include original speech recording if available (#60)
-  if (speechRecordingBlob && speechRecordingBlob.size > 0) {
+  if (S.speechRecordingBlob && S.speechRecordingBlob.size > 0) {
     // Convert blob to base64 for buildZip
     const reader = new FileReader();
     reader.onloadend = function () {
       const base64 = reader.result.split(",")[1]; // strip data:...;base64,
-      const ext = speechRecordingBlob.type.includes("mp4") ? "mp4" : "webm";
+      const ext = S.speechRecordingBlob.type.includes("mp4") ? "mp4" : "webm";
       files.push({ name: "speech_recording." + ext, content: base64, encoding: "base64" });
       finishZipDownload(files);
     };
-    reader.readAsDataURL(speechRecordingBlob);
+    reader.readAsDataURL(S.speechRecordingBlob);
   } else {
     finishZipDownload(files);
   }
@@ -1633,10 +1535,9 @@ const btnReconnect = document.getElementById("btn-reconnect");
  * and message routing.
  */
 // Track whether a live session is active (for reconnect decisions)
-let liveSessionActive = false;
 
 function connectWebSocket() {
-  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+  if (S.ws && (S.ws.readyState === WebSocket.OPEN || S.ws.readyState === WebSocket.CONNECTING)) {
     return; // Already connected or connecting
   }
 
@@ -1653,14 +1554,14 @@ function connectWebSocket() {
   dom.connectionStatus.style.color = "var(--text-muted)";
   btnReconnect.style.display = "none";
 
-  ws = new WebSocket(url);
-  audioFormatSent = false;
-  // Per Hazard 2: reset pipelineRunId on reconnect to prevent stale filtering
-  pipelineRunId = 0;
+  S.ws = new WebSocket(url);
+  S.audioFormatSent = false;
+  // Per Hazard 2: reset S.pipelineRunId on reconnect to prevent stale filtering
+  S.pipelineRunId = 0;
 
-  ws.binaryType = "arraybuffer"; // For receiving TTS audio
+  S.ws.binaryType = "arraybuffer"; // For receiving TTS audio
 
-  ws.onopen = function () {
+  S.ws.onopen = function () {
     dom.connectionStatus.textContent = "Connected";
     dom.connectionStatus.style.color = "var(--color-success)";
     btnReconnect.style.display = "none";
@@ -1670,7 +1571,7 @@ function connectWebSocket() {
     sendAudioFormatHandshake();
   };
 
-  ws.onmessage = function (event) {
+  S.ws.onmessage = function (event) {
     if (event.data instanceof ArrayBuffer) {
       // Binary message — TTS audio chunk
       console.log("[WS] Received binary frame:", event.data.byteLength, "bytes");
@@ -1685,18 +1586,18 @@ function connectWebSocket() {
     }
   };
 
-  ws.onclose = function () {
+  S.ws.onclose = function () {
     // Fail-safe: if WS drops during playback, deferred state, pending latch,
     // or any non-IDLE state, stop everything.
-    if (ttsPlaying || deferredIdleTransition !== null || pendingIdleFromServer !== null || currentState !== SessionState.IDLE) {
+    if (S.ttsPlaying || S.deferredIdleTransition !== null || S.pendingIdleFromServer !== null || S.currentState !== SessionState.IDLE) {
       triggerTTSFailSafe();
     }
 
-    ws = null;
-    audioFormatSent = false;
+    S.ws = null;
+    S.audioFormatSent = false;
 
     // Only auto-reconnect during active live sessions — not idle page views
-    if (liveSessionActive) {
+    if (S.liveSessionActive) {
       const delaySec = (reconnectDelay / 1000).toFixed(0);
       dom.connectionStatus.textContent = `Reconnecting in ${delaySec}s…`;
       dom.connectionStatus.style.color = "var(--color-warning, #e6a817)";
@@ -1716,7 +1617,7 @@ function connectWebSocket() {
     }
   };
 
-  ws.onerror = function (err) {
+  S.ws.onerror = function (err) {
     console.error("WebSocket error:", err);
     dom.connectionStatus.textContent = "Connection Error";
     dom.connectionStatus.style.color = "var(--color-danger)";
@@ -1730,7 +1631,7 @@ function connectWebSocket() {
  */
 function connectWebSocketAndWait() {
   return new Promise((resolve, reject) => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
+    if (S.ws && S.ws.readyState === WebSocket.OPEN) {
       resolve();
       return;
     }
@@ -1739,11 +1640,11 @@ function connectWebSocketAndWait() {
       reject(new Error("WebSocket connection timeout"));
     }, 10000);
     const checkInterval = setInterval(() => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
+      if (S.ws && S.ws.readyState === WebSocket.OPEN) {
         clearTimeout(timeout);
         clearInterval(checkInterval);
         resolve();
-      } else if (!ws || ws.readyState === WebSocket.CLOSED) {
+      } else if (!S.ws || S.ws.readyState === WebSocket.CLOSED) {
         clearTimeout(timeout);
         clearInterval(checkInterval);
         reject(new Error("WebSocket connection failed"));
@@ -1772,8 +1673,8 @@ window.__reconnectWS = manualReconnect;
  * @param {Object} message - The message object to send
  */
 function wsSend(message) {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(message));
+  if (S.ws && S.ws.readyState === WebSocket.OPEN) {
+    S.ws.send(JSON.stringify(message));
   } else {
     showError("Not connected to server. Reconnecting…", false);
     dom.connectionStatus.textContent = "Disconnected";
@@ -1793,7 +1694,7 @@ function sendAudioFormatHandshake() {
     sampleRate: 16000,
     encoding: "LINEAR16",
   });
-  audioFormatSent = true;
+  S.audioFormatSent = true;
 }
 
 // ─── Server Message Handler ───────────────────────────────────────
@@ -1814,8 +1715,8 @@ function handleServerMessage(message) {
       updateElapsedTime(message.seconds);
       break;
     case "evaluation_ready":
-      lastEvaluationScript = message.script || "";
-      lastEvaluationData = message.evaluation || null;
+      S.lastEvaluationScript = message.script || "";
+      S.lastEvaluationData = message.evaluation || null;
       showEvaluation(message.script);
       break;
     case "role_results":
@@ -1830,7 +1731,7 @@ function handleServerMessage(message) {
     case "error":
       // Fail-safe silent mode: if error occurs during TTS delivery,
       // stop playback and show written evaluation as fallback (Req 7.4)
-      if (currentState === SessionState.DELIVERING) {
+      if (S.currentState === SessionState.DELIVERING) {
         triggerTTSFailSafe();
       } else {
         showError(message.message, message.recoverable);
@@ -1838,7 +1739,7 @@ function handleServerMessage(message) {
       break;
     case "audio_format_error":
       // Audio format errors are always non-recoverable; stop capture
-      if (currentState === SessionState.DELIVERING) {
+      if (S.currentState === SessionState.DELIVERING) {
         triggerTTSFailSafe();
       } else {
         showError("Audio format error: " + message.message, false);
@@ -1856,9 +1757,9 @@ function handleServerMessage(message) {
       break;
     case "pipeline_progress":
       // Ignore stale progress from cancelled pipelines (Hazard 2, Hazard 5)
-      if (message.runId < pipelineRunId) break;
-      pipelineRunId = message.runId;
-      pipelineStage = message.stage;
+      if (message.runId < S.pipelineRunId) break;
+      S.pipelineRunId = message.runId;
+      S.pipelineStage = message.stage;
       updateProcessingIndicator(message.stage);
       updateDeliverButtonState(message.stage);
       break;
@@ -1883,7 +1784,7 @@ function handleServerMessage(message) {
  * @param {string} newState - The new SessionState
  */
 function handleStateChange(newState) {
-  const previousState = currentState;
+  const previousState = S.currentState;
 
   // Phase 4: Stop video frame capture when leaving RECORDING state (Req 2.1, 2.2)
   // This handles server-initiated transitions (auto-stop, errors) in addition to
@@ -1898,38 +1799,38 @@ function handleStateChange(newState) {
   }
 
   // If leaving DELIVERING due to panic mute (going to IDLE without tts_complete),
-  // force-stop playback. But if ttsDeliveryComplete is true, let audio play naturally.
+  // force-stop playback. But if S.ttsDeliveryComplete is true, let audio play naturally.
   if (previousState === SessionState.DELIVERING && newState !== SessionState.DELIVERING) {
-    if (!ttsDeliveryComplete) {
+    if (!S.ttsDeliveryComplete) {
       // Panic mute or error — force stop
       console.log("[TTS] Forced stop: leaving DELIVERING without tts_complete");
-      forceStopTtsAndCancelDeferral(); // Clears deferral, bumps token, stops audio, clears ttsPlaying
+      forceStopTtsAndCancelDeferral(); // Clears deferral, bumps token, stops audio, clears S.ttsPlaying
     }
-    // If ttsDeliveryComplete is true, audio is playing or finished — don't interrupt
+    // If S.ttsDeliveryComplete is true, audio is playing or finished — don't interrupt
   }
 
   // ── IDLE transition decision chain (explicit else-if to prevent reorder mistakes) ──
-  // Branch A: ttsPlaying is true → defer
-  if (newState === SessionState.IDLE && ttsPlaying) {
-    if (!ttsAudioElement || !ttsAudioElement.src) {
-      console.warn("[TTS] ttsPlaying is true but audio element/src missing — possible bug");
+  // Branch A: S.ttsPlaying is true → defer
+  if (newState === SessionState.IDLE && S.ttsPlaying) {
+    if (!S.ttsAudioElement || !S.ttsAudioElement.src) {
+      console.warn("[TTS] S.ttsPlaying is true but audio element/src missing — possible bug");
     }
     // Idempotent: don't overwrite an existing deferral
-    if (deferredIdleTransition === null) {
-      deferredIdleTransition = { token: playbackInstanceToken };
+    if (S.deferredIdleTransition === null) {
+      S.deferredIdleTransition = { token: S.playbackInstanceToken };
     }
     // Cooldown will start when deferred IDLE is applied
     return; // Do NOT call updateUI yet
   }
 
   // Branch B: not playing, non-IDLE state → latch (IDLE arrived before audio)
-  // Token-stamped: store current playbackInstanceToken so handleTTSAudio can
+  // Token-stamped: store current S.playbackInstanceToken so handleTTSAudio can
   // verify the latch is from the expected session phase (new token = latch + 1).
   // If handleTTSAudio never runs (e.g., server error, no audio sent), the latch
   // is harmless — transitionToIdle() clears it, and force-stop paths clear it too.
-  else if (newState === SessionState.IDLE && !ttsPlaying && currentState !== SessionState.IDLE) {
-    if (pendingIdleFromServer === null) {
-      pendingIdleFromServer = { tokenAtLatch: playbackInstanceToken };
+  else if (newState === SessionState.IDLE && !S.ttsPlaying && S.currentState !== SessionState.IDLE) {
+    if (S.pendingIdleFromServer === null) {
+      S.pendingIdleFromServer = { tokenAtLatch: S.playbackInstanceToken };
     }
     // Don't transition yet — wait for handleTTSAudio to consume the latch
     return;
@@ -1979,13 +1880,13 @@ function primeTTSAudioElement() {
   }
 
   // Create the element within the user gesture scope
-  ttsAudioElement = new Audio();
-  ttsAudioElement.preload = "auto";
+  S.ttsAudioElement = new Audio();
+  S.ttsAudioElement.preload = "auto";
 }
 
 function handleTTSAudio(audioData) {
-  hasTTSAudio = true;
-  ttsDeliveryComplete = false;
+  S.hasTTSAudio = true;
+  S.ttsDeliveryComplete = false;
   if (!audioData || audioData.byteLength === 0) {
     console.warn("[TTS] Received empty audio data, ignoring");
     return;
@@ -1994,81 +1895,81 @@ function handleTTSAudio(audioData) {
   console.log("[TTS] Received audio chunk:", audioData.byteLength, "bytes");
 
   // Create a Blob URL from the audio data
-  if (ttsBlobUrl) {
-    URL.revokeObjectURL(ttsBlobUrl);
+  if (S.ttsBlobUrl) {
+    URL.revokeObjectURL(S.ttsBlobUrl);
   }
   const blob = new Blob([audioData], { type: "audio/mpeg" });
-  ttsBlobUrl = URL.createObjectURL(blob);
+  S.ttsBlobUrl = URL.createObjectURL(blob);
 
   // Reuse the primed element if available, otherwise create a new one
-  if (!ttsAudioElement) {
-    ttsAudioElement = new Audio();
-    ttsAudioElement.preload = "auto";
+  if (!S.ttsAudioElement) {
+    S.ttsAudioElement = new Audio();
+    S.ttsAudioElement.preload = "auto";
   }
 
   // ── MUST-NOT-REFACTOR ORDERING INVARIANT ──
   // The following steps MUST execute in exactly this order. Reordering any
   // step (especially moving latch consumption after play() or after setting
-  // ttsPlaying) can reintroduce the race condition this fix exists to prevent.
+  // S.ttsPlaying) can reintroduce the race condition this fix exists to prevent.
   //
-  // Explicit ordering: token++ → capture → consume latch → set handlers → ttsPlaying=true → play()
+  // Explicit ordering: token++ → capture → consume latch → set handlers → S.ttsPlaying=true → play()
 
   // 1. Increment token for this new playback instance
-  playbackInstanceToken++;
+  S.playbackInstanceToken++;
   // 2. Capture token for closure
-  const currentToken = playbackInstanceToken;
+  const currentToken = S.playbackInstanceToken;
 
-  // 3. Consume the pendingIdleFromServer latch: if IDLE arrived before this
+  // 3. Consume the S.pendingIdleFromServer latch: if IDLE arrived before this
   // function ran (ordering edge case), create the deferral now, bound to the
   // new token. Token validation: only consume if the latch token matches
   // expected progression (latchToken + 1 === currentToken). This prevents a
   // stale latch from an earlier session phase from "attaching" to unrelated
   // audio (e.g., replay triggered much later after other state changes).
   // If the token doesn't match, the latch is stale — discard it.
-  if (pendingIdleFromServer !== null) {
-    var latchIsRelevant = (pendingIdleFromServer.tokenAtLatch + 1 === currentToken);
-    pendingIdleFromServer = null; // Always clear — consumed or discarded
-    if (latchIsRelevant && deferredIdleTransition === null) {
-      deferredIdleTransition = { token: currentToken };
+  if (S.pendingIdleFromServer !== null) {
+    var latchIsRelevant = (S.pendingIdleFromServer.tokenAtLatch + 1 === currentToken);
+    S.pendingIdleFromServer = null; // Always clear — consumed or discarded
+    if (latchIsRelevant && S.deferredIdleTransition === null) {
+      S.deferredIdleTransition = { token: currentToken };
     }
   }
 
-  // 3b. Adopt existing deferral: if a deferredIdleTransition was created for
+  // 3b. Adopt existing deferral: if a S.deferredIdleTransition was created for
   // a previous playback (e.g., IDLE arrived during playback N, creating deferral
   // with token N, then new audio arrives bumping token to N+1), update the
   // deferral token to the current playback. Without this, the new onended
   // (token N+1) would never match the old deferral (token N), leaving a dead
   // deferral that prevents IDLE transition.
-  if (deferredIdleTransition !== null && deferredIdleTransition.token !== currentToken) {
-    deferredIdleTransition = { token: currentToken };
+  if (S.deferredIdleTransition !== null && S.deferredIdleTransition.token !== currentToken) {
+    S.deferredIdleTransition = { token: currentToken };
   }
 
   // 4. Set handlers BEFORE play() so they're ready for immediate events
-  ttsAudioElement.onplay = function () {
+  S.ttsAudioElement.onplay = function () {
     console.log("[TTS] Audio playback started");
   };
 
-  ttsAudioElement.onended = function () {
+  S.ttsAudioElement.onended = function () {
     console.log("[TTS] Audio playback ended naturally");
     // Clean up state FIRST so updateUI sees consistent flags
-    ttsPlaying = false;
+    S.ttsPlaying = false;
     cleanupTTSAudio();
     // Then apply deferred IDLE (which calls updateUI via transitionToIdle)
     applyDeferredIdle(currentToken);
   };
 
-  ttsAudioElement.onerror = function (e) {
-    console.error("[TTS] Audio element error:", ttsAudioElement ? ttsAudioElement.error : e);
+  S.ttsAudioElement.onerror = function (e) {
+    console.error("[TTS] Audio element error:", S.ttsAudioElement ? S.ttsAudioElement.error : e);
     // onerror: triggerTTSFailSafe owns the force-stop internally
     triggerTTSFailSafe();
   };
 
-  // 5. Set ttsPlaying=true immediately before play() — covers the decode gap
-  ttsPlaying = true;
+  // 5. Set S.ttsPlaying=true immediately before play() — covers the decode gap
+  S.ttsPlaying = true;
 
   // 6. Swap in the real audio source and play
-  ttsAudioElement.src = ttsBlobUrl;
-  ttsAudioElement.play().then(function () {
+  S.ttsAudioElement.src = S.ttsBlobUrl;
+  S.ttsAudioElement.play().then(function () {
     console.log("[TTS] play() promise resolved, audio is playing");
   }).catch(function (err) {
     console.error("[TTS] play() promise rejected:", err);
@@ -2081,17 +1982,17 @@ function handleTTSAudio(audioData) {
  * Cleans up TTS audio resources (element and Blob URL).
  */
 function cleanupTTSAudio() {
-  if (ttsAudioElement) {
-    ttsAudioElement.onplay = null;
-    ttsAudioElement.onended = null;
-    ttsAudioElement.onerror = null;
-    ttsAudioElement.pause();
-    ttsAudioElement.src = "";
-    ttsAudioElement = null;
+  if (S.ttsAudioElement) {
+    S.ttsAudioElement.onplay = null;
+    S.ttsAudioElement.onended = null;
+    S.ttsAudioElement.onerror = null;
+    S.ttsAudioElement.pause();
+    S.ttsAudioElement.src = "";
+    S.ttsAudioElement = null;
   }
-  if (ttsBlobUrl) {
-    URL.revokeObjectURL(ttsBlobUrl);
-    ttsBlobUrl = null;
+  if (S.ttsBlobUrl) {
+    URL.revokeObjectURL(S.ttsBlobUrl);
+    S.ttsBlobUrl = null;
   }
 }
 
@@ -2103,35 +2004,35 @@ function cleanupTTSAudio() {
 function stopTTSPlayback() {
   // Null out event handlers first — prevents onended/onerror from firing
   // during pause/cleanup, which could cause reentrancy issues
-  if (ttsAudioElement) {
-    ttsAudioElement.onended = null;
-    ttsAudioElement.onerror = null;
-    ttsAudioElement.onplay = null;
+  if (S.ttsAudioElement) {
+    S.ttsAudioElement.onended = null;
+    S.ttsAudioElement.onerror = null;
+    S.ttsAudioElement.onplay = null;
   }
   cleanupTTSAudio();
-  ttsPlaying = false;
-  ttsDeliveryComplete = false;
+  S.ttsPlaying = false;
+  S.ttsDeliveryComplete = false;
 }
 
 /**
  * Applies a deferred IDLE transition if the token matches.
- * Called from onended handler after ttsPlaying and cleanup are done.
+ * Called from onended handler after S.ttsPlaying and cleanup are done.
  *
  * No-op cases (both are safe and expected):
- * - deferredIdleTransition is null (no deferral was pending — e.g., audio ended
+ * - S.deferredIdleTransition is null (no deferral was pending — e.g., audio ended
  *   before state_change: idle arrived, or deferral was already cancelled)
  * - Token mismatch (stale onended from a previous/cancelled playback)
  *
- * Clears deferredIdleTransition BEFORE calling transitionToIdle() — this ordering
+ * Clears S.deferredIdleTransition BEFORE calling transitionToIdle() — this ordering
  * prevents reentrancy (e.g., duplicate onended) from re-running transitionToIdle().
  *
  * @param {number} token - The playback instance token from the onended closure
  */
 function applyDeferredIdle(token) {
-  if (deferredIdleTransition === null) return; // No deferral pending — no-op
-  if (deferredIdleTransition.token !== token) return; // Stale event — ignore
+  if (S.deferredIdleTransition === null) return; // No deferral pending — no-op
+  if (S.deferredIdleTransition.token !== token) return; // Stale event — ignore
 
-  deferredIdleTransition = null;
+  S.deferredIdleTransition = null;
   transitionToIdle();
 }
 
@@ -2141,20 +2042,20 @@ function applyDeferredIdle(token) {
  * including triggerTTSFailSafe(), applyDeferredIdle(), and handleStateChange().
  * This prevents double-cooldown, missing-cooldown, and micro-hiccup bugs.
  *
- * Order: clear pendingIdleFromServer first, then updateUI (pure visual state flip),
+ * Order: clear S.pendingIdleFromServer first, then updateUI (pure visual state flip),
  * then startCooldown (timers/side effects). This prevents micro-hiccups from
  * cooldown DOM/timer work before the UI state is consistent.
  *
- * Idempotency guard: currentState === SessionState.IDLE && cooldownTimer !== null
+ * Idempotency guard: S.currentState === SessionState.IDLE && S.cooldownTimer !== null
  * — precise enough to distinguish "IDLE with cooldown active" (no-op) from
  * "IDLE without cooldown" (needs cooldown start, e.g., recovery paths).
- * Using just currentState === IDLE would skip cooldown in legitimate cases.
+ * Using just S.currentState === IDLE would skip cooldown in legitimate cases.
  */
 function transitionToIdle() {
   // Precise idempotency: skip only if already IDLE AND cooldown is running.
   // If IDLE but no cooldown (recovery path), we still need to start cooldown.
-  if (currentState === SessionState.IDLE && cooldownTimer !== null) return;
-  pendingIdleFromServer = null; // Clear latch — we're applying IDLE now
+  if (S.currentState === SessionState.IDLE && S.cooldownTimer !== null) return;
+  S.pendingIdleFromServer = null; // Clear latch — we're applying IDLE now
   updateUI(SessionState.IDLE);
   startCooldown();
 }
@@ -2164,30 +2065,30 @@ function transitionToIdle() {
  * playback token so that late onended events from a previous playback
  * cannot apply a future deferral.
  *
- * DOES NOT clear ttsPlaying or stop playback — that is the responsibility
- * of stopTTSPlayback(). DOES NOT clear pendingIdleFromServer — that is
+ * DOES NOT clear S.ttsPlaying or stop playback — that is the responsibility
+ * of stopTTSPlayback(). DOES NOT clear S.pendingIdleFromServer — that is
  * cleared by forceStopTtsAndCancelDeferral() or transitionToIdle().
  * Use forceStopTtsAndCancelDeferral() for force-stop paths.
  *
  * Called internally by forceStopTtsAndCancelDeferral().
  */
 function cancelDeferredIdle() {
-  deferredIdleTransition = null;
+  S.deferredIdleTransition = null;
   // Monotonic bump: any in-flight onended closure holding the old token
   // will fail the token match in applyDeferredIdle()
-  playbackInstanceToken++;
+  S.playbackInstanceToken++;
 }
 
 /**
  * Composite force-stop: cancels deferral, bumps token, clears latch, stops audio,
- * clears ttsPlaying.
+ * clears S.ttsPlaying.
  *
  * Post-conditions hold immediately after the call:
- * - deferredIdleTransition === null
- * - pendingIdleFromServer === null
- * - playbackInstanceToken bumped (late onended events are harmless due to token
+ * - S.deferredIdleTransition === null
+ * - S.pendingIdleFromServer === null
+ * - S.playbackInstanceToken bumped (late onended events are harmless due to token
  *   invalidation + handler nulling in stopTTSPlayback)
- * - ttsPlaying === false
+ * - S.ttsPlaying === false
  * - audio element event handlers nulled
  *
  * Note: this is NOT truly atomic against queued browser events — a late onended
@@ -2195,13 +2096,13 @@ function cancelDeferredIdle() {
  * handler nulling ensures late callbacks are no-ops. Do not assume "no late
  * callbacks possible"; assume "late callbacks are harmless."
  *
- * ALL force-stop paths (panic mute, revoke consent, ws close, onerror, play reject)
+ * ALL force-stop paths (panic mute, revoke consent, S.ws close, onerror, play reject)
  * MUST call this instead of calling cancelDeferredIdle() and stopTTSPlayback() separately.
  */
 function forceStopTtsAndCancelDeferral() {
   cancelDeferredIdle();          // Clear deferral + bump token
-  pendingIdleFromServer = null;  // Clear latch
-  stopTTSPlayback();             // Stop audio + clear ttsPlaying + null handlers
+  S.pendingIdleFromServer = null;  // Clear latch
+  stopTTSPlayback();             // Stop audio + clear S.ttsPlaying + null handlers
 }
 
 /**
@@ -2220,8 +2121,8 @@ function triggerTTSFailSafe() {
   forceStopTtsAndCancelDeferral();
 
   // Show the written evaluation as fallback (Requirement 7.4)
-  if (lastEvaluationScript) {
-    showEvaluation(lastEvaluationScript);
+  if (S.lastEvaluationScript) {
+    showEvaluation(S.lastEvaluationScript);
   }
   show(dom.evaluationPanel);
 
@@ -2239,7 +2140,7 @@ function triggerTTSFailSafe() {
  */
 function handleTTSComplete() {
   console.log("[TTS] Server signaled tts_complete, audio may still be playing");
-  ttsDeliveryComplete = true;
+  S.ttsDeliveryComplete = true;
 }
 
 // ─── Phase 2: Consent, Duration, and Purge Handlers ──────────────
@@ -2251,18 +2152,18 @@ function handleTTSComplete() {
  */
 function handleConsentStatus(consent) {
   if (consent) {
-    consentSpeakerName = consent.speakerName || "";
-    consentConfirmed = consent.consentConfirmed || false;
+    S.consentSpeakerName = consent.speakerName || "";
+    S.consentConfirmed = consent.consentConfirmed || false;
     // Sync form inputs with server state
-    dom.speakerNameInput.value = consentSpeakerName;
-    dom.consentCheckbox.checked = consentConfirmed;
+    dom.speakerNameInput.value = S.consentSpeakerName;
+    dom.consentCheckbox.checked = S.consentConfirmed;
   } else {
-    consentSpeakerName = "";
-    consentConfirmed = false;
+    S.consentSpeakerName = "";
+    S.consentConfirmed = false;
     dom.speakerNameInput.value = "";
     dom.consentCheckbox.checked = false;
   }
-  updateUI(currentState);
+  updateUI(S.currentState);
 }
 
 /**
@@ -2272,12 +2173,12 @@ function handleConsentStatus(consent) {
  * @param {number} timeLimitSeconds - Configured time limit
  */
 function handleDurationEstimate(estimatedSeconds, timeLimitSeconds) {
-  estimatedDuration = estimatedSeconds;
-  configuredTimeLimit = timeLimitSeconds;
+  S.estimatedDuration = estimatedSeconds;
+  S.configuredTimeLimit = timeLimitSeconds;
   dom.timeLimitInput.value = timeLimitSeconds;
   updateDurationEstimateDisplay(estimatedSeconds, timeLimitSeconds);
   // Show the estimate if we're in PROCESSING state
-  if (currentState === SessionState.PROCESSING) {
+  if (S.currentState === SessionState.PROCESSING) {
     show(dom.durationEstimate);
   }
 }
@@ -2289,23 +2190,23 @@ function handleDurationEstimate(estimatedSeconds, timeLimitSeconds) {
  */
 function handleDataPurged(reason) {
   // Clear all displayed data
-  segments = [];
+  S.segments = [];
   renderTranscript();
   dom.evaluationContent.innerHTML =
     '<div class="evaluation-empty">Evaluation will appear here after delivery...</div>';
   hide(dom.evaluationPanel);
   hide(dom.transcriptPanel);
-  hasEvaluationData = false;
-  hasTTSAudio = false;
-  lastEvaluationScript = "";
-  lastEvaluationData = null;
-  lastVideoQualityGrade = null;
-  estimatedDuration = null;
+  S.hasEvaluationData = false;
+  S.hasTTSAudio = false;
+  S.lastEvaluationScript = "";
+  S.lastEvaluationData = null;
+  S.lastVideoQualityGrade = null;
+  S.estimatedDuration = null;
   hide(dom.durationEstimate);
   forceStopTtsAndCancelDeferral();
   // Reset pipeline state on data purge (Req 6.3)
-  pipelineStage = "idle";
-  pipelineRunId = 0;
+  S.pipelineStage = "idle";
+  S.pipelineRunId = 0;
   // Clear evidence highlights (Phase 3)
   clearEvidenceHighlight();
   // Hide video quality grade badge
@@ -2315,27 +2216,27 @@ function handleDataPurged(reason) {
 
   if (reason === "opt_out") {
     // Permanent purge — disable Save Outputs for this session
-    dataPurged = true;
+    S.dataPurged = true;
     // Reset consent form
-    consentSpeakerName = "";
-    consentConfirmed = false;
+    S.consentSpeakerName = "";
+    S.consentConfirmed = false;
     dom.speakerNameInput.value = "";
     dom.consentCheckbox.checked = false;
     // Clear persisted form state on consent revocation (#58)
     clearFormState();
-    videoConsentEnabled = false;
-    videoStreamReady = false;
+    S.videoConsentEnabled = false;
+    S.videoStreamReady = false;
     dom.videoConsentCheckbox.checked = false;
     disable(dom.videoConsentCheckbox);
     hideVideoConsentError();
     releaseCamera();
     // Reset video FPS config to default
-    videoFpsConfig = 2;
+    S.videoFpsConfig = 2;
     dom.videoFpsSlider.value = 2;
     dom.videoFpsValue.textContent = "2 FPS";
     // Reset VAD config to defaults (Phase 3, Req 3.1, 3.5)
-    vadEnabled = true;
-    vadSilenceThreshold = 5;
+    S.vadEnabled = true;
+    S.vadSilenceThreshold = 5;
     dom.vadEnabledCheckbox.checked = true;
     dom.vadThresholdSlider.value = 5;
     dom.vadThresholdValue.textContent = "5s";
@@ -2348,19 +2249,19 @@ function handleDataPurged(reason) {
   } else if (reason === "auto_purge") {
     // Auto-purge — informational
     // Reset video consent (Phase 4)
-    videoConsentEnabled = false;
-    videoStreamReady = false;
+    S.videoConsentEnabled = false;
+    S.videoStreamReady = false;
     dom.videoConsentCheckbox.checked = false;
     disable(dom.videoConsentCheckbox);
     hideVideoConsentError();
     releaseCamera();
     // Reset video FPS config to default
-    videoFpsConfig = 2;
+    S.videoFpsConfig = 2;
     dom.videoFpsSlider.value = 2;
     dom.videoFpsValue.textContent = "2 FPS";
     // Reset VAD config to defaults (Phase 3)
-    vadEnabled = true;
-    vadSilenceThreshold = 5;
+    S.vadEnabled = true;
+    S.vadSilenceThreshold = 5;
     dom.vadEnabledCheckbox.checked = true;
     dom.vadThresholdSlider.value = 5;
     dom.vadThresholdValue.textContent = "5s";
@@ -2407,28 +2308,28 @@ async function checkMicPermission() {
 async function startAudioCapture() {
   try {
     // Request mic permission
-    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    S.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
     // Create AudioContext (or reuse if already created)
-    if (!audioContext || audioContext.state === "closed") {
-      audioContext = new AudioContext();
+    if (!S.audioContext || S.audioContext.state === "closed") {
+      S.audioContext = new AudioContext();
     }
     // Resume if suspended (browsers require user gesture)
-    if (audioContext.state === "suspended") {
-      await audioContext.resume();
+    if (S.audioContext.state === "suspended") {
+      await S.audioContext.resume();
     }
 
     // Load the AudioWorklet processor module
-    await audioContext.audioWorklet.addModule("audio-worklet.js");
+    await S.audioContext.audioWorklet.addModule("audio-worklet.js");
 
     // Create source node from mic stream
-    sourceNode = audioContext.createMediaStreamSource(mediaStream);
+    S.sourceNode = S.audioContext.createMediaStreamSource(S.mediaStream);
 
     // Create AudioWorklet node
-    workletNode = new AudioWorkletNode(audioContext, "audio-capture-processor");
+    S.workletNode = new AudioWorkletNode(S.audioContext, "audio-capture-processor");
 
     // Listen for audio chunks from the worklet
-    workletNode.port.onmessage = function (event) {
+    S.workletNode.port.onmessage = function (event) {
       if (event.data && event.data.type === "audio_chunk") {
         // Check if VAD energy has gone stale and we need to fall back (Req 10.4)
         checkVadEnergyFallback();
@@ -2437,21 +2338,21 @@ async function startAudioCapture() {
           updateAudioLevel(event.data.level);
         }
         // Send audio chunk as binary WebSocket frame
-        if (ws && ws.readyState === WebSocket.OPEN && currentState === SessionState.RECORDING) {
-          ws.send(event.data.samples);
+        if (S.ws && S.ws.readyState === WebSocket.OPEN && S.currentState === SessionState.RECORDING) {
+          S.ws.send(event.data.samples);
         }
       }
     };
 
     // Connect the pipeline: mic → worklet (worklet doesn't output to speakers)
-    sourceNode.connect(workletNode);
+    S.sourceNode.connect(S.workletNode);
     // Connect worklet to destination to keep the audio graph alive
     // (AudioWorklet needs to be connected to process)
-    workletNode.connect(audioContext.destination);
+    S.workletNode.connect(S.audioContext.destination);
 
     // Start MediaRecorder to capture original speech (#60)
-    speechRecordingChunks = [];
-    speechRecordingBlob = null;
+    S.speechRecordingChunks = [];
+    S.speechRecordingBlob = null;
     try {
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
@@ -2459,18 +2360,18 @@ async function startAudioCapture() {
           ? "audio/webm"
           : ""; // browser default
       const recorderOptions = mimeType ? { mimeType } : {};
-      speechRecorder = new MediaRecorder(mediaStream, recorderOptions);
-      speechRecorder.ondataavailable = function (e) {
-        if (e.data && e.data.size > 0) speechRecordingChunks.push(e.data);
+      S.speechRecorder = new MediaRecorder(S.mediaStream, recorderOptions);
+      S.speechRecorder.ondataavailable = function (e) {
+        if (e.data && e.data.size > 0) S.speechRecordingChunks.push(e.data);
       };
-      speechRecorder.onstop = function () {
-        if (speechRecordingChunks.length > 0) {
-          speechRecordingBlob = new Blob(speechRecordingChunks, { type: speechRecorder.mimeType });
+      S.speechRecorder.onstop = function () {
+        if (S.speechRecordingChunks.length > 0) {
+          S.speechRecordingBlob = new Blob(S.speechRecordingChunks, { type: S.speechRecorder.mimeType });
         }
-        speechRecorder = null;
+        S.speechRecorder = null;
       };
-      speechRecorder.start(1000); // 1-second chunks for memory efficiency
-      console.log("[MediaRecorder] Started:", speechRecorder.mimeType);
+      S.speechRecorder.start(1000); // 1-second chunks for memory efficiency
+      console.log("[MediaRecorder] Started:", S.speechRecorder.mimeType);
     } catch (recErr) {
       console.warn("[MediaRecorder] Could not start recording:", recErr);
       // Non-fatal — the session still works, just without recording
@@ -2496,20 +2397,20 @@ async function startAudioCapture() {
  */
 function stopAudioCapture() {
   // Stop MediaRecorder (#60)
-  if (speechRecorder && speechRecorder.state !== "inactive") {
-    speechRecorder.stop();
+  if (S.speechRecorder && S.speechRecorder.state !== "inactive") {
+    S.speechRecorder.stop();
     console.log("[MediaRecorder] Stopped");
   }
 
-  if (workletNode) {
+  if (S.workletNode) {
     // Tell the worklet processor to stop
-    workletNode.port.postMessage({ type: "stop" });
-    workletNode.disconnect();
-    workletNode = null;
+    S.workletNode.port.postMessage({ type: "stop" });
+    S.workletNode.disconnect();
+    S.workletNode = null;
   }
-  if (sourceNode) {
-    sourceNode.disconnect();
-    sourceNode = null;
+  if (S.sourceNode) {
+    S.sourceNode.disconnect();
+    S.sourceNode = null;
   }
 }
 
@@ -2526,11 +2427,11 @@ function hardStopMic() {
   stopVideoCapture();
 
   // Hard-stop all MediaStream tracks (not just mute — fully release the mic)
-  if (mediaStream) {
-    mediaStream.getTracks().forEach(function (track) {
+  if (S.mediaStream) {
+    S.mediaStream.getTracks().forEach(function (track) {
       track.stop();
     });
-    mediaStream = null;
+    S.mediaStream = null;
   }
 }
 
@@ -2543,18 +2444,18 @@ function hardStopMic() {
  * During cooldown, the "Start Speech" button is disabled.
  */
 function startCooldown() {
-  inCooldown = true;
+  S.inCooldown = true;
   disable(dom.btnStart);
   dom.statusText.textContent = "Cooldown — mic re-arming shortly...";
 
-  cooldownTimer = setTimeout(function () {
-    inCooldown = false;
-    cooldownTimer = null;
+  S.cooldownTimer = setTimeout(function () {
+    S.inCooldown = false;
+    S.cooldownTimer = null;
     // Re-enable Start Speech only if consent is confirmed
-    if (consentConfirmed && consentSpeakerName.trim().length > 0) {
+    if (S.consentConfirmed && S.consentSpeakerName.trim().length > 0) {
       enable(dom.btnStart);
     }
-    if (hasTTSAudio && hasEvaluationData && !dataPurged) {
+    if (S.hasTTSAudio && S.hasEvaluationData && !S.dataPurged) {
       enable(dom.btnReplay);
     }
     dom.statusText.textContent = STATUS_TEXT[SessionState.IDLE];
@@ -2565,11 +2466,11 @@ function startCooldown() {
  * Cancels any active cooldown (e.g., on panic mute during cooldown).
  */
 function clearCooldown() {
-  if (cooldownTimer) {
-    clearTimeout(cooldownTimer);
-    cooldownTimer = null;
+  if (S.cooldownTimer) {
+    clearTimeout(S.cooldownTimer);
+    S.cooldownTimer = null;
   }
-  inCooldown = false;
+  S.inCooldown = false;
 }
 
 // ─── Button Click Handlers ────────────────────────────────────────
@@ -2633,14 +2534,13 @@ function showNotification(message, type = "info", durationMs = 5000) {
 // ─── Upload Flow ──────────────────────────────────────────────────────
 
 // ─── Form file state ──────────────────────────────────────────────
-let pendingFormFile = null; // { file, base64, mimeType }
 
 function onFileSelected(event) {
   const file = event.target.files[0];
   if (!file) return;
 
   // Require consent before upload
-  if (!consentConfirmed || consentSpeakerName.trim().length === 0) {
+  if (!S.consentConfirmed || S.consentSpeakerName.trim().length === 0) {
     showNotification("Please fill in the consent form before uploading.", "warning");
     event.target.value = "";
     return;
@@ -2672,7 +2572,7 @@ function onFormFileSelected(event) {
   const reader = new FileReader();
   reader.onload = () => {
     const base64 = reader.result.split(",")[1]; // strip data:...;base64,
-    pendingFormFile = { file, base64, mimeType: file.type || "text/plain" };
+    S.pendingFormFile = { file, base64, mimeType: file.type || "text/plain" };
     const label = document.getElementById("form-file-label");
     if (label) {
       label.textContent = `📋 ${file.name}`;
@@ -2685,19 +2585,15 @@ function onFormFileSelected(event) {
 }
 
 // ─── Upload Progress State (Sprint 7: #95 #97 #98) ──────────────
-let uploadElapsedInterval = null;
-let uploadStartTime = null;
-let activeUploadXHR = null;
-const uploadProgressSamples = []; // {time, loaded} for speed calculation
 
 function startUploadTimer() {
-  uploadStartTime = Date.now();
-  uploadProgressSamples.length = 0;
+  S.uploadStartTime = Date.now();
+  S.uploadProgressSamples.length = 0;
   const elapsedEl = document.getElementById("upload-elapsed");
-  if (uploadElapsedInterval) clearInterval(uploadElapsedInterval);
-  uploadElapsedInterval = setInterval(() => {
-    if (!uploadStartTime) return;
-    const elapsed = Math.floor((Date.now() - uploadStartTime) / 1000);
+  if (S.uploadElapsedInterval) clearInterval(S.uploadElapsedInterval);
+  S.uploadElapsedInterval = setInterval(() => {
+    if (!S.uploadStartTime) return;
+    const elapsed = Math.floor((Date.now() - S.uploadStartTime) / 1000);
     const mins = Math.floor(elapsed / 60);
     const secs = elapsed % 60;
     elapsedEl.textContent = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
@@ -2705,23 +2601,23 @@ function startUploadTimer() {
 }
 
 function stopUploadTimer() {
-  if (uploadElapsedInterval) { clearInterval(uploadElapsedInterval); uploadElapsedInterval = null; }
-  activeUploadXHR = null;
+  if (S.uploadElapsedInterval) { clearInterval(S.uploadElapsedInterval); S.uploadElapsedInterval = null; }
+  S.activeUploadXHR = null;
 }
 
 function computeSpeedAndETA(loaded, total) {
   const now = Date.now();
-  const last = uploadProgressSamples[uploadProgressSamples.length - 1];
+  const last = S.uploadProgressSamples[S.uploadProgressSamples.length - 1];
   // Throttle: only add sample if ≥200ms since last (prevents rapid XHR events
   // from filling the window with sub-millisecond deltas that never compute)
   if (!last || (now - last.time) >= 200) {
-    uploadProgressSamples.push({ time: now, loaded });
+    S.uploadProgressSamples.push({ time: now, loaded });
     // Keep last 10 samples for smoothing (~2s window at 200ms throttle)
-    while (uploadProgressSamples.length > 10) uploadProgressSamples.shift();
+    while (S.uploadProgressSamples.length > 10) S.uploadProgressSamples.shift();
   }
-  if (uploadProgressSamples.length < 2) return { speed: "Calculating...", eta: null };
-  const first = uploadProgressSamples[0];
-  const newest = uploadProgressSamples[uploadProgressSamples.length - 1];
+  if (S.uploadProgressSamples.length < 2) return { speed: "Calculating...", eta: null };
+  const first = S.uploadProgressSamples[0];
+  const newest = S.uploadProgressSamples[S.uploadProgressSamples.length - 1];
   const dtSec = (newest.time - first.time) / 1000;
   if (dtSec < 0.2) return { speed: "Calculating...", eta: null };
   const bytesPerSec = (newest.loaded - first.loaded) / dtSec;
@@ -2839,8 +2735,8 @@ function hideUploadProgress() {
 
 // Cancel button handler (#98)
 document.getElementById("upload-cancel-btn").addEventListener("click", () => {
-  if (activeUploadXHR) {
-    activeUploadXHR.abort();
+  if (S.activeUploadXHR) {
+    S.activeUploadXHR.abort();
   }
   updateUploadProgress("Error", 0, "Upload cancelled by user");
   stopUploadTimer();
@@ -2890,7 +2786,7 @@ async function uploadViaGCS(file, metadata) {
     try {
       await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        activeUploadXHR = xhr;
+        S.activeUploadXHR = xhr;
         xhr.open("PUT", uploadUrl);
         xhr.setRequestHeader("Content-Type", file.type);
 
@@ -2907,15 +2803,15 @@ async function uploadViaGCS(file, metadata) {
         };
 
         xhr.onload = () => {
-          activeUploadXHR = null;
+          S.activeUploadXHR = null;
           if (xhr.status >= 200 && xhr.status < 300) {
             resolve();
           } else {
             reject(new Error(`Upload to storage failed (HTTP ${xhr.status})`));
           }
         };
-        xhr.onerror = () => { activeUploadXHR = null; reject(new Error("Upload to storage failed (network error)")); };
-        xhr.onabort = () => { activeUploadXHR = null; reject(new Error("Upload cancelled")); };
+        xhr.onerror = () => { S.activeUploadXHR = null; reject(new Error("Upload to storage failed (network error)")); };
+        xhr.onabort = () => { S.activeUploadXHR = null; reject(new Error("Upload cancelled")); };
         xhr.send(file);
       });
       break; // Success — exit retry loop
@@ -2930,7 +2826,7 @@ async function uploadViaGCS(file, metadata) {
       const delaySec = Math.pow(2, uploadAttempt);
       updateUploadProgress("Retrying", 10, `Network error — retrying in ${delaySec}s (attempt ${uploadAttempt + 1}/${MAX_UPLOAD_RETRIES})...`);
       updateSpeedETA(null, null);
-      uploadProgressSamples.length = 0; // Reset speed samples
+      S.uploadProgressSamples.length = 0; // Reset speed samples
       await new Promise(r => setTimeout(r, delaySec * 1000));
     }
   }
@@ -2944,9 +2840,9 @@ async function uploadViaGCS(file, metadata) {
     };
 
   // Attach evaluation form if provided
-  if (pendingFormFile) {
-    processBody.evaluationFormBase64 = pendingFormFile.base64;
-    processBody.evaluationFormMimeType = pendingFormFile.mimeType;
+  if (S.pendingFormFile) {
+    processBody.evaluationFormBase64 = S.pendingFormFile.base64;
+    processBody.evaluationFormMimeType = S.pendingFormFile.mimeType;
     updateUploadProgress("Processing", 75, "Processing with evaluation form...");
   }
 
@@ -2978,15 +2874,15 @@ async function uploadLegacy(file, metadata) {
   if (metadata.objectives) formData.append("objectives", metadata.objectives);
 
   // Include evaluation form if attached
-  if (pendingFormFile) {
-    formData.append("evaluationFormBase64", pendingFormFile.base64);
-    formData.append("evaluationFormMimeType", pendingFormFile.mimeType);
+  if (S.pendingFormFile) {
+    formData.append("evaluationFormBase64", S.pendingFormFile.base64);
+    formData.append("evaluationFormMimeType", S.pendingFormFile.mimeType);
   }
 
   // Use XHR instead of fetch for upload progress tracking (#95)
   const result = await new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    activeUploadXHR = xhr;
+    S.activeUploadXHR = xhr;
     xhr.open("POST", "/api/upload");
 
     xhr.upload.onprogress = (event) => {
@@ -3001,7 +2897,7 @@ async function uploadLegacy(file, metadata) {
     };
 
     xhr.onload = () => {
-      activeUploadXHR = null;
+      S.activeUploadXHR = null;
       updateUploadProgress("Analyzing", 70, "Generating evaluation...");
       try {
         const data = JSON.parse(xhr.responseText);
@@ -3016,8 +2912,8 @@ async function uploadLegacy(file, metadata) {
         reject(new Error(`Upload failed (HTTP ${xhr.status})`));
       }
     };
-    xhr.onerror = () => { activeUploadXHR = null; reject(new Error("Upload failed (network error)")); };
-    xhr.onabort = () => { activeUploadXHR = null; reject(new Error("Upload cancelled")); };
+    xhr.onerror = () => { S.activeUploadXHR = null; reject(new Error("Upload failed (network error)")); };
+    xhr.onabort = () => { S.activeUploadXHR = null; reject(new Error("Upload cancelled")); };
     xhr.send(formData);
   });
 
@@ -3040,7 +2936,7 @@ async function uploadVideo(file) {
     const objectives = document.getElementById("objectives")?.value;
 
     const metadata = {
-      speakerName: consentSpeakerName,
+      speakerName: S.consentSpeakerName,
       speechTitle: speechTitle || undefined,
       projectType: projectType || undefined,
       objectives: objectives || undefined,
@@ -3063,7 +2959,7 @@ async function uploadVideo(file) {
 
     const response = result;
 
-    updateUploadProgress("Complete", 100, `Processed ${result.durationSeconds?.toFixed(0) || "?"}s of speech — ${result.transcript?.length || 0} segments`);
+    updateUploadProgress("Complete", 100, `Processed ${result.durationSeconds?.toFixed(0) || "?"}s of speech — ${result.transcript?.length || 0} S.segments`);
 
     // ── Make panels visible ──
     const transcriptPanel = document.getElementById("transcript-panel");
@@ -3103,7 +2999,7 @@ async function uploadVideo(file) {
     }
 
     // Clean up form state
-    pendingFormFile = null;
+    S.pendingFormFile = null;
     const formLabel = document.getElementById("form-file-label");
     if (formLabel) { formLabel.textContent = ""; formLabel.style.display = "none"; }
 
@@ -3153,7 +3049,7 @@ async function uploadVideo(file) {
         dlBtn.style.cssText = "margin-top: 8px; width: 100%;";
         dlBtn.innerHTML = "💾 Download Evaluation";
         dlBtn.onclick = () => {
-          const speakerName = (consentSpeakerName || "speaker").replace(/[^a-zA-Z0-9_-]/g, "_");
+          const speakerName = (S.consentSpeakerName || "speaker").replace(/[^a-zA-Z0-9_-]/g, "_");
           const dateStr = new Date().toISOString().slice(0, 10);
           const zipName = `speech-evaluation_${speakerName}_${dateStr}.zip`;
 
@@ -3287,38 +3183,38 @@ async function onStartSpeech() {
   disable(dom.btnStart);
 
   // Guard: don't start during cooldown
-  if (inCooldown) { enable(dom.btnStart); return; }
+  if (S.inCooldown) { enable(dom.btnStart); return; }
 
   // Guard: consent must be confirmed (Req 2.3)
-  if (!consentConfirmed || consentSpeakerName.trim().length === 0) {
+  if (!S.consentConfirmed || S.consentSpeakerName.trim().length === 0) {
     showError("Please enter the speaker's name and confirm consent before starting.", true);
     enable(dom.btnStart);
     return;
   }
 
   // Connect WebSocket on demand (deferred from page load per #59)
-  liveSessionActive = true;
+  S.liveSessionActive = true;
   try {
     await connectWebSocketAndWait();
   } catch (err) {
     showError("Could not connect to server. Please try again.", true);
-    liveSessionActive = false;
+    S.liveSessionActive = false;
     enable(dom.btnStart);
     return;
   }
 
   // Reset state for new recording
-  segments = [];
-  hasEvaluationData = false;
-  hasTTSAudio = false;
-  outputsSaved = false;
-  dataPurged = false;
-  estimatedDuration = null;
-  lastEvaluationScript = "";
-  lastEvaluationData = null;
+  S.segments = [];
+  S.hasEvaluationData = false;
+  S.hasTTSAudio = false;
+  S.outputsSaved = false;
+  S.dataPurged = false;
+  S.estimatedDuration = null;
+  S.lastEvaluationScript = "";
+  S.lastEvaluationData = null;
   // Reset pipeline state for new recording (Req 2.5, 6.3)
-  pipelineStage = "idle";
-  pipelineRunId = 0;
+  S.pipelineStage = "idle";
+  S.pipelineRunId = 0;
   forceStopTtsAndCancelDeferral();
   dismissError();
   hideVideoConsentError();
@@ -3332,7 +3228,7 @@ async function onStartSpeech() {
   hide(dom.evaluationPanel);
 
   // Ensure audio format handshake was sent
-  if (!audioFormatSent) {
+  if (!S.audioFormatSent) {
     sendAudioFormatHandshake();
   }
 
@@ -3348,7 +3244,7 @@ async function onStartSpeech() {
   // Send start_recording command to server
   wsSend({ type: "start_recording" });
 
-  if (videoConsentEnabled && videoStream) {
+  if (S.videoConsentEnabled && S.videoStream) {
     startVideoCapture();
   }
 
@@ -3389,7 +3285,7 @@ async function onDeliverEvaluation() {
 
 async function onReplayEvaluation() {
   // Guard: don't replay during cooldown
-  if (inCooldown) return;
+  if (S.inCooldown) return;
 
   // Echo prevention: hard-stop mic before replay (same as initial delivery)
   hardStopMic();
@@ -3405,10 +3301,10 @@ async function onReplayEvaluation() {
 }
 
 // ─── Mode Switching (#68) ─────────────────────────────────────────
-let currentMode = "live";
+// currentMode now in S.currentMode (state.js)
 
 function switchMode(mode) {
-  currentMode = mode;
+  S.currentMode = mode;
   const tabLive = document.getElementById("tab-live");
   const tabUpload = document.getElementById("tab-upload");
   const btnStart = document.getElementById("btn-start");
@@ -3439,7 +3335,7 @@ function onExportPDF() {
   // Use browser print dialog with CSS print stylesheet
   // This captures the evaluation panel, transcript, and role results
   const originalTitle = document.title;
-  const speakerName = consentSpeakerName || "Speech";
+  const speakerName = S.consentSpeakerName || "Speech";
   const date = new Date().toISOString().slice(0, 10);
   document.title = `${speakerName} - Evaluation - ${date}`;
 
@@ -3449,7 +3345,7 @@ function onExportPDF() {
 
 function onSaveOutputs() {
   // Guard: don't save if data was purged
-  if (dataPurged) return;
+  if (S.dataPurged) return;
 
   // Send save_outputs command to server
   wsSend({ type: "save_outputs" });
@@ -3468,9 +3364,9 @@ function onRevokeConsent() {
   // Phase 4: Release camera on consent revocation
   releaseCamera();
   // Clear speech recording (#60)
-  speechRecordingChunks = [];
-  speechRecordingBlob = null;
-  // Atomic: cancel deferral + bump token + stop audio + clear ttsPlaying + clear latch
+  S.speechRecordingChunks = [];
+  S.speechRecordingBlob = null;
+  // Atomic: cancel deferral + bump token + stop audio + clear S.ttsPlaying + clear latch
   forceStopTtsAndCancelDeferral();
   clearCooldown();
 
@@ -3487,14 +3383,14 @@ function onPanicMute() {
   // Phase 4: Stop video capture immediately
   stopVideoCapture();
   // Clear speech recording (#60)
-  speechRecordingChunks = [];
-  speechRecordingBlob = null;
-  // Atomic: cancel deferral + bump token + stop audio + clear ttsPlaying + clear latch
+  S.speechRecordingChunks = [];
+  S.speechRecordingBlob = null;
+  // Atomic: cancel deferral + bump token + stop audio + clear S.ttsPlaying + clear latch
   forceStopTtsAndCancelDeferral();
   clearCooldown();
   // Reset pipeline state on panic mute (Req 6.3)
-  pipelineStage = "idle";
-  pipelineRunId = 0;
+  S.pipelineStage = "idle";
+  S.pipelineRunId = 0;
 
   // Send panic_mute command to server
   wsSend({ type: "panic_mute" });
@@ -3517,17 +3413,11 @@ function hideElapsedTime() {
 
 // ─── Phase 4: Video Frame Streaming State (Req 2.1, 2.2, 16.1) ──
 /** @type {MediaStream|null} Camera video stream */
-let videoStream = null;
 /** @type {number|null} Interval ID for frame capture at 5 FPS */
-let videoCaptureInterval = null;
 /** Frame sequence number, reset per recording session */
-let videoFrameSeq = 0;
 /** performance.now() at recording start — shared time base with audio */
-let recordingStartPerfNow = 0;
 /** Total frames sent this session (for stats display) */
-let videoFramesSent = 0;
 /** Total frames skipped due to backpressure this session */
-let videoFramesSkipped = 0;
 /** Backpressure threshold: 2 MB */
 const VIDEO_BACKPRESSURE_BYTES = 2 * 1024 * 1024;
 /** Frame capture interval: 200ms = 5 FPS client cap */
@@ -3536,22 +3426,12 @@ const VIDEO_CAPTURE_INTERVAL_MS = 200;
 const VIDEO_JPEG_QUALITY = 0.7;
 
 // ─── Phase 4: Video DOM References ────────────────────────────────
-const videoDom = {
-  previewContainer: document.getElementById("video-preview-container"),
-  preview: document.getElementById("video-preview"),
-  captureCanvas: document.getElementById("video-capture-canvas"),
-  frameStats: document.getElementById("video-frame-stats"),
-  qualityGrade: document.getElementById("video-quality-grade"),
-  btnCameraFlip: document.getElementById("btn-camera-flip"),
-};
+
 
 /** Current camera facing mode: "user" (front) or "environment" (rear) */
-let currentFacingMode = "user";
 /** Whether multiple cameras are detected (shows flip button) */
-let hasMultipleCameras = false;
 
 /** Last video quality grade from final video_status message */
-let lastVideoQualityGrade = null;
 
 /**
  * Encodes a video frame into the TM-prefixed wire format for browser.
@@ -3599,9 +3479,9 @@ function encodeVideoFrameBrowser(header, jpegBytes) {
  * @returns {Promise<boolean>} true if camera acquired successfully
  */
 async function acquireCamera(facingMode) {
-  var mode = facingMode || currentFacingMode;
+  var mode = facingMode || S.currentFacingMode;
   try {
-    videoStream = await navigator.mediaDevices.getUserMedia({
+    S.videoStream = await navigator.mediaDevices.getUserMedia({
       video: {
         width: { ideal: 640 },
         height: { ideal: 480 },
@@ -3609,14 +3489,14 @@ async function acquireCamera(facingMode) {
         facingMode: { ideal: mode },
       }
     });
-    videoDom.preview.srcObject = videoStream;
+    videoDom.preview.srcObject = S.videoStream;
     show(videoDom.previewContainer);
     // Check for multiple cameras and show/hide flip button
     checkMultipleCameras();
     return true;
   } catch (err) {
     console.warn("[Video] Camera acquisition failed:", err.message);
-    videoStream = null;
+    S.videoStream = null;
     return false;
   }
 }
@@ -3629,8 +3509,8 @@ async function checkMultipleCameras() {
   try {
     var devices = await navigator.mediaDevices.enumerateDevices();
     var videoInputs = devices.filter(function (d) { return d.kind === "videoinput"; });
-    hasMultipleCameras = videoInputs.length > 1;
-    if (hasMultipleCameras && videoDom.btnCameraFlip) {
+    S.hasMultipleCameras = videoInputs.length > 1;
+    if (S.hasMultipleCameras && videoDom.btnCameraFlip) {
       videoDom.btnCameraFlip.style.display = "";
     } else if (videoDom.btnCameraFlip) {
       videoDom.btnCameraFlip.style.display = "none";
@@ -3638,7 +3518,7 @@ async function checkMultipleCameras() {
   } catch (err) {
     // If enumerateDevices fails, hide the flip button
     console.warn("[Video] Could not enumerate devices:", err.message);
-    hasMultipleCameras = false;
+    S.hasMultipleCameras = false;
     if (videoDom.btnCameraFlip) {
       videoDom.btnCameraFlip.style.display = "none";
     }
@@ -3651,26 +3531,26 @@ async function checkMultipleCameras() {
  * Preserves video consent state and does not interrupt audio recording.
  */
 async function onCameraFlip() {
-  if (!videoConsentEnabled) return;
+  if (!S.videoConsentEnabled) return;
 
   // Toggle facing mode
-  currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+  S.currentFacingMode = S.currentFacingMode === "user" ? "environment" : "user";
 
   // Release current camera stream (does NOT release audio)
-  if (videoStream) {
-    videoStream.getTracks().forEach(function (track) { track.stop(); });
-    videoStream = null;
+  if (S.videoStream) {
+    S.videoStream.getTracks().forEach(function (track) { track.stop(); });
+    S.videoStream = null;
   }
   if (videoDom.preview) {
     videoDom.preview.srcObject = null;
   }
 
   // Acquire new camera with toggled facing mode
-  var acquired = await acquireCamera(currentFacingMode);
+  var acquired = await acquireCamera(S.currentFacingMode);
   if (!acquired) {
     // If the new camera fails, revert to the previous mode
-    currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
-    acquired = await acquireCamera(currentFacingMode);
+    S.currentFacingMode = S.currentFacingMode === "user" ? "environment" : "user";
+    acquired = await acquireCamera(S.currentFacingMode);
     if (!acquired) {
       showVideoConsentError("Failed to switch camera. Camera access may have been lost.");
     }
@@ -3678,8 +3558,8 @@ async function onCameraFlip() {
   }
 
   // Re-send video_stream_ready with updated dimensions/device label
-  if (videoStream) {
-    var tracks = videoStream.getVideoTracks();
+  if (S.videoStream) {
+    var tracks = S.videoStream.getVideoTracks();
     if (tracks.length > 0) {
       var settings = tracks[0].getSettings();
       var readyMsg = {
@@ -3701,17 +3581,17 @@ async function onCameraFlip() {
  * encodes them in TM-prefixed wire format, and sends over WebSocket.
  */
 function startVideoCapture() {
-  if (!videoStream || !videoDom.preview.videoWidth) {
+  if (!S.videoStream || !videoDom.preview.videoWidth) {
     console.warn("[Video] Cannot start capture — no video stream or video not ready");
     return;
   }
 
   // Reset per-session counters
-  videoFrameSeq = 0;
-  videoFramesSent = 0;
-  videoFramesSkipped = 0;
-  lastVideoQualityGrade = null;
-  recordingStartPerfNow = performance.now();
+  S.videoFrameSeq = 0;
+  S.videoFramesSent = 0;
+  S.videoFramesSkipped = 0;
+  S.lastVideoQualityGrade = null;
+  S.recordingStartPerfNow = performance.now();
 
   // Hide video quality grade from previous session
   if (videoDom.qualityGrade) {
@@ -3721,18 +3601,18 @@ function startVideoCapture() {
   var canvas = videoDom.captureCanvas;
   var ctx = canvas.getContext("2d");
 
-  videoCaptureInterval = setInterval(function () {
+  S.videoCaptureInterval = setInterval(function () {
     // Guard: only send during RECORDING state with video consent (Req 2.1, 10.4)
-    if (currentState !== SessionState.RECORDING) return;
-    if (!videoConsentEnabled) return;
+    if (S.currentState !== SessionState.RECORDING) return;
+    if (!S.videoConsentEnabled) return;
     // Guard: need open WebSocket
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!S.ws || S.ws.readyState !== WebSocket.OPEN) return;
     // Guard: video element must have dimensions
     if (!videoDom.preview.videoWidth || !videoDom.preview.videoHeight) return;
 
     // Backpressure guard: skip frame if bufferedAmount > 2MB
-    if (ws.bufferedAmount > VIDEO_BACKPRESSURE_BYTES) {
-      videoFramesSkipped++;
+    if (S.ws.bufferedAmount > VIDEO_BACKPRESSURE_BYTES) {
+      S.videoFramesSkipped++;
       updateVideoFrameStats();
       return;
     }
@@ -3751,11 +3631,11 @@ function startVideoCapture() {
     canvas.toBlob(function (blob) {
       if (!blob) return;
       // Guard again — state or consent may have changed during async toBlob
-      if (currentState !== SessionState.RECORDING) return;
-      if (!videoConsentEnabled) return;
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      if (ws.bufferedAmount > VIDEO_BACKPRESSURE_BYTES) {
-        videoFramesSkipped++;
+      if (S.currentState !== SessionState.RECORDING) return;
+      if (!S.videoConsentEnabled) return;
+      if (!S.ws || S.ws.readyState !== WebSocket.OPEN) return;
+      if (S.ws.bufferedAmount > VIDEO_BACKPRESSURE_BYTES) {
+        S.videoFramesSkipped++;
         updateVideoFrameStats();
         return;
       }
@@ -3764,25 +3644,25 @@ function startVideoCapture() {
       var reader = new FileReader();
       reader.onload = function () {
         // Final guard after async read — verify state and consent
-        if (currentState !== SessionState.RECORDING) return;
-        if (!videoConsentEnabled) return;
-        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        if (S.currentState !== SessionState.RECORDING) return;
+        if (!S.videoConsentEnabled) return;
+        if (!S.ws || S.ws.readyState !== WebSocket.OPEN) return;
 
         var jpegBytes = new Uint8Array(reader.result);
 
         // Build header with timestamp relative to recording start
         var header = {
-          timestamp: (performance.now() - recordingStartPerfNow) / 1000,
-          seq: videoFrameSeq++,
+          timestamp: (performance.now() - S.recordingStartPerfNow) / 1000,
+          seq: S.videoFrameSeq++,
           width: vw,
           height: vh
         };
 
         // Encode in TM-prefixed wire format and send as binary
         var encoded = encodeVideoFrameBrowser(header, jpegBytes);
-        ws.send(encoded);
+        S.ws.send(encoded);
 
-        videoFramesSent++;
+        S.videoFramesSent++;
         updateVideoFrameStats();
       };
       reader.readAsArrayBuffer(blob);
@@ -3794,9 +3674,9 @@ function startVideoCapture() {
  * Stops video frame capture.
  */
 function stopVideoCapture() {
-  if (videoCaptureInterval !== null) {
-    clearInterval(videoCaptureInterval);
-    videoCaptureInterval = null;
+  if (S.videoCaptureInterval !== null) {
+    clearInterval(S.videoCaptureInterval);
+    S.videoCaptureInterval = null;
   }
 }
 
@@ -3805,17 +3685,17 @@ function stopVideoCapture() {
  */
 function releaseCamera() {
   stopVideoCapture();
-  if (videoStream) {
-    videoStream.getTracks().forEach(function (track) { track.stop(); });
-    videoStream = null;
+  if (S.videoStream) {
+    S.videoStream.getTracks().forEach(function (track) { track.stop(); });
+    S.videoStream = null;
   }
   if (videoDom.preview) {
     videoDom.preview.srcObject = null;
   }
   hide(videoDom.previewContainer);
   // Reset camera toggle state (#51)
-  currentFacingMode = "user";
-  hasMultipleCameras = false;
+  S.currentFacingMode = "user";
+  S.hasMultipleCameras = false;
   if (videoDom.btnCameraFlip) {
     videoDom.btnCameraFlip.style.display = "none";
   }
@@ -3826,7 +3706,7 @@ function releaseCamera() {
  */
 function updateVideoFrameStats() {
   if (videoDom.frameStats) {
-    videoDom.frameStats.textContent = "Sent: " + videoFramesSent + " / Skipped: " + videoFramesSkipped;
+    videoDom.frameStats.textContent = "Sent: " + S.videoFramesSent + " / Skipped: " + S.videoFramesSkipped;
   }
 }
 
@@ -3840,11 +3720,11 @@ function updateVideoFrameStats() {
 function handleVideoStatus(message) {
   // Capture video quality grade from final status (present after stop_recording)
   if (message.videoQualityGrade) {
-    lastVideoQualityGrade = message.videoQualityGrade;
+    S.lastVideoQualityGrade = message.videoQualityGrade;
   }
 
   // Show server-side frame stats during recording
-  if (videoDom.frameStats && currentState === SessionState.RECORDING) {
+  if (videoDom.frameStats && S.currentState === SessionState.RECORDING) {
     const processed = message.framesProcessed || 0;
     const dropped = message.framesDropped || 0;
     const latency = message.processingLatencyMs || 0;
