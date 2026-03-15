@@ -11,7 +11,11 @@
 
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
-const { PDFParse: pdfParse } = require("pdf-parse") as { PDFParse: (buffer: Buffer) => Promise<{ text: string }> };
+// pdf-parse v2 exports PDFParse as a class — constructor takes { data: Uint8Array },
+// getText() is async and returns { text: string }.
+const { PDFParse } = require("pdf-parse") as {
+    PDFParse: new (opts: { data: Uint8Array }) => { getText(): Promise<{ text: string }> };
+};
 import mammoth from "mammoth";
 
 // ─── Types ───────────────────────────────────────────────────────────────────────
@@ -60,7 +64,9 @@ export async function extractFormText(buffer: Buffer, mimeType: string): Promise
     }
 
     if (PDF_MIME_TYPES.has(mimeType)) {
-        const result = await pdfParse(buffer);
+        const uint8 = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+        const parser = new PDFParse({ data: uint8 });
+        const result = await parser.getText();
         const text = result.text?.trim();
         if (!text) {
             throw new Error("PDF contains no extractable text. It may be a scanned document.");
