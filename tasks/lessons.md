@@ -15,6 +15,16 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-14 — Lesson 28: Error Message Format Compatibility During Module Extraction
+
+**The Discovery**: When extracting `assertTransition()` from `SessionManager` into `session-state-machine.ts`, changing the error message format caused 13 test failures. Tests checked for specific substrings like `toContain("Expected state")` and `toContain("startRecording()")` in error messages.
+
+**The Scientific Proof**: First build passed, but 13 tests failed on error message assertions. The fix was to format the new module's error messages identically to the old inline code, preserving the `"Expected state: \"${expectedSource}\". Current state: \"${current}\"."` structure.
+
+**The Resulting Rule**: When extracting logic into a shared module, always match the existing error message format exactly. Search for `toContain` and `toThrowError` in test files to find message assertions before changing error text.
+
+**Future Warning**: Any error message refactoring must grep for test assertions that match against the error text. This applies to all extractable concerns, not just state machines.
+
 ## 🗓️ 2026-03-14 — Lesson 27: validateAndRetry Drops Non-Standard Fields When Reconstructing Evaluation Objects
 
 **The Discovery**: The `validateAndRetry()` method in `evaluation-generator.ts` reconstructs the `StructuredEvaluation` object from individual fields, but only copies known fields (`opening`, `items`, `closing`, `structure_commentary`, `visual_feedback`). When `completed_form` was added to the GPT output schema, the parser correctly extracted it, but `validateAndRetry` silently dropped it when building the return object.
