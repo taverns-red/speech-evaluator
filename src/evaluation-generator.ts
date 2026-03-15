@@ -1332,3 +1332,37 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
       }
     }
 }
+
+// ─── Standalone Functions (#84: Decompose EvaluationGenerator) ─────────────────
+// These functions provide the same functionality as EvaluationGenerator class methods
+// but can be called without instantiation. They enable callers (e.g., the evaluation
+// pipeline, upload handler) to use rendering and redaction without a full generator.
+
+/**
+ * Render a structured evaluation into a natural spoken script.
+ * Standalone version of EvaluationGenerator.renderScript().
+ *
+ * This is a pure function — no LLM calls, no instance state needed.
+ */
+export function renderEvaluationScript(
+  evaluation: StructuredEvaluation,
+  speakerName?: string,
+  metrics?: DeliveryMetrics,
+  visualObservations?: VisualObservations | null,
+): string {
+  // Create a minimal generator instance for rendering only
+  // (renderScript uses no instance state — only module-level constants)
+  const renderer = Object.create(EvaluationGenerator.prototype) as EvaluationGenerator;
+  return renderer.renderScript(evaluation, speakerName, metrics, visualObservations);
+}
+
+/**
+ * Redact third-party names from evaluation artifacts.
+ * Standalone version of EvaluationGenerator.redact().
+ *
+ * This is a pure function — no LLM calls, no instance state needed.
+ */
+export function redactEvaluation(input: RedactionInput): RedactionOutput {
+  const renderer = Object.create(EvaluationGenerator.prototype) as EvaluationGenerator;
+  return renderer.redact(input);
+}
