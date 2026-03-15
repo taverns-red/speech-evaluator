@@ -29,7 +29,7 @@ type EventHandler<T = any> = (payload: T) => void;
 
 // ─── EventBus ────────────────────────────────────────────────────────────────
 
-export class EventBus<TEvents extends Record<string, unknown>> {
+export class EventBus<TEvents extends { [K in keyof TEvents]: unknown }> {
   private handlers = new Map<keyof TEvents, Set<EventHandler>>();
 
   /**

@@ -35,6 +35,7 @@ import type { ToneChecker } from "./tone-checker.js";
 import type { FilePersistence } from "./file-persistence.js";
 import type { VADMonitor, VADConfig, VADEventCallback } from "./vad-monitor.js";
 import { runEvaluationStages } from "./evaluation-pipeline.js";
+import { VALID_TRANSITIONS, assertValidTransition } from "./session-state-machine.js";
 
 // ─── Quality thresholds (matching EvaluationGenerator's internal thresholds) ────
 
@@ -83,22 +84,7 @@ export interface SessionManagerDeps {
   videoProcessorFactory?: (config: VideoConfig, deps: VideoProcessorDeps) => VideoProcessor;
 }
 
-/**
- * Valid state transitions for the session state machine.
- *
- * IDLE → RECORDING:    startRecording()
- * RECORDING → PROCESSING: stopRecording()
- * PROCESSING → DELIVERING: generateEvaluation() → TTS starts
- * DELIVERING → IDLE:    completeDelivery() (TTS complete)
- *
- * panicMute() can transition from ANY state → IDLE
- */
-const VALID_TRANSITIONS: ReadonlyMap<SessionState, SessionState> = new Map([
-  [SessionState.IDLE, SessionState.RECORDING],
-  [SessionState.RECORDING, SessionState.PROCESSING],
-  [SessionState.PROCESSING, SessionState.DELIVERING],
-  [SessionState.DELIVERING, SessionState.IDLE],
-]);
+// VALID_TRANSITIONS imported from ./session-state-machine.js
 
 export class SessionManager {
   private sessions: Map<string, Session> = new Map();
@@ -1409,6 +1395,7 @@ export class SessionManager {
 
   /**
    * Validates that a state transition is allowed.
+   * Delegates to the extracted session-state-machine module.
    * @throws Error with a descriptive message if the transition is invalid.
    */
   private assertTransition(
@@ -1416,27 +1403,6 @@ export class SessionManager {
     targetState: SessionState,
     methodName: string,
   ): void {
-    const allowedTarget = VALID_TRANSITIONS.get(session.state);
-
-    if (allowedTarget !== targetState) {
-      throw new Error(
-        `Invalid state transition: cannot call ${methodName}() in "${session.state}" state. ` +
-          `Expected state: "${this.getExpectedStateForTarget(targetState)}". ` +
-          `Current state: "${session.state}".`,
-      );
-    }
-  }
-
-  /**
-   * Returns the expected source state for a given target state.
-   * Used for descriptive error messages.
-   */
-  private getExpectedStateForTarget(targetState: SessionState): string {
-    for (const [source, target] of VALID_TRANSITIONS) {
-      if (target === targetState) {
-        return source;
-      }
-    }
-    return "unknown";
+    assertValidTransition(session.state, targetState, methodName);
   }
 }
