@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.7](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.6...ai-speech-evaluator-v0.6.7) (2026-03-15)
+
+
+### Features
+
+* wire role pipeline execution — set_active_roles + role_results messages ([#72](https://github.com/rservant/speech-evaluator/issues/72), [#73](https://github.com/rservant/speech-evaluator/issues/73)) ([0bdcd21](https://github.com/rservant/speech-evaluator/commit/0bdcd21c960be056e515daead4e8698181a21c42))
+
+
+### Bug Fixes
+
+* reduce Whisper chunk size to 24MB to prevent 413 errors ([#91](https://github.com/rservant/speech-evaluator/issues/91)) ([d3868b8](https://github.com/rservant/speech-evaluator/commit/d3868b86b0890a45d318bb997c05d1a601596aae))
+* unify connection status indicators to prevent contradictory messaging ([#90](https://github.com/rservant/speech-evaluator/issues/90)) ([d6ab8cb](https://github.com/rservant/speech-evaluator/commit/d6ab8cb54676f8a41bbaa85757773aa847241456))
+
 ## [0.6.6](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.5...ai-speech-evaluator-v0.6.6) (2026-03-15)
 
 
