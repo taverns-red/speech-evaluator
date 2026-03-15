@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.13](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.12...ai-speech-evaluator-v0.6.13) (2026-03-15)
+
+
+### Bug Fixes
+
+* speed/ETA shows Calculating... immediately, reduced min delta to 0.2s ([#105](https://github.com/rservant/speech-evaluator/issues/105)) ([e68035f](https://github.com/rservant/speech-evaluator/commit/e68035ff9b631400184b2371d6f4755db87fefba))
+
 ## [0.6.12](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.11...ai-speech-evaluator-v0.6.12) (2026-03-15)
 
 
