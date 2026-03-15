@@ -297,14 +297,10 @@
     </footer>
   </div>
 
-  <script>
-    // ─── Session State Constants ──────────────────────────────────────
-    const SessionState = Object.freeze({
-      IDLE: "idle",
-      RECORDING: "recording",
-      PROCESSING: "processing",
-      DELIVERING: "delivering",
-    });
+  <script type="module">
+    // ─── ES Module Imports ──────────────────────────────────────────────
+    import { SessionState, STATUS_TEXT, PROJECT_TYPES, MAX_UPLOAD_SIZE_MB, COOLDOWN_MS } from "./js/constants.js";
+    import { show, hide, enable, disable, formatTimestamp, escapeHtml } from "./js/utils.js";
 
     // ─── Sign Out ──────────────────────────────────────────────────────
     function signOut() {
@@ -395,40 +391,7 @@
     /** Configured video FPS (1-5, default 2) */
     let videoFpsConfig = 2;
 
-    /** Predefined Pathways project types and their standard objectives (Req 4.2) */
-    const PROJECT_TYPES = {
-      "Ice Breaker": [
-        "Introduce yourself and share your personal story",
-        "Organize your speech with an opening, body, and conclusion",
-        "Speak for 4-6 minutes"
-      ],
-      "Evaluation and Feedback": [
-        "Present a speech on any topic",
-        "Receive and apply feedback from evaluators",
-        "Speak for 5-7 minutes"
-      ],
-      "Researching and Presenting": [
-        "Research a topic and present your findings",
-        "Use credible sources to support your points",
-        "Speak for 5-7 minutes"
-      ],
-      "Introduction to Vocal Variety": [
-        "Use vocal variety to enhance your message",
-        "Vary pace, pitch, volume, and pauses",
-        "Speak for 5-7 minutes"
-      ],
-      "Connect with Storytelling": [
-        "Share a personal story that connects with the audience",
-        "Use vivid language and emotional appeal",
-        "Speak for 5-7 minutes"
-      ],
-      "Persuasive Speaking": [
-        "Persuade the audience to adopt your viewpoint",
-        "Use logical arguments and emotional appeals",
-        "Speak for 5-7 minutes"
-      ],
-      "Custom / Other": []
-    };
+    // PROJECT_TYPES imported from ./js/constants.js
 
     // ─── Phase 3: VAD Audio Level Meter State (Req 10.1, 10.3, 10.4) ──
     /** Timestamp (ms) of the last received vad_status message */
@@ -501,8 +464,7 @@
     let inCooldown = false;
     /** Cooldown timer ID */
     let cooldownTimer = null;
-    /** Cooldown duration in ms (2.5 seconds — midpoint of 2-3 second range) */
-    const COOLDOWN_MS = 2500;
+    // COOLDOWN_MS imported from ./js/constants.js
 
     // ─── DOM References ───────────────────────────────────────────────
     const dom = {
@@ -562,13 +524,7 @@
       videoFpsValue: document.getElementById("video-fps-value"),
     };
 
-    // ─── Status Text Map ──────────────────────────────────────────────
-    const STATUS_TEXT = {
-      [SessionState.IDLE]: "Ready — click \"Start Speech\" to begin",
-      [SessionState.RECORDING]: "Recording speech...",
-      [SessionState.PROCESSING]: "Speech processed — click \"Deliver Evaluation\" when ready",
-      [SessionState.DELIVERING]: "Delivering evaluation...",
-    };
+    // STATUS_TEXT imported from ./js/constants.js
 
     // ─── UI Update: Main State Machine ────────────────────────────────
     /**
@@ -2830,7 +2786,7 @@
 
     // ─── Notification Toast ──────────────────────────────────────────
 
-    const MAX_UPLOAD_SIZE_MB = 2048; // GCS signed URL upload bypasses Cloud Run 32 MiB limit
+    // MAX_UPLOAD_SIZE_MB imported from ./js/constants.js
 
     /**
      * Shows a toast notification banner.
@@ -3501,25 +3457,8 @@
       showInterruptionBanner();
     }
 
-    // ─── Utility Functions ────────────────────────────────────────────
-
-    function show(el) {
-      el.classList.add("visible");
-      el.classList.remove("hidden");
-    }
-
-    function hide(el) {
-      el.classList.remove("visible");
-      el.classList.add("hidden");
-    }
-
-    function enable(el) {
-      el.disabled = false;
-    }
-
-    function disable(el) {
-      el.disabled = true;
-    }
+    // ─── Utility Functions (imported from ./js/utils.js) ──────────────
+    // show, hide, enable, disable, formatTimestamp, escapeHtml are imported
 
     function showElapsedTime() {
       dom.elapsedTime.classList.add("visible");
@@ -3527,28 +3466,6 @@
 
     function hideElapsedTime() {
       dom.elapsedTime.classList.remove("visible");
-    }
-
-    /**
-     * Formats seconds into MM:SS timestamp string.
-     * @param {number} totalSeconds
-     * @returns {string}
-     */
-    function formatTimestamp(totalSeconds) {
-      const mins = Math.floor(totalSeconds / 60);
-      const secs = Math.floor(totalSeconds % 60);
-      return String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
-    }
-
-    /**
-     * Escapes HTML special characters to prevent XSS.
-     * @param {string} text
-     * @returns {string}
-     */
-    function escapeHtml(text) {
-      const div = document.createElement("div");
-      div.textContent = text;
-      return div.innerHTML;
     }
 
     // ─── Phase 4: Video Frame Streaming State (Req 2.1, 2.2, 16.1) ──
@@ -3977,6 +3894,26 @@
     dom.videoConsentCheckbox.addEventListener("change", onVideoConsentChange);
     dom.videoFpsSlider.addEventListener("change", onVideoFpsChange);
     dom.videoFpsSlider.addEventListener("input", onVideoFpsInput);
+
+    // ─── Module → Global Bridge ──────────────────────────────────────
+    // Expose functions referenced by HTML onclick/onchange attributes.
+    // These are needed because <script type="module"> scopes all
+    // declarations — inline HTML handlers can only call window-level functions.
+    window.signOut = signOut;
+    window.dismissError = dismissError;
+    window.onVADConfirmStop = onVADConfirmStop;
+    window.onVADDismiss = onVADDismiss;
+    window.onCameraFlip = onCameraFlip;
+    window.toggleVideoSize = toggleVideoSize;
+    window.onStartSpeech = onStartSpeech;
+    window.onStopSpeech = onStopSpeech;
+    window.onDeliverEvaluation = onDeliverEvaluation;
+    window.onReplayEvaluation = onReplayEvaluation;
+    window.onSaveOutputs = onSaveOutputs;
+    window.onRevokeConsent = onRevokeConsent;
+    window.onPanicMute = onPanicMute;
+    window.onFileSelected = onFileSelected;
+    window.onFormFileSelected = onFormFileSelected;
   </script>
 
   <footer style="text-align:center;padding:1rem 0 0.75rem;margin-top:2rem;">
