@@ -15,6 +15,16 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-14 — Lesson 29: fast-check Requires asyncProperty for async Predicates
+
+**The Discovery**: Using `fc.property()` with an `async` predicate function silently fails — the promise resolves to a truthy object which `fc.assert()` interprets as `true`, so violations go undetected. Property-based tests with async operations (like calling `role.run()`) must use `fc.asyncProperty()` and the `it()` callback must be `async` with `await fc.assert(...)`.
+
+**The Scientific Proof**: 2 property tests for AhCounterRole passed falsely with `fc.property()` + async predicates. Switching to `fc.asyncProperty()` + `await` made them properly execute assertions.
+
+**The Resulting Rule**: Always use `fc.asyncProperty()` when the predicate is async. Search for `fc.property(` + `async` in test files to detect violations.
+
+**Future Warning**: Any property test calling an async function (Promise-returning) must use `asyncProperty`. The synchronous `property()` will silently accept the Promise object as truthy.
+
 ## 🗓️ 2026-03-14 — Lesson 28: Error Message Format Compatibility During Module Extraction
 
 **The Discovery**: When extracting `assertTransition()` from `SessionManager` into `session-state-machine.ts`, changing the error message format caused 13 test failures. Tests checked for specific substrings like `toContain("Expected state")` and `toContain("startRecording()")` in error messages.
