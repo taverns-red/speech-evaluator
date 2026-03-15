@@ -2033,6 +2033,8 @@
         ws.send(JSON.stringify(message));
       } else {
         showError("Not connected to server. Reconnecting…", false);
+        dom.connectionStatus.textContent = "Disconnected";
+        dom.connectionStatus.style.color = "var(--text-muted)";
         manualReconnect();
       }
     }
