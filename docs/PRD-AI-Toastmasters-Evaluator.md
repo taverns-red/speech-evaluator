@@ -586,18 +586,152 @@ Transform from a meeting evaluator into a comprehensive speech **coaching produc
 
 ---
 
-## Phase 9 — Expansion (Future Directions)
+## Phase 9 — Meeting Roles Platform
 
-### Potential Capabilities
+### Goal
+
+Evolve from a single-purpose speech evaluator into a **comprehensive Toastmasters meeting roles platform**. Each Toastmasters meeting role becomes a pluggable AI module operating on shared session data.
+
+### Role Abstraction Layer (Foundation — #72)
+
+A `MeetingRole` interface that allows the system to support multiple meeting roles through a pluggable architecture:
+
+```typescript
+interface MeetingRole {
+  name: string;
+  description: string;
+  promptTemplate: (context: SessionContext) => PromptPair;
+  outputSchema: JSONSchema;
+  renderReport: (output: unknown) => string;
+  renderTTS?: (output: unknown) => string;
+}
+```
+
+- **Role registry**: operators enable/disable roles per meeting
+- **Shared session data**: transcript, metrics, video observations passed to all active roles
+- **Independent outputs**: each role produces its own report and optional TTS delivery
+- **UI role selector**: meeting setup screen allows role selection
+- Existing Speech Evaluator refactored to implement `MeetingRole`
+
+---
+
+### Meeting Role: AI Ah-Counter (#73)
+
+**Priority**: P1 | **Complexity**: Low | **Dependencies**: Role Abstraction Layer
+
+The most requested AI function at Toastmasters meetings. Leverages existing filler word detection in `MetricsExtractor`.
+
+**Capabilities**:
+- Per-speaker filler word count with timestamps and ±2 word context
+- "Word of the Day" usage tracking (operator inputs the word)
+- Distinguishes true filler words from intentional discourse markers
+- Structured meeting-end report (~1 minute spoken)
+
+---
+
+### Meeting Role: AI Timer (#74)
+
+**Priority**: P1 | **Complexity**: Low | **Dependencies**: Role Abstraction Layer
+
+**Capabilities**:
+- Real-time green/yellow/red visual indicators during speech
+- Configurable time targets per Toastmasters project type (e.g., Ice Breaker: 4-6 min)
+- Over-time warnings at red+30s
+- Timer report: all speeches with timing compliance summary
+- Integration with project awareness (Phase 3) for automatic target selection
+
+---
+
+### Meeting Role: AI Grammarian (#75)
+
+**Priority**: P2 | **Complexity**: Medium | **Dependencies**: Role Abstraction Layer
+
+**Capabilities**:
+- Grammatical pattern analysis (agreement, tense, fragments)
+- Vocabulary richness and variety metrics
+- Recurring phrases and verbal crutch identification
+- "Word of the Day" usage tracking with context quotes
+- Notable turns of phrase highlighted as positive examples
+- Structured report (~1-2 minutes spoken)
+
+---
+
+### Meeting Role: AI Table Topics Master (#76)
+
+**Priority**: P2 | **Complexity**: Low | **Dependencies**: Role Abstraction Layer
+
+**Capabilities**:
+- Generates 5-10 themed Table Topics questions per session
+- Accepts theme input from operator (e.g., "travel," "leadership")
+- Variable difficulty levels and question styles (opinion, scenario, storytelling, hypothetical)
+- Avoids controversial or overly personal topics
+- Optional TTS delivery of each question
+- Can regenerate individual questions on demand
+
+---
+
+### Meeting Role: AI Table Topics Evaluator (#77)
+
+**Priority**: P3 | **Complexity**: Medium | **Dependencies**: Role Abstraction Layer, speaker diarization or manual segmentation
+
+**Capabilities**:
+- Adapted evaluation criteria for impromptu speaking (1-2 minute responses)
+- Focus areas: relevance to question, structure, creativity, confidence, time usage
+- Concise evaluations (~30 seconds spoken each)
+- Multiple evaluations per session (5-10 speakers)
+- "Best Table Topics Speaker" selection with justification
+
+---
+
+### Meeting Role: AI General Evaluator (#78)
+
+**Priority**: P3 | **Complexity**: High | **Dependencies**: Role Abstraction Layer, multi-session aggregation, Timer data (#74)
+
+The most senior evaluation role in Toastmasters — evaluates the entire meeting.
+
+**Capabilities**:
+- Timing adherence analysis across all speeches and roles
+- Meeting flow and transition observations
+- Functional role performance commentary
+- Overall meeting atmosphere and energy assessment
+- Constructive improvement suggestions
+- Highlights best moments and standout performances
+- Structured report (~2-3 minutes spoken)
+
+---
+
+### Future Capabilities (Beyond Meeting Roles)
 
 - **Virtual meeting integration**: Zoom, Webex, Google Meet, Teams
-- **AI General Evaluator**: Evaluate the entire meeting (timing, transitions, role performance)
-- **AI Table Topics Master**: Generate and deliver Table Topics questions
-- **Multi-speaker analytics**: Compare delivery patterns across speakers in a session
+- **Multi-speaker analytics**: Compare delivery patterns across speakers
 - **Club performance insights**: Aggregate analytics for club officers
 - **Training mode for new evaluators**: Compare human vs. AI evaluations
 - **Multi-language support**: Evaluate speeches in languages other than English
 - **Custom evaluation frameworks**: Club-specific or district-specific criteria
+
+### Rollout Priority
+
+| Priority | Role | Rationale |
+|----------|------|-----------|
+| P0 | Role Abstraction Layer | Foundation — all roles depend on this |
+| P1 | Ah-Counter | Lowest complexity, highest demand, leverages existing filler detection |
+| P1 | Timer | Largely deterministic, high meeting utility |
+| P2 | Grammarian | Moderate complexity, good LLM use case |
+| P2 | Table Topics Master | Content generation only, no audio processing |
+| P3 | Table Topics Evaluator | Needs multi-speaker support or manual segmentation |
+| P3 | General Evaluator | Needs multi-session aggregation |
+
+### Exit Criteria
+
+| Metric | Target |
+|--------|--------|
+| Role abstraction | ≥ 3 meeting roles implemented and deployable |
+| Ah-Counter accuracy | Filler word detection ≥ 90% recall vs. human Ah-Counter |
+| Timer accuracy | Timing compliance report matches manual timer ≥ 95% |
+| Grammarian relevance | Language observations rated "useful" by ≥ 70% of speakers surveyed |
+| Table Topics quality | Generated questions rated "appropriate and engaging" by ≥ 80% of meeting attendees |
+| General Evaluator coverage | Meeting-level evaluation covers timing, flow, and role performance in ≥ 90% of reports |
+| Role independence | Each role produces output independently; no role failure affects other roles |
 
 ---
 
@@ -623,6 +757,7 @@ Transform from a meeting evaluator into a comprehensive speech **coaching produc
 - Speech structure analysis (Phase 2+, descriptive only)
 - Project-aware evaluation (Phase 3+)
 - Scoring and longitudinal pattern detection (Phase 8+)
+- Pluggable meeting role prompt/schema system (Phase 9+)
 
 ### Delivery Layer
 - Text-to-speech with warm conversational voice
@@ -727,7 +862,13 @@ Phase 1 (MVP) ──→ Phase 2 (Stability) ──→ Phase 3 (Semi-Auto)
                                                  Phase 8 (Coaching)
                                                        │
                                                        ▼
-                                                 Phase 9 (Expansion)
+                                                 Phase 9 (Meeting Roles Platform)
+                                                       │
+                                                 ┌─────┼──────┐
+                                                 │     │      │
+                                                P1    P2     P3
+                                           (Ah-Ctr, (Gram, (TT Eval,
+                                            Timer) TT Mstr) Gen Eval)
 ```
 
 *Phase 5 has a reliability gate: Phase 2 exit criteria must be met for ≥ 10 consecutive real meetings before Phase 5 development begins.
