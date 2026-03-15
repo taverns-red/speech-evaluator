@@ -3056,11 +3056,11 @@
       uploadProgressSamples.push({ time: now, loaded });
       // Keep last 5 samples for smoothing
       while (uploadProgressSamples.length > 5) uploadProgressSamples.shift();
-      if (uploadProgressSamples.length < 2) return { speed: null, eta: null };
+      if (uploadProgressSamples.length < 2) return { speed: "Calculating...", eta: null };
       const first = uploadProgressSamples[0];
       const last = uploadProgressSamples[uploadProgressSamples.length - 1];
       const dtSec = (last.time - first.time) / 1000;
-      if (dtSec < 0.5) return { speed: null, eta: null };
+      if (dtSec < 0.2) return { speed: "Calculating...", eta: null };
       const bytesPerSec = (last.loaded - first.loaded) / dtSec;
       const speed = bytesPerSec > 0 ? (bytesPerSec / 1024 / 1024).toFixed(1) + " MB/s" : null;
       const remaining = total - loaded;

@@ -39,13 +39,13 @@ export function computeSpeedAndETA(
   samples.push({ time: now, loaded });
   while (samples.length > maxSamples) samples.shift();
 
-  if (samples.length < 2) return { speed: null, eta: null };
+  if (samples.length < 2) return { speed: "Calculating...", eta: null };
 
   const first = samples[0];
   const last = samples[samples.length - 1];
   const dtSec = (last.time - first.time) / 1000;
 
-  if (dtSec < 0.5) return { speed: null, eta: null };
+  if (dtSec < 0.2) return { speed: "Calculating...", eta: null };
 
   const bytesPerSec = (last.loaded - first.loaded) / dtSec;
 

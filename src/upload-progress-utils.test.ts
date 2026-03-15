@@ -19,19 +19,19 @@ import {
 } from "./upload-progress-utils.js";
 
 describe("computeSpeedAndETA", () => {
-  it("returns null for first sample (insufficient data)", () => {
+  it("returns Calculating... for first sample (insufficient data)", () => {
     const samples: ProgressSample[] = [];
     const result = computeSpeedAndETA(samples, 1000, 10000);
-    expect(result.speed).toBeNull();
+    expect(result.speed).toBe("Calculating...");
     expect(result.eta).toBeNull();
   });
 
-  it("returns null if time delta is too small (<0.5s)", () => {
+  it("returns Calculating... if time delta is too small (<0.2s)", () => {
     const now = Date.now();
     const samples: ProgressSample[] = [{ time: now, loaded: 0 }];
-    // Second sample < 0.5s later (same timestamp)
+    // Second sample < 0.2s later (same timestamp)
     const result = computeSpeedAndETA(samples, 5000, 10000);
-    expect(result.speed).toBeNull();
+    expect(result.speed).toBe("Calculating...");
   });
 
   it("computes speed and ETA with sufficient samples", () => {
@@ -81,7 +81,7 @@ describe("computeSpeedAndETA", () => {
             ];
             const safeTotal = Math.max(total, loaded + 1);
             const result = computeSpeedAndETA(samples, loaded, safeTotal);
-            if (result.speed !== null) {
+            if (result.speed !== null && result.speed !== "Calculating...") {
               expect(result.speed).toMatch(/^\d+\.\d MB\/s$/);
             }
           },
