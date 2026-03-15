@@ -12,6 +12,18 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-15 — Lesson 34: DOM Cache Key Names Must Match Usage Sites During State Extraction
+
+**The Discovery**: When extracting shared state into `state.js`, the `dom` cache renamed `videoFpsConfig` to `videoFpsConfig_el` (to disambiguate from `S.videoFpsConfig`, the numeric FPS value). But `app.js` still referenced `dom.videoFpsConfig` (no `_el` suffix) in 5 locations. Since `dom.videoFpsConfig` was `undefined`, calling `hide(undefined)` threw `TypeError: Cannot read properties of undefined (reading 'classList')`. This crashed the entire module before the Module→Global Bridge could execute, making ALL other functions fail with `ReferenceError`.
+
+**The Scientific Proof**: Browser console showed `TypeError: Cannot read properties of undefined (reading 'classList')` at `hide(utils.js:22)` called from `updateUI(app.js:221)`. Renaming all 5 references to `dom.videoFpsConfig_el` fixed the crash and all downstream errors.
+
+**The Resulting Rule**: When renaming keys in a shared object (like a DOM cache), grep for ALL usage sites of the old name. A naming disambiguation (`_el` suffix) is worthless if consumers aren't updated. Use `grep -rn 'dom\.oldName' public/js/` before committing.
+
+**Future Warning**: Any new DOM cache entries that share a name with an `S.*` state variable need the `_el` suffix convention — and ALL consumers must use the suffixed name.
+
+**rules.md**: none (project-specific naming convention)
+
 ## 🗓️ 2026-03-14 — Lesson 33: ES Module Scoping Breaks Inline onclick Handlers
 
 **The Discovery**: New functions (`switchMode`, `onExportPDF`) defined inside `<script type="module">` were invisible to inline HTML `onclick` attributes. The existing codebase already had a "Module → Global Bridge" section at the bottom of the script that explicitly assigns `window.functionName = functionName` for every onclick-referenced function. Adding new functions without registering them in this bridge means they silently fail when clicked.
