@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.11](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.10...ai-speech-evaluator-v0.6.11) (2026-03-15)
+
+
+### Features
+
+* configurable Firebase auth domain via FIREBASE_AUTH_DOMAIN env var ([#70](https://github.com/rservant/speech-evaluator/issues/70)) ([c4ef851](https://github.com/rservant/speech-evaluator/commit/c4ef8518393ac71020706cbcb49852d00f8f6601))
+* upload pipeline stepper with animated steps ([#96](https://github.com/rservant/speech-evaluator/issues/96)) ([bbf2d3e](https://github.com/rservant/speech-evaluator/commit/bbf2d3e939ff7407e61db9cb90a974343475bae7))
+
 ## [0.6.10](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.9...ai-speech-evaluator-v0.6.10) (2026-03-15)
 
 
