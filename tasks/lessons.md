@@ -430,3 +430,15 @@
 **The Resulting Rule**: When removing multiple non-contiguous blocks from a file, always process them in reverse order (highest line numbers first). Verify the remaining file after each removal, not just at the end.
 
 **Future Warning**: Any future large-scale extraction should prefer incremental extract-and-commit cycles over batch processing. Each cycle should include a browser verification.
+
+## 🗓️ 2026-03-15 — Lesson 37: Safari ITP Breaks Firebase signInWithPopup via Cross-Origin Storage Partitioning
+
+**The Discovery**: Firebase `signInWithPopup` on iOS Safari fails with "Unable to process request due to missing initial state." Safari's Intelligent Tracking Prevention (ITP) partitions `sessionStorage` across different origins. When `authDomain` is set to a Firebase Hosting domain (`project.firebaseapp.com`) — different from the app's domain (`eval.taverns.red`) — the state stored before the OAuth redirect is inaccessible when the redirect returns.
+
+**The Scientific Proof**: The error message explicitly mentions "storage-partitioned browser environment." Firebase's own documentation recommends using the app's own domain as `authDomain` and proxying `/__/auth/handler` to eliminate the cross-origin issue.
+
+**The Farley Principle Applied**: Evolutionary Architecture — detect the browser environment and use the appropriate auth flow (`signInWithRedirect` for Safari, `signInWithPopup` for desktop) rather than forcing a single approach for all platforms.
+
+**The Resulting Rule**: Always set `authDomain` to the app's own domain (not `project.firebaseapp.com`) and proxy `/__/auth/*` through the app server. Detect iOS/Safari and use `signInWithRedirect` with `getRedirectResult()` on page load.
+
+**Future Warning**: Any new Firebase project must include the `/__/auth/*` reverse proxy from day one. The fallback `authDomain` in `index.ts` must match the production domain.
