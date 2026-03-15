@@ -15,6 +15,16 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-14 — Lesson 32: Injectable LLM Functions Enable Role Testability
+
+**The Discovery**: The Grammarian role needed LLM access, but directly depending on `EvaluationGenerator` or `OpenAI` would make testing require complex mocks. By accepting a generic `llmCall: (prompt: string) => Promise<string>` via `RoleContext.config`, the role becomes trivially testable with `vi.fn().mockResolvedValue(...)` while the server wires in the real OpenAI call at runtime.
+
+**The Scientific Proof**: 17 Grammarian tests run in <10ms using mock LLM functions. LLM failure fallback tested with `mockRejectedValue` and invalid JSON responses.
+
+**The Resulting Rule**: LLM-dependent roles should accept a simple function signature rather than a concrete client class. This follows dependency inversion and enables fast unit tests.
+
+**Future Warning**: The `config` bag is loosely typed (`Record<string, unknown>`). Consider adding a `LLMRoleConfig` interface if more roles need this pattern.
+
 ## 🗓️ 2026-03-14 — Lesson 31: Standalone Functions Don't Capture Closure Variables
 
 **The Discovery**: When threading a new dependency (`roleRegistry`) through the WebSocket message handling chain in `server.ts`, the build failed because `handleClientMessage` and `handleDeliverEvaluation` are standalone functions — not closures — so they don't capture variables from `createAppServer`. Every standalone function in the call chain must explicitly receive the dependency as a parameter.
