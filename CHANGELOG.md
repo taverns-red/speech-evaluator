@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.4](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.3...ai-speech-evaluator-v0.6.4) (2026-03-15)
+
+
+### Features
+
+* externalize LLM prompts into template files ([#82](https://github.com/rservant/speech-evaluator/issues/82)) ([aa4cb96](https://github.com/rservant/speech-evaluator/commit/aa4cb96cbd913cc8dc6521cd020479f7a46621e6))
+* introduce typed EventBus for pipeline decoupling ([#83](https://github.com/rservant/speech-evaluator/issues/83)) ([cfc3e3a](https://github.com/rservant/speech-evaluator/commit/cfc3e3a74864ca35a23e044790f3ced98d530184))
+
 ## [0.6.3](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.2...ai-speech-evaluator-v0.6.3) (2026-03-15)
 
 
