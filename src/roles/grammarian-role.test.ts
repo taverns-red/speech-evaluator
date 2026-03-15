@@ -6,7 +6,7 @@
 import { describe, it, expect, vi } from "vitest";
 import * as fc from "fast-check";
 import { GrammarianRole, type LLMCallFn } from "./grammarian-role.js";
-import type { RoleContext } from "../meeting-role.js";
+import type { RoleContext, ReportSection } from "../meeting-role.js";
 import type { DeliveryMetrics } from "../types.js";
 
 // ─── Test Helpers ───────────────────────────────────────────────────────────────
@@ -119,22 +119,22 @@ describe("GrammarianRole", () => {
 
     it("includes grammar notes section", async () => {
       const result = await role.run(makeContext());
-      const section = result.report.sections.find(s => s.heading === "Grammar Notes");
-      expect(section).toBeDefined();
-      expect(section!.content).toContain("Subject-verb");
+      const sec = result.report.sections.find((s: ReportSection) => s.heading === "Grammar Notes");
+      expect(sec).toBeDefined();
+      expect(sec!.content).toContain("Subject-verb");
     });
 
     it("includes vocabulary highlights section", async () => {
       const result = await role.run(makeContext());
-      const section = result.report.sections.find(s => s.heading === "Vocabulary Highlights");
-      expect(section).toBeDefined();
-      expect(section!.content).toContain("juxtaposition");
+      const sec = result.report.sections.find((s: ReportSection) => s.heading === "Vocabulary Highlights");
+      expect(sec).toBeDefined();
+      expect(sec!.content).toContain("juxtaposition");
     });
 
     it("includes recommendations section", async () => {
       const result = await role.run(makeContext());
-      const section = result.report.sections.find(s => s.heading === "Recommendations");
-      expect(section).toBeDefined();
+      const sec = result.report.sections.find((s: ReportSection) => s.heading === "Recommendations");
+      expect(sec).toBeDefined();
     });
   });
 
@@ -164,14 +164,14 @@ describe("GrammarianRole", () => {
       const badLLM = vi.fn().mockResolvedValue("This is not valid JSON at all");
       const result = await role.run(makeContext({ config: { llmCall: badLLM } }));
       expect(result.report.title).toBe("Grammarian Report");
-      expect(result.report.sections.some(s => s.content.includes("unavailable"))).toBe(true);
+      expect(result.report.sections.some((sec: ReportSection) => sec.content.includes("unavailable"))).toBe(true);
     });
 
     it("returns a fallback report when LLM throws", async () => {
       const throwingLLM = vi.fn().mockRejectedValue(new Error("LLM timeout"));
       const result = await role.run(makeContext({ config: { llmCall: throwingLLM } }));
       expect(result.report.title).toBe("Grammarian Report");
-      expect(result.report.sections.some(s => s.content.includes("unavailable"))).toBe(true);
+      expect(result.report.sections.some((sec: ReportSection) => sec.content.includes("unavailable"))).toBe(true);
     });
   });
 
