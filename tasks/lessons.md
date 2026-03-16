@@ -442,3 +442,15 @@
 **The Resulting Rule**: Always set `authDomain` to the app's own domain (not `project.firebaseapp.com`) and proxy `/__/auth/*` through the app server. Detect iOS/Safari and use `signInWithRedirect` with `getRedirectResult()` on page load.
 
 **Future Warning**: Any new Firebase project must include the `/__/auth/*` reverse proxy from day one. The fallback `authDomain` in `index.ts` must match the production domain.
+
+## 🗓️ 2026-03-15 — Lesson 38: Serverless NEG Region Must Match Cloud Run Service Region
+
+**The Discovery**: After migrating Cloud Run services from `us-east1` to `northamerica-northeast1`, the custom domain (`eval.taverns.red`) returned a 404. The CI/CD pipeline deployed successfully, but the load balancer's serverless NEG still pointed to the old region.
+
+**The Scientific Proof**: `gcloud compute network-endpoint-groups describe speech-evaluator-neg --region=us-east1` showed `cloudRun.service: speech-evaluator` in the wrong region. Creating a new NEG in `northamerica-northeast1` and swapping it into the backend service restored routing immediately.
+
+**The Farley Principle Applied**: Infrastructure-as-code — any region migration must include a checklist of all dependent resources (NEGs, domain mappings, SSL certs, backend services). The CI workflow only covered Artifact Registry and Cloud Run deploy, but missed the load balancer layer.
+
+**The Resulting Rule**: When migrating Cloud Run regions: (1) create a new NEG in the target region, (2) swap it into the backend service, (3) delete the old NEG, (4) verify via direct curl. Domain mappings are NOT supported in all regions — check first.
+
+**Future Warning**: `timeoutSec` on backend services does NOT apply to serverless NEGs. Cloud Run's `--timeout` flag is the controlling value. Do not waste time trying to set backend timeouts for serverless backends — `gcloud` will reject it with error code 400.
