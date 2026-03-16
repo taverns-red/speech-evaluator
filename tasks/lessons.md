@@ -454,3 +454,13 @@
 **The Resulting Rule**: When migrating Cloud Run regions: (1) create a new NEG in the target region, (2) swap it into the backend service, (3) delete the old NEG, (4) verify via direct curl. Domain mappings are NOT supported in all regions — check first.
 
 **Future Warning**: `timeoutSec` on backend services does NOT apply to serverless NEGs. Cloud Run's `--timeout` flag is the controlling value. Do not waste time trying to set backend timeouts for serverless backends — `gcloud` will reject it with error code 400.
+
+## 🗓️ 2026-03-15 — Lesson 39: Structured Logging Migration — Bridge Pattern
+
+**The Discovery**: When replacing `console.log`/`console.error` with a structured JSON logger (`process.stdout.write`), existing tests that spy on `console.log` will silently pass (no assertions hit) or fail. The structured logger bypasses `console.*` entirely.
+
+**The Scientific Proof**: 3/1724 tests failed after the migration. All three were spying on `console.log`/`console.warn`/`console.error` which were no longer called. Updating spies to `process.stdout.write` fixed all 3.
+
+**The Resulting Rule**: When migrating logging, search for `console.log`/`console.error`/`console.warn` in **test files too**, not just source files. Update all test spies to match the new output channel (`process.stdout.write` for structured loggers).
+
+**Bridge Pattern**: For modules with established interfaces (like `ServerLogger` with `...args` signature), create a bridge that adapts the structured logger to the existing interface. This avoids breaking test infrastructure while getting structured output in production.
