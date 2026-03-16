@@ -301,14 +301,29 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
     },
     close(): Promise<void> {
       return new Promise((resolve, reject) => {
-        // Close all WebSocket connections
+        logger.info("Graceful shutdown initiated", { wsClients: wss.clients.size });
+
+        // Close all WebSocket connections with 1001 (Going Away)
         for (const client of wss.clients) {
-          client.close();
+          client.close(1001, "Server shutting down");
         }
+
+        // Force-resolve after 10s (Cloud Run sends SIGTERM 10s before kill)
+        const forceTimer = setTimeout(() => {
+          logger.warn("Graceful shutdown timeout — force closing");
+          resolve();
+        }, 10_000);
+
         wss.close(() => {
           httpServer.close((err) => {
-            if (err) reject(err);
-            else resolve();
+            clearTimeout(forceTimer);
+            if (err) {
+              logger.error("HTTP server close error", { error: err });
+              reject(err);
+            } else {
+              logger.info("Server closed cleanly");
+              resolve();
+            }
           });
         });
       });

@@ -238,3 +238,19 @@ server.listen(port).then(() => {
     pipeline: "Deepgram → OpenAI Transcribe → MetricsExtractor → GPT-4o → TTS",
   });
 });
+
+// ─── Graceful Shutdown ──────────────────────────────────────────────────────────
+
+function handleSignal(signal: string) {
+  log.info(`Received ${signal} — starting graceful shutdown`);
+  server.close().then(() => {
+    log.info("Shutdown complete");
+    process.exit(0);
+  }).catch((err) => {
+    log.error("Shutdown error", { error: err instanceof Error ? err : new Error(String(err)) });
+    process.exit(1);
+  });
+}
+
+process.on("SIGTERM", () => handleSignal("SIGTERM"));
+process.on("SIGINT", () => handleSignal("SIGINT"));
