@@ -470,3 +470,9 @@
 **The Discovery**: `MetricsCollector` was in place (Sprint 1) but nothing called it. The counters were permanently zero. The fix was straightforward: `this.deps.metricsCollector?.incrementSessions()` at each injection point.
 
 **The Resulting Rule**: When adding observability infrastructure, always ship **instrumentation** in the same sprint as the **collector/endpoint**. Otherwise the endpoint gives a false sense of monitoring. Optional chaining (`?.`) keeps it zero-coupling — existing tests don't need to provide a collector.
+
+## 🗓️ 2026-03-16 — Lesson 41: Layered Retry Strategy
+
+**The Discovery**: The evaluation generator already has extensive LLM-level retry (shape validation + per-item re-prompt + short-form fallback). Adding HTTP-level retry needed to sit **below** this existing pipeline — wrapping only the `create()` call, not the validation logic.
+
+**The Resulting Rule**: When adding retry to a system that already has application-level retry, wrap only the lowest-level I/O call. HTTP retries handle transient server errors (5xx, 429, network); application retries handle semantic failures (bad LLM output, validation failures). The two layers must not interfere.

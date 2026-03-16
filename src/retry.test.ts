@@ -35,9 +35,13 @@ describe("withRetry", () => {
     const fn = vi.fn().mockRejectedValue(new RetryableError("always fails"));
 
     const promise = withRetry(fn, { maxAttempts: 3, baseDelayMs: 10 });
+    // Attach catch handler BEFORE advancing timers to prevent unhandled rejection
+    const resultPromise = promise.catch((err: unknown) => err);
     await vi.advanceTimersByTimeAsync(200);
 
-    await expect(promise).rejects.toThrow("always fails");
+    const error = await resultPromise;
+    expect(error).toBeInstanceOf(RetryableError);
+    expect((error as Error).message).toBe("always fails");
     expect(fn).toHaveBeenCalledTimes(3);
   });
 
