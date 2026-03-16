@@ -30,13 +30,13 @@ import { initTfjsWasm } from "./tfjs-setup.js";
 import type { FaceDetector, PoseDetector } from "./video-processor.js";
 import { createAuthMiddleware, verifyAndAuthorize } from "./auth-middleware.js";
 import { parse as parseCookie } from "cookie";
+import { createLogger } from "./logger.js";
+import { createMetricsCollector } from "./metrics-collector.js";
 
 export { APP_NAME, APP_VERSION } from "./version.js";
 import { APP_NAME, APP_VERSION } from "./version.js";
 
-const ts = () => new Date().toISOString();
-const logInit = (msg: string) => console.log(`[INIT] [${ts()}] ${msg}`);
-const logFatal = (msg: string) => console.error(`[FATAL] [${ts()}] ${msg}`);
+const log = createLogger("Main");
 
 const port = parseInt(process.env.PORT || "3000", 10);
 
@@ -46,48 +46,48 @@ const deepgramKey = process.env.DEEPGRAM_API_KEY?.trim();
 const openaiKey = process.env.OPENAI_API_KEY?.trim();
 
 if (!deepgramKey) {
-  logFatal("DEEPGRAM_API_KEY is not set. Add it to your .env file.");
+  log.error("DEEPGRAM_API_KEY is not set. Add it to your .env file.");
   process.exit(1);
 }
 
 if (!openaiKey) {
-  logFatal("OPENAI_API_KEY is not set. Add it to your .env file.");
+  log.error("OPENAI_API_KEY is not set. Add it to your .env file.");
   process.exit(1);
 }
 
-logInit("API keys loaded");
+log.info("API keys loaded");
 
 // ─── Prevent uncaught exceptions from crashing the server ──────────────────────
 process.on("uncaughtException", (err) => {
-  console.error(`[FATAL] [${ts()}] Uncaught exception:`, err);
+  log.error("Uncaught exception", { error: err });
 });
 process.on("unhandledRejection", (reason) => {
-  console.error(`[FATAL] [${ts()}] Unhandled rejection:`, reason);
+  log.error("Unhandled rejection", { error: reason instanceof Error ? reason : new Error(String(reason)) });
 });
 
 // ─── Initialize API clients ─────────────────────────────────────────────────────
 
-logInit("Creating Deepgram client...");
+log.info("Creating Deepgram client...");
 const deepgramClient = createDeepgramClient(deepgramKey);
 
-logInit("Creating OpenAI client...");
+log.info("Creating OpenAI client...");
 const openaiClient = new OpenAI({ apiKey: openaiKey });
 
 // ─── Initialize pipeline components ─────────────────────────────────────────────
 
-logInit("Initializing TranscriptionEngine (Deepgram live + OpenAI post-speech)...");
+log.info("Initializing TranscriptionEngine (Deepgram live + OpenAI post-speech)...");
 const transcriptionEngine = new TranscriptionEngine(deepgramClient, openaiClient as unknown as OpenAITranscriptionClient);
 
-logInit("Initializing MetricsExtractor...");
+log.info("Initializing MetricsExtractor...");
 const metricsExtractor = new MetricsExtractor();
 
-logInit("Initializing EvaluationGenerator (GPT-4o)...");
+log.info("Initializing EvaluationGenerator (GPT-4o)...");
 const evaluationGenerator = new EvaluationGenerator(openaiClient as unknown as OpenAIClient);
 
-logInit("Initializing TTSEngine (OpenAI TTS)...");
+log.info("Initializing TTSEngine (OpenAI TTS)...");
 const ttsEngine = new TTSEngine(openaiClient as unknown as OpenAITTSClient);
 
-logInit("Initializing FilePersistence (output/)...");
+log.info("Initializing FilePersistence (output/)...");
 const filePersistence = new FilePersistence("output");
 
 // ─── Initialize ML detectors (with graceful fallback to stubs) ──────────────────
@@ -96,30 +96,30 @@ let faceDetector: FaceDetector;
 let poseDetector: PoseDetector;
 
 try {
-  logInit("Initializing TF.js WASM backend...");
+  log.info("Initializing TF.js WASM backend...");
   await initTfjsWasm();
-  logInit("TF.js WASM backend ready");
+  log.info("TF.js WASM backend ready");
 
-  logInit("Loading BlazeFace (face detection)...");
+  log.info("Loading BlazeFace (face detection)...");
   const tfjsFace = new TfjsFaceDetector();
   await tfjsFace.init();
   faceDetector = tfjsFace;
-  logInit("BlazeFace loaded ✓");
+  log.info("BlazeFace loaded");
 
-  logInit("Loading MoveNet Lightning (pose estimation)...");
+  log.info("Loading MoveNet Lightning (pose estimation)...");
   const tfjsPose = new TfjsPoseDetector();
   await tfjsPose.init();
   poseDetector = tfjsPose;
-  logInit("MoveNet Lightning loaded ✓");
+  log.info("MoveNet Lightning loaded");
 } catch (err) {
-  logInit(`ML detector init failed, using stubs: ${err}`);
+  log.warn("ML detector init failed, using stubs", { error: err instanceof Error ? err : new Error(String(err)) });
   faceDetector = new StubFaceDetector();
   poseDetector = new StubPoseDetector();
 }
 
 // ─── Create SessionManager with all dependencies ────────────────────────────────
 
-logInit("Wiring SessionManager pipeline...");
+log.info("Wiring SessionManager pipeline...");
 const sessionManager = new SessionManager({
   transcriptionEngine,
   metricsExtractor,
@@ -137,13 +137,13 @@ const sessionManager = new SessionManager({
 
 // ─── Upload Router ──────────────────────────────────────────────────────────────
 
-logInit("Initializing upload endpoint...");
+log.info("Initializing upload endpoint...");
 let gcsUploadService: GCSUploadService | undefined;
 try {
   gcsUploadService = new GCSUploadService(createGCSClient());
-  logInit("GCS upload service initialized (two-phase upload enabled)");
+  log.info("GCS upload service initialized (two-phase upload enabled)");
 } catch (err) {
-  logInit(`GCS upload service unavailable, using legacy direct upload only: ${err}`);
+  log.warn("GCS upload service unavailable, using legacy direct upload only", { error: err instanceof Error ? err : new Error(String(err)) });
 }
 const uploadRouter = createUploadRouter({
   transcriptionEngine,
@@ -167,7 +167,7 @@ let authMiddleware;
 let wsAuthVerify;
 
 if (allowedEmails.size > 0) {
-  logInit(`Auth enabled: ${allowedEmails.size} allowed email(s)`);
+  log.info("Auth enabled", { allowedCount: allowedEmails.size });
   const firebaseApp = initializeApp({
     credential: applicationDefault(),
   });
@@ -183,7 +183,7 @@ if (allowedEmails.size > 0) {
     return decoded !== null;
   };
 } else {
-  logInit("Auth disabled: ALLOWED_EMAILS not set (dev mode)");
+  log.info("Auth disabled: ALLOWED_EMAILS not set (dev mode)");
 }
 
 // ─── Firebase client config (served at /api/config for login page) ───────────
@@ -200,7 +200,7 @@ const firebaseConfig = firebaseApiKey
   : undefined;
 
 if (!firebaseConfig) {
-  logInit("WARNING: FIREBASE_API_KEY not set — /api/config will not be available");
+  log.warn("FIREBASE_API_KEY not set — /api/config will not be available");
 }
 
 // ─── Start server ───────────────────────────────────────────────────────────────
@@ -214,6 +214,8 @@ import { TableTopicsMasterRole } from "./roles/table-topics-master-role.js";
 import { TableTopicsEvaluatorRole } from "./roles/table-topics-evaluator-role.js";
 import { GeneralEvaluatorRole } from "./roles/general-evaluator-role.js";
 
+const metricsCollector = createMetricsCollector();
+
 const roleRegistry = new RoleRegistry();
 roleRegistry.register(new AhCounterRole());
 roleRegistry.register(new TimerRole());
@@ -221,12 +223,15 @@ roleRegistry.register(new GrammarianRole());
 roleRegistry.register(new TableTopicsMasterRole());
 roleRegistry.register(new TableTopicsEvaluatorRole());
 roleRegistry.register(new GeneralEvaluatorRole());
-console.log(`[Roles] Registered ${roleRegistry.size} role(s): ${roleRegistry.list().map((r) => r.name).join(", ")}`);
+log.info("Meeting roles registered", { count: roleRegistry.size, roles: roleRegistry.list().map((r) => r.name) });
 
-const server = createAppServer({ sessionManager, uploadRouter, version: APP_VERSION, authMiddleware, wsAuthVerify, firebaseConfig, roleRegistry });
+const server = createAppServer({ sessionManager, uploadRouter, version: APP_VERSION, authMiddleware, wsAuthVerify, firebaseConfig, roleRegistry, metricsCollector });
 
 server.listen(port).then(() => {
-  logInit(`${APP_NAME} v${APP_VERSION} running at http://localhost:${port}`);
-  logInit("Pipeline: Deepgram → OpenAI Transcribe → MetricsExtractor → GPT-4o → TTS");
-  logInit("Ready for connections");
+  log.info("Server started", {
+    name: APP_NAME,
+    version: APP_VERSION,
+    port,
+    pipeline: "Deepgram → OpenAI Transcribe → MetricsExtractor → GPT-4o → TTS",
+  });
 });

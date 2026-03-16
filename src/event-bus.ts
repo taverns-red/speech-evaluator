@@ -8,6 +8,10 @@
  * Issue: #83
  */
 
+import { createLogger } from "./logger.js";
+
+const log = createLogger("EventBus");
+
 // ─── Event Map Type ──────────────────────────────────────────────────────────
 
 /**
@@ -88,7 +92,7 @@ export class EventBus<TEvents extends { [K in keyof TEvents]: unknown }> {
       try {
         handler(payload);
       } catch (err) {
-        console.error(`[EventBus] Handler error for event "${String(event)}":`, err);
+        log.error(`Handler error for event "${String(event)}"`, { error: err instanceof Error ? err : new Error(String(err)) });
       }
     }
   }

@@ -2099,21 +2099,19 @@ describe("EvaluationGenerator.logConsistencyTelemetry", () => {
     const generator = new EvaluationGenerator(client);
     const evaluation = makeEvaluation();
 
-    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 
     // First call — caches embedding, no comparison
     await generator.logConsistencyTelemetry(evaluation);
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("First evaluation"),
-    );
+    const firstOutput = stdoutSpy.mock.calls.map(c => c[0] as string).join("");
+    expect(firstOutput).toContain("First evaluation");
 
     // Second call — compares with cached embedding
     await generator.logConsistencyTelemetry(evaluation);
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Summary similarity: 1.0000"),
-    );
+    const allOutput = stdoutSpy.mock.calls.map(c => c[0] as string).join("");
+    expect(allOutput).toContain("Summary similarity computed");
 
-    consoleSpy.mockRestore();
+    stdoutSpy.mockRestore();
   });
 
   it("does not throw when embeddings API is not available", async () => {
@@ -2152,16 +2150,14 @@ describe("EvaluationGenerator.logConsistencyTelemetry", () => {
     const generator = new EvaluationGenerator(client);
     const evaluation = makeEvaluation();
 
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 
     // Should not throw — errors are caught and logged
     await expect(generator.logConsistencyTelemetry(evaluation)).resolves.toBeUndefined();
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[ConsistencyTelemetry] Failed to compute consistency:"),
-      expect.any(Error),
-    );
+    const allOutput = stdoutSpy.mock.calls.map(c => c[0] as string).join("");
+    expect(allOutput).toContain("Failed to compute consistency");
 
-    warnSpy.mockRestore();
+    stdoutSpy.mockRestore();
   });
 
   it("uses the configured EMBEDDING_MODEL for API calls", async () => {

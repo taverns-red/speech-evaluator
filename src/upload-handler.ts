@@ -28,6 +28,7 @@ import type { TranscriptSegment, DeliveryMetrics } from "./types.js";
 import { type GCSUploadService } from "./gcs-upload.js";
 import { extractFormText, isFormMimeType } from "./form-extractor.js";
 import { runEvaluationStages } from "./evaluation-pipeline.js";
+import { createLogger } from "./logger.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────────
 
@@ -125,7 +126,7 @@ async function cleanupFile(filePath: string): Promise<void> {
         const resolvedPath = resolve(normalize(filePath));
         const tmpRoot = resolve(tmpdir());
         if (!resolvedPath.startsWith(tmpRoot)) {
-            console.warn(`[UPLOAD] Refusing to delete file outside tmpdir: ${filePath}`);
+            uploadLog.warn("Refusing to delete file outside tmpdir", { filePath });
             return;
         }
         await fs.unlink(resolvedPath);
@@ -134,10 +135,12 @@ async function cleanupFile(filePath: string): Promise<void> {
     }
 }
 
+const uploadLog = createLogger("UploadHandler");
+
 // ─── Logging ─────────────────────────────────────────────────────────────────────
 
 function log(msg: string): void {
-    console.log(`[UPLOAD] ${msg}`);
+    uploadLog.info(msg);
 }
 
 // ─── Shared Pipeline ─────────────────────────────────────────────────────────────

@@ -36,6 +36,7 @@ import type { FilePersistence } from "./file-persistence.js";
 import type { VADMonitor, VADConfig, VADEventCallback } from "./vad-monitor.js";
 import { runEvaluationStages } from "./evaluation-pipeline.js";
 import { VALID_TRANSITIONS, assertValidTransition } from "./session-state-machine.js";
+import { createLogger } from "./logger.js";
 
 // ─── Quality thresholds (matching EvaluationGenerator's internal thresholds) ────
 
@@ -92,9 +93,14 @@ export class SessionManager {
   private vadMonitors: Map<string, VADMonitor> = new Map();
   private vadCallbacksMap: Map<string, VADEventCallback> = new Map();
   private videoProcessors: Map<string, VideoProcessor> = new Map();
+  private readonly slog = createLogger("SessionManager");
 
   private log(level: string, msg: string): void {
-    console.log(`[${level}] [SessionManager] ${msg}`);
+    const lvl = level.toLowerCase();
+    if (lvl === "error") this.slog.error(msg);
+    else if (lvl === "warn") this.slog.warn(msg);
+    else if (lvl === "debug") this.slog.debug(msg);
+    else this.slog.info(msg);
   }
 
   constructor(deps: SessionManagerDeps = {}) {

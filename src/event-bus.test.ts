@@ -93,8 +93,8 @@ describe("EventBus", () => {
     const errorHandler = vi.fn(() => { throw new Error("boom"); });
     const goodHandler = vi.fn();
 
-    // Suppress console.error for this test
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Suppress structured logger output for this test
+    const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 
     bus.on("test:simple", errorHandler);
     bus.on("test:simple", goodHandler);
@@ -103,9 +103,11 @@ describe("EventBus", () => {
 
     expect(errorHandler).toHaveBeenCalledOnce();
     expect(goodHandler).toHaveBeenCalledOnce();
-    expect(consoleSpy).toHaveBeenCalled();
+    // Verify error was logged via structured logger (writes to stdout)
+    const output = stdoutSpy.mock.calls.map(c => c[0] as string).join("");
+    expect(output).toContain("Handler error");
 
-    consoleSpy.mockRestore();
+    stdoutSpy.mockRestore();
   });
 
   it("clear(event) removes all handlers for that event", () => {

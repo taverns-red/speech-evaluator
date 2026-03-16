@@ -1,5 +1,7 @@
 // AI Speech Evaluator — Express + WebSocket server
 import { RoleRegistry } from "./role-registry.js";
+import { createLogger } from "./logger.js";
+import type { MetricsCollector, MetricsSnapshot } from "./metrics-collector.js";
 // Requirements: 1.2 (start recording), 1.3 (elapsed time), 1.4 (stop recording),
 //               1.6 (deliver evaluation), 1.7 (panic mute), 2.5 (echo prevention)
 //
@@ -82,15 +84,13 @@ export interface ServerLogger {
   debug(message: string, ...args: unknown[]): void;
 }
 
-const isDebug = process.env.NODE_ENV === "development" || process.env.LOG_LEVEL === "debug";
+const structuredLog = createLogger("Server");
 
 const defaultLogger: ServerLogger = {
-  info: (msg, ...args) => console.log(`[INFO] [${new Date().toISOString()}] ${msg}`, ...args),
-  warn: (msg, ...args) => console.warn(`[WARN] [${new Date().toISOString()}] ${msg}`, ...args),
-  error: (msg, ...args) => console.error(`[ERROR] [${new Date().toISOString()}] ${msg}`, ...args),
-  debug: (msg, ...args) => {
-    if (isDebug) console.log(`[DEBUG] [${new Date().toISOString()}] ${msg}`, ...args);
-  },
+  info: (msg) => structuredLog.info(msg),
+  warn: (msg) => structuredLog.warn(msg),
+  error: (msg) => structuredLog.error(msg),
+  debug: (msg) => structuredLog.debug(msg),
 };
 
 // ─── Server Factory ─────────────────────────────────────────────────────────────
@@ -114,6 +114,8 @@ export interface CreateServerOptions {
   firebaseConfig?: Record<string, string>;
   /** RoleRegistry for meeting roles (Phase 9). */
   roleRegistry?: RoleRegistry;
+  /** MetricsCollector for /api/health and /api/metrics (Phase 7). */
+  metricsCollector?: MetricsCollector;
 }
 
 export interface AppServer {
@@ -155,6 +157,31 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
   // Health check endpoint (unauthenticated — CI/CD readiness checks)
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // ─── Observability endpoints (Phase 7, #118) ──────────────────────────────────
+  const metricsCollector = options.metricsCollector ?? null;
+
+  app.get("/api/health", (_req, res) => {
+    const health: Record<string, unknown> = {
+      status: "ok",
+      version,
+      region: process.env.CLOUD_RUN_REGION ?? process.env.K_REVISION ?? "local",
+    };
+    if (metricsCollector) {
+      const snap = metricsCollector.snapshot();
+      health.uptimeSeconds = snap.uptimeSeconds;
+      health.sessionsTotal = snap.sessionsTotal;
+    }
+    res.json(health);
+  });
+
+  app.get("/api/metrics", (_req, res) => {
+    if (!metricsCollector) {
+      res.json({ error: "Metrics collector not configured" });
+      return;
+    }
+    res.json(metricsCollector.snapshot());
   });
 
   // Firebase client config endpoint (unauthenticated — needed by login page)

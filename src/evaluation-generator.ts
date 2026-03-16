@@ -28,6 +28,7 @@ import type {
 } from "./types.js";
 import { EvidenceValidator, type ValidationResult } from "./evidence-validator.js";
 import { splitSentences } from "./utils.js";
+import { createLogger } from "./logger.js";
 
 // ─── Visual Observation Metric Allowlist (Phase 4 — Req 7.8) ───────────────────
 
@@ -1309,7 +1310,7 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
         const embedding = await this.getEmbedding(summaries);
 
         if (!embedding) {
-          console.log("[ConsistencyTelemetry] Embeddings API not available, skipping consistency check");
+          createLogger("ConsistencyTelemetry").info("Embeddings API not available, skipping consistency check");
           return;
         }
 
@@ -1317,18 +1318,20 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
         if (this.lastEmbedding) {
           const similarity = cosineSimilarity(this.lastEmbedding, embedding);
           const meetsThreshold = similarity >= CONSISTENCY_SIMILARITY_THRESHOLD;
-          console.log(
-            `[ConsistencyTelemetry] Summary similarity: ${similarity.toFixed(4)} (threshold: ${CONSISTENCY_SIMILARITY_THRESHOLD}, meets: ${meetsThreshold})`,
-          );
+          createLogger("ConsistencyTelemetry").info("Summary similarity computed", {
+            similarity: parseFloat(similarity.toFixed(4)),
+            threshold: CONSISTENCY_SIMILARITY_THRESHOLD,
+            meetsThreshold,
+          });
         } else {
-          console.log("[ConsistencyTelemetry] First evaluation — no previous embedding to compare");
+          createLogger("ConsistencyTelemetry").info("First evaluation — no previous embedding to compare");
         }
 
         // Cache current embedding for next comparison
         this.lastEmbedding = embedding;
       } catch (err) {
         // Non-blocking: log and continue — never throw (Design Decision #7)
-        console.warn("[ConsistencyTelemetry] Failed to compute consistency:", err);
+        createLogger("ConsistencyTelemetry").warn("Failed to compute consistency", { error: err instanceof Error ? err : new Error(String(err)) });
       }
     }
 }

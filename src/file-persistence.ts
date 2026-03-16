@@ -9,6 +9,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Session, TranscriptSegment, DeliveryMetrics, StructuredEvaluation, StructuredEvaluationPublic, ConsentRecord, OutputFile } from "./types.js";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("FilePersistence");
 
 /**
  * Formats a number of seconds into `[MM:SS]` timestamp format.
@@ -259,7 +262,7 @@ export class FilePersistence {
         await writeFile(audioPath, ttsAudioBuffer);
         savedPaths.push(audioPath);
       } catch (err) {
-        console.warn("Failed to save TTS audio file:", err);
+        log.warn("Failed to save TTS audio file", { error: err instanceof Error ? err : new Error(String(err)) });
       }
     }
 
