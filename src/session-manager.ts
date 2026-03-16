@@ -499,6 +499,7 @@ export class SessionManager {
       // Start live transcription if engine is available
       if (this.deps.transcriptionEngine) {
         this.log("INFO", `Starting Deepgram live transcription for session ${sessionId}`);
+        this.deps.metricsCollector?.incrementApiCalls("deepgram");
         const capturedRunId = session.runId;
         this.deps.transcriptionEngine.startLive((segment: TranscriptSegment) => {
           // Only commit live transcript if runId still matches (not cancelled)
@@ -698,6 +699,7 @@ export class SessionManager {
 
         try {
           // Run post-speech transcription (OpenAI gpt-4o-transcribe)
+          this.deps.metricsCollector?.incrementApiCalls("openai");
           const finalTranscript = await this.deps.transcriptionEngine.finalize(fullAudio);
 
           // Check runId before committing — panic mute or new recording may have happened
