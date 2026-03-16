@@ -119,6 +119,8 @@ try {
 
 // ─── Create SessionManager with all dependencies ────────────────────────────────
 
+const metricsCollector = createMetricsCollector();
+
 log.info("Wiring SessionManager pipeline...");
 const sessionManager = new SessionManager({
   transcriptionEngine,
@@ -133,6 +135,7 @@ const sessionManager = new SessionManager({
       poseDetector: deps.poseDetector ?? poseDetector,
       faceDetector: deps.faceDetector ?? faceDetector,
     }),
+  metricsCollector,
 });
 
 // ─── Upload Router ──────────────────────────────────────────────────────────────
@@ -151,6 +154,7 @@ const uploadRouter = createUploadRouter({
   evaluationGenerator,
   ttsEngine,
   gcsUploadService,
+  metricsCollector,
 });
 
 // ─── Firebase Auth & Authorization ──────────────────────────────────────────────
@@ -214,7 +218,6 @@ import { TableTopicsMasterRole } from "./roles/table-topics-master-role.js";
 import { TableTopicsEvaluatorRole } from "./roles/table-topics-evaluator-role.js";
 import { GeneralEvaluatorRole } from "./roles/general-evaluator-role.js";
 
-const metricsCollector = createMetricsCollector();
 
 const roleRegistry = new RoleRegistry();
 roleRegistry.register(new AhCounterRole());

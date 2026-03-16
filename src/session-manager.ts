@@ -37,6 +37,7 @@ import type { VADMonitor, VADConfig, VADEventCallback } from "./vad-monitor.js";
 import { runEvaluationStages } from "./evaluation-pipeline.js";
 import { VALID_TRANSITIONS, assertValidTransition } from "./session-state-machine.js";
 import { createLogger } from "./logger.js";
+import type { MetricsCollector } from "./metrics-collector.js";
 
 // ─── Quality thresholds (matching EvaluationGenerator's internal thresholds) ────
 
@@ -83,6 +84,8 @@ export interface SessionManagerDeps {
   filePersistence?: FilePersistence;
   vadMonitorFactory?: (config: VADConfig, callbacks: VADEventCallback) => VADMonitor;
   videoProcessorFactory?: (config: VideoConfig, deps: VideoProcessorDeps) => VideoProcessor;
+  /** Optional metrics collector for runtime performance instrumentation (Phase 7). */
+  metricsCollector?: MetricsCollector;
 }
 
 // VALID_TRANSITIONS imported from ./session-state-machine.js
@@ -150,6 +153,7 @@ export class SessionManager {
       };
 
       this.sessions.set(session.id, session);
+      this.deps.metricsCollector?.incrementSessions();
       return session;
     }
 
@@ -708,6 +712,7 @@ export class SessionManager {
           // Post-pass failure: fall back to Deepgram live segments with quality warning (Req 7.1)
           const errMsg = err instanceof Error ? err.message : String(err);
           this.log("ERROR", `Post-speech transcription failed for session ${sessionId}: ${errMsg}`);
+          this.deps.metricsCollector?.incrementTranscriptionErrors();
 
           if (session.runId !== capturedRunId) {
             return;
@@ -879,6 +884,7 @@ export class SessionManager {
 
     // Delegate to shared pipeline (stages 1-8)
     let result: Awaited<ReturnType<typeof runEvaluationStages>>;
+    const evalStartMs = Date.now();
     try {
       this.log("INFO", `Running evaluation pipeline for session ${sessionId}`);
       result = await runEvaluationStages(
@@ -905,6 +911,8 @@ export class SessionManager {
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       this.log("ERROR", `Evaluation generation failed for session ${sessionId}: ${errMsg}`);
+      // Evaluation failure is not a transcription error — no counter for it yet,
+      // but we let the throw propagate for retry handling
       // LLM failure: transition back to PROCESSING so operator can retry (Req 7.3)
       if (session.runId === capturedRunId) {
         session.state = SessionState.PROCESSING;
@@ -928,6 +936,10 @@ export class SessionManager {
     if (result.ttsAudio) {
       session.ttsAudioCache = result.ttsAudio;
     }
+
+    // Record evaluation metrics
+    this.deps.metricsCollector?.incrementEvaluations();
+    this.deps.metricsCollector?.recordEvaluationLatency(Date.now() - evalStartMs);
 
     // Fire-and-forget: Log consistency telemetry (Design Decision #7)
     if (this.deps.evaluationGenerator && result.evaluation) {

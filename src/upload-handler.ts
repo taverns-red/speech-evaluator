@@ -29,6 +29,7 @@ import { type GCSUploadService } from "./gcs-upload.js";
 import { extractFormText, isFormMimeType } from "./form-extractor.js";
 import { runEvaluationStages } from "./evaluation-pipeline.js";
 import { createLogger } from "./logger.js";
+import type { MetricsCollector } from "./metrics-collector.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,8 @@ export interface UploadPipelineDeps {
     ttsEngine?: TTSEngine;
     /** GCS upload service — when provided, enables the /init + /process endpoints. */
     gcsUploadService?: GCSUploadService;
+    /** Metrics collector for instrumentation (Phase 7). */
+    metricsCollector?: MetricsCollector;
 }
 
 // ─── Multer Config (legacy direct upload) ────────────────────────────────────────
@@ -204,6 +207,8 @@ async function runEvaluationPipeline(
             }
             : undefined;
 
+        deps.metricsCollector?.incrementSessions();
+        const evalStartMs = Date.now();
         const pipelineResult = await runEvaluationStages(
             {
                 transcript,
@@ -222,6 +227,9 @@ async function runEvaluationPipeline(
         if (!pipelineResult) {
             throw new Error("Evaluation pipeline returned no result");
         }
+
+        deps.metricsCollector?.incrementEvaluations();
+        deps.metricsCollector?.recordEvaluationLatency(Date.now() - evalStartMs);
 
         log(`Evaluation: ${pipelineResult.evaluation.items.length} items, pass rate ${(pipelineResult.passRate * 100).toFixed(0)}%`);
         if (pipelineResult.evaluation.completed_form) {
