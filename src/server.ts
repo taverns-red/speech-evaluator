@@ -2,6 +2,7 @@
 import { RoleRegistry } from "./role-registry.js";
 import { createLogger } from "./logger.js";
 import type { MetricsCollector, MetricsSnapshot } from "./metrics-collector.js";
+import { requestTimeout } from "./request-timeout.js";
 // Requirements: 1.2 (start recording), 1.3 (elapsed time), 1.4 (stop recording),
 //               1.6 (deliver evaluation), 1.7 (panic mute), 2.5 (echo prevention)
 //
@@ -253,8 +254,8 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
 
   // Upload endpoint (issues #24-26)
   if (uploadRouter) {
-    app.use("/api/upload", uploadRouter);
-    logger.info("Upload endpoint mounted at /api/upload");
+    app.use("/api/upload", requestTimeout(300_000), uploadRouter); // 5 min timeout for evaluations
+    logger.info("Upload endpoint mounted at /api/upload (timeout: 300s)");
   }
 
   // WebSocket server — noServer mode when auth is enabled for manual upgrade
