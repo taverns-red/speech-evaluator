@@ -28,6 +28,7 @@ import type {
 } from "./types.js";
 import { EvidenceValidator, type ValidationResult } from "./evidence-validator.js";
 import { splitSentences } from "./utils.js";
+import { withRetry } from "./retry.js";
 import { createLogger } from "./logger.js";
 
 // ─── Visual Observation Metric Allowlist (Phase 4 — Req 7.8) ───────────────────
@@ -774,15 +775,18 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
   // ── LLM call ───────────────────────────────────────────────────────────────
 
   private async callLLM(prompt: { system: string; user: string }): Promise<string> {
-    const response = await this.openai.chat.completions.create({
-      model: this.model,
-      messages: [
-        { role: "system", content: prompt.system },
-        { role: "user", content: prompt.user },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.7,
-    });
+    const response = await withRetry(
+      () => this.openai.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: "system", content: prompt.system },
+          { role: "user", content: prompt.user },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7,
+      }),
+      { label: "openai-chat-completion" },
+    );
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
@@ -1275,10 +1279,13 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
       if (!this.openai.embeddings) {
         return null;
       }
-      const response = await this.openai.embeddings.create({
-        model: EMBEDDING_MODEL,
-        input: text,
-      });
+      const response = await withRetry(
+        () => this.openai.embeddings!.create({
+          model: EMBEDDING_MODEL,
+          input: text,
+        }),
+        { label: "openai-embedding" },
+      );
       if (response.data.length === 0) {
         return null;
       }

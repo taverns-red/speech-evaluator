@@ -11,6 +11,7 @@
 import type { DeepgramClient, ListenLiveClient, LiveSchema } from "@deepgram/sdk";
 import { LiveTranscriptionEvents } from "@deepgram/sdk";
 import type { TranscriptSegment, TranscriptWord } from "./types.js";
+import { withRetry } from "./retry.js";
 
 // ─── OpenAI transcription client interface (for testability / dependency injection) ──
 
@@ -242,19 +243,22 @@ export class TranscriptionEngine {
       { type: "audio/wav" },
     );
 
-    const response = await this.openaiClient.audio.transcriptions.create({
-      file: audioFile,
-      model,
-      language: "en",
-      ...(useVerboseJson
-        ? {
-            response_format: "verbose_json",
-            timestamp_granularities: ["word", "segment"],
-          }
-        : {
-            response_format: "json",
-          }),
-    });
+    const response = await withRetry(
+      () => this.openaiClient!.audio.transcriptions.create({
+        file: audioFile,
+        model,
+        language: "en",
+        ...(useVerboseJson
+          ? {
+              response_format: "verbose_json",
+              timestamp_granularities: ["word", "segment"],
+            }
+          : {
+              response_format: "json",
+            }),
+      }),
+      { label: "openai-transcription" },
+    );
 
     return this.parseTranscriptionResponse(response);
   }
@@ -284,19 +288,22 @@ export class TranscriptionEngine {
         { type: "audio/wav" },
       );
 
-      const response = await this.openaiClient!.audio.transcriptions.create({
-        file: audioFile,
-        model,
-        language: "en",
-        ...(useVerboseJson
-          ? {
-              response_format: "verbose_json",
-              timestamp_granularities: ["word", "segment"],
-            }
-          : {
-              response_format: "json",
-            }),
-      });
+      const response = await withRetry(
+        () => this.openaiClient!.audio.transcriptions.create({
+          file: audioFile,
+          model,
+          language: "en",
+          ...(useVerboseJson
+            ? {
+                response_format: "verbose_json",
+                timestamp_granularities: ["word", "segment"],
+              }
+            : {
+                response_format: "json",
+              }),
+        }),
+        { label: "openai-transcription-chunk" },
+      );
 
       const chunkSegments = this.parseTranscriptionResponse(response);
 
