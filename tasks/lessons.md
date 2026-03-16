@@ -464,3 +464,9 @@
 **The Resulting Rule**: When migrating logging, search for `console.log`/`console.error`/`console.warn` in **test files too**, not just source files. Update all test spies to match the new output channel (`process.stdout.write` for structured loggers).
 
 **Bridge Pattern**: For modules with established interfaces (like `ServerLogger` with `...args` signature), create a bridge that adapts the structured logger to the existing interface. This avoids breaking test infrastructure while getting structured output in production.
+
+## 🗓️ 2026-03-15 — Lesson 40: Metrics Instrumentation via Optional Chaining
+
+**The Discovery**: `MetricsCollector` was in place (Sprint 1) but nothing called it. The counters were permanently zero. The fix was straightforward: `this.deps.metricsCollector?.incrementSessions()` at each injection point.
+
+**The Resulting Rule**: When adding observability infrastructure, always ship **instrumentation** in the same sprint as the **collector/endpoint**. Otherwise the endpoint gives a false sense of monitoring. Optional chaining (`?.`) keeps it zero-coupling — existing tests don't need to provide a collector.
