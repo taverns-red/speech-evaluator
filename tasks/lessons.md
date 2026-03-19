@@ -476,3 +476,9 @@
 **The Discovery**: The evaluation generator already has extensive LLM-level retry (shape validation + per-item re-prompt + short-form fallback). Adding HTTP-level retry needed to sit **below** this existing pipeline — wrapping only the `create()` call, not the validation logic.
 
 **The Resulting Rule**: When adding retry to a system that already has application-level retry, wrap only the lowest-level I/O call. HTTP retries handle transient server errors (5xx, 429, network); application retries handle semantic failures (bad LLM output, validation failures). The two layers must not interfere.
+
+## 🗓️ 2026-03-19 — Lesson 42: Silent Failures from Missing ES Module Imports
+
+**The Discovery**: The download evaluation button did nothing — zero user feedback. Root cause: `buildZip()` was called in `upload.js` but never imported from `ui.js`. In ES modules, this is a `ReferenceError` at call time, not at module load. Since the call was inside an `onclick` handler with no `try/catch`, the error was swallowed silently.
+
+**The Resulting Rule**: When extracting functions into a new module, `grep` for every call site to verify imports are wired. ES module missing-import errors are silent at load time and only surface when the code path is actually executed — which may be a rarely-tested UI flow like "download after upload."
