@@ -5,7 +5,7 @@
 import { S, dom } from "./state.js";
 import { SessionState, MAX_UPLOAD_SIZE_MB } from "./constants.js";
 import { show, hide, formatTimestamp, escapeHtml } from "./utils.js";
-import { updateUI, showError, showNotification } from "./ui.js";
+import { updateUI, showError, showNotification, buildZip } from "./ui.js";
 import { showEvaluation, displayRoleResults, renderEvaluationWithEvidence } from "./transcript.js";
 // Circular import — safe (called inside function bodies only)
 import { wsSend } from "./websocket.js";
