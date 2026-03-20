@@ -15,7 +15,7 @@ import {
 import { clearFormState, hideVideoConsentError, resetProjectContextForm, handleVADSpeechEnd } from "./consent.js";
 import { updateTranscript, showEvaluation, displayRoleResults, renderTranscript, clearEvidenceHighlight } from "./transcript.js";
 import { stopAudioCapture, hardStopMic, startCooldown, clearCooldown } from "./audio.js";
-import { stopVideoCapture, releaseCamera, handleVideoStatus } from "./video.js";
+import { stopVideoCapture, stopVisionCapture, releaseCamera, handleVideoStatus } from "./video.js";
 
 // ─── WebSocket Connection ─────────────────────────────────────────
 
@@ -206,6 +206,8 @@ export function onStopSpeech() {
 
   // Phase 4: Stop video frame capture (camera stays alive for potential restart)
   stopVideoCapture();
+  // Sprint C2: Stop Vision capture (#128)
+  stopVisionCapture();
 
   // Send stop_recording command to server
   wsSend({ type: "stop_recording" });
@@ -308,6 +310,7 @@ export function handleStateChange(newState) {
   // the explicit stopVideoCapture() calls in onStopSpeech() and onPanicMute().
   if (previousState === SessionState.RECORDING && newState !== SessionState.RECORDING) {
     stopVideoCapture();
+    stopVisionCapture();
   }
 
   // Echo prevention: hard-stop mic when entering DELIVERING state

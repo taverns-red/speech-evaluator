@@ -6,7 +6,7 @@ import { S, dom } from "./state.js";
 import { SessionState, COOLDOWN_MS, STATUS_TEXT } from "./constants.js";
 import { show, hide, enable, disable } from "./utils.js";
 import { updateUI, updateAudioLevel, showError } from "./ui.js";
-import { stopVideoCapture } from "./video.js";
+import { stopVideoCapture, stopVisionCapture } from "./video.js";
 // Circular import — safe (called inside function bodies only)
 import { wsSend } from "./websocket.js";
 
@@ -159,6 +159,8 @@ export function hardStopMic() {
 
   // Phase 4: Stop video frame capture (echo prevention — no video during delivery)
   stopVideoCapture();
+  // Sprint C2: Stop Vision capture (#128)
+  stopVisionCapture();
 
   // Hard-stop all MediaStream tracks (not just mute — fully release the mic)
   if (S.mediaStream) {

@@ -806,12 +806,17 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
       const parts: Array<{ type: string; text?: string; image_url?: { url: string; detail?: string } }> = [
         { type: "text", text: prompt.user },
       ];
-      for (const framePath of visionFrames) {
-        // Read frame file and convert to base64 data URI
-        const { readFile } = await import("fs/promises");
-        const frameBuffer = await readFile(framePath);
-        const base64 = frameBuffer.toString("base64");
-        const dataUri = `data:image/jpeg;base64,${base64}`;
+      for (const frame of visionFrames) {
+        // Support both data URIs (live mode) and file paths (upload mode)
+        let dataUri: string;
+        if (frame.startsWith("data:")) {
+          dataUri = frame;
+        } else {
+          const { readFile } = await import("fs/promises");
+          const frameBuffer = await readFile(frame);
+          const base64 = frameBuffer.toString("base64");
+          dataUri = `data:image/jpeg;base64,${base64}`;
+        }
         parts.push({
           type: "image_url",
           image_url: { url: dataUri, detail: "low" },

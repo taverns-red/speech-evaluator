@@ -842,7 +842,7 @@ export class SessionManager {
    * @throws Error if LLM generation fails (session transitions back to PROCESSING).
    * @returns The synthesized TTS audio buffer, or undefined if pipeline cannot complete.
    */
-  async generateEvaluation(sessionId: string): Promise<Buffer | undefined> {
+  async generateEvaluation(sessionId: string, visionFrames?: string[]): Promise<Buffer | undefined> {
     const session = this.getSession(sessionId);
     this.assertTransition(session, SessionState.DELIVERING, "generateEvaluation");
 
@@ -900,6 +900,7 @@ export class SessionManager {
           timeLimitSeconds: session.timeLimitSeconds,
           qualityWarning: session.qualityWarning,
           hasVideo: session.visualObservations != null,
+          visionFrames,
           isCancelled: () => session.runId !== capturedRunId,
           log: (level, msg) => this.log(level, `[pipeline] ${msg}`),
         },

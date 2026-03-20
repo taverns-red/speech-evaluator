@@ -3,6 +3,7 @@ import { RoleRegistry } from "./role-registry.js";
 import { createLogger } from "./logger.js";
 import type { MetricsCollector, MetricsSnapshot } from "./metrics-collector.js";
 import { requestTimeout } from "./request-timeout.js";
+import { AnalysisTier, getTierConfig } from "./analysis-tiers.js";
 // Requirements: 1.2 (start recording), 1.3 (elapsed time), 1.4 (stop recording),
 //               1.6 (deliver evaluation), 1.7 (panic mute), 2.5 (echo prevention)
 //
@@ -77,6 +78,8 @@ interface ConnectionState {
   activeRoles: string[];
   /** Configured analysis tier (#125) */
   analysisTier: string;
+  /** Buffer of base64 Vision frames for GPT-4o analysis (#128) */
+  visionFrameBuffer: string[];
 }
 
 // ─── Logging ────────────────────────────────────────────────────────────────────
@@ -379,6 +382,7 @@ function handleConnection(
     stopRecordingPromise: null,
     activeRoles: [],
     analysisTier: "standard",
+    visionFrameBuffer: [],
   };
 
   logger.info(`New WebSocket connection, session ${session.id}`);
@@ -626,8 +630,23 @@ function handleClientMessage(
 
     case "set_analysis_tier":
       connState.analysisTier = message.tier ?? "standard";
+      connState.visionFrameBuffer = []; // Reset buffer on tier change
       logger.info(`Analysis tier set: ${connState.analysisTier} for session ${connState.sessionId}`);
       break;
+
+    case "vision_frame": {
+      // Buffer base64 frame data for GPT-4o Vision analysis (#128)
+      const tierConfig = getTierConfig(
+        Object.values(AnalysisTier).includes(connState.analysisTier as AnalysisTier)
+          ? (connState.analysisTier as AnalysisTier)
+          : AnalysisTier.Standard,
+      );
+      if (!tierConfig.vision || connState.visionFrameBuffer.length >= tierConfig.maxFrames) {
+        break; // Drop frame — vision disabled or buffer full
+      }
+      connState.visionFrameBuffer.push(message.data);
+      break;
+    }
 
     default: {
       const exhaustiveCheck: never = message;
@@ -883,7 +902,10 @@ async function handleDeliverEvaluation(
   let audioBuffer: Buffer | undefined;
 
   try {
-    audioBuffer = await sessionManager.generateEvaluation(connState.sessionId);
+    audioBuffer = await sessionManager.generateEvaluation(
+      connState.sessionId,
+      connState.visionFrameBuffer.length > 0 ? connState.visionFrameBuffer : undefined,
+    );
     logger.debug(`[handleDeliverEvaluation] generateEvaluation returned ${audioBuffer ? `${audioBuffer.length} bytes` : "undefined"} for session ${connState.sessionId}`);
   } catch (err) {
     // LLM failure: session has been transitioned back to PROCESSING by SessionManager (Req 7.3)

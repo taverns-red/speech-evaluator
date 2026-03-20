@@ -536,7 +536,8 @@ export type ClientMessage =
   | { type: "video_stream_ready"; width: number; height: number; deviceLabel?: string }
   | { type: "set_video_config"; frameRate: number }
   | { type: "set_active_roles"; roleIds: string[] }
-  | { type: "set_analysis_tier"; tier: string };
+  | { type: "set_analysis_tier"; tier: string }
+  | { type: "vision_frame"; data: string; seq: number };
 
 // Server → Client messages
 export type ServerMessage =

@@ -368,3 +368,92 @@ export function toggleVideoSize() {
     btn.title = "Expand video preview";
   }
 }
+
+// ─── Vision Tier Frame Capture (#128) ─────────────────────────────
+// Separate from Phase 4 ML frames (5fps binary TM-prefixed).
+// Vision frames are low-frequency canvas snapshots sent as JSON
+// for GPT-4o Vision analysis at evaluation time.
+
+/** @type {number|null} Interval ID for Vision frame capture */
+let visionCaptureIntervalId = null;
+/** Number of Vision frames captured this session */
+let visionFramesCaptured = 0;
+
+// Tier configs (sampling interval in seconds) — must match backend
+const VISION_TIER_CONFIGS = {
+  standard: { vision: false, samplingIntervalSeconds: 0, maxFrames: 0 },
+  enhanced: { vision: true, samplingIntervalSeconds: 10, maxFrames: 120 },
+  detailed: { vision: true, samplingIntervalSeconds: 5, maxFrames: 360 },
+  maximum:  { vision: true, samplingIntervalSeconds: 1, maxFrames: 600 },
+};
+
+/**
+ * Starts Vision frame capture for GPT-4o analysis.
+ * Captures canvas snapshots at the tier's configured interval
+ * and sends them as JSON { type: "vision_frame", data: "<base64>" }.
+ *
+ * Does nothing if tier has vision=false or no video stream.
+ */
+export function startVisionCapture() {
+  stopVisionCapture(); // Ensure no double-start
+
+  const tierConfig = VISION_TIER_CONFIGS[S.analysisTier] || VISION_TIER_CONFIGS.standard;
+  if (!tierConfig.vision || tierConfig.samplingIntervalSeconds <= 0) return;
+  if (!S.videoStream || !videoDom.preview.videoWidth) {
+    console.warn("[Vision] Cannot start — no video stream");
+    return;
+  }
+
+  visionFramesCaptured = 0;
+  const intervalMs = tierConfig.samplingIntervalSeconds * 1000;
+  const maxFrames = tierConfig.maxFrames;
+
+  const canvas = videoDom.captureCanvas;
+  const ctx = canvas.getContext("2d");
+
+  visionCaptureIntervalId = setInterval(() => {
+    // Guards
+    if (S.currentState !== SessionState.RECORDING) return;
+    if (!S.ws || S.ws.readyState !== WebSocket.OPEN) return;
+    if (!videoDom.preview.videoWidth) return;
+    if (visionFramesCaptured >= maxFrames) {
+      console.log(`[Vision] Max frames reached (${maxFrames}), stopping capture`);
+      stopVisionCapture();
+      return;
+    }
+
+    const vw = videoDom.preview.videoWidth;
+    const vh = videoDom.preview.videoHeight;
+    canvas.width = vw;
+    canvas.height = vh;
+    ctx.drawImage(videoDom.preview, 0, 0, vw, vh);
+
+    // Convert to base64 JPEG
+    const dataUrl = canvas.toDataURL("image/jpeg", VIDEO_JPEG_QUALITY);
+
+    // Send as JSON message
+    wsSend({
+      type: "vision_frame",
+      data: dataUrl,
+      seq: visionFramesCaptured,
+    });
+
+    visionFramesCaptured++;
+  }, intervalMs);
+
+  console.log(`[Vision] Started capture: tier=${S.analysisTier}, interval=${tierConfig.samplingIntervalSeconds}s, maxFrames=${maxFrames}`);
+}
+
+/**
+ * Stops Vision frame capture.
+ */
+export function stopVisionCapture() {
+  if (visionCaptureIntervalId !== null) {
+    clearInterval(visionCaptureIntervalId);
+    visionCaptureIntervalId = null;
+  }
+  if (visionFramesCaptured > 0) {
+    console.log(`[Vision] Stopped. Captured ${visionFramesCaptured} frames`);
+  }
+}
+

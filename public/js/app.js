@@ -24,7 +24,8 @@ import { updateTranscript, showEvaluation, displayRoleResults, clearEvidenceHigh
 import { checkMicPermission, startAudioCapture, stopAudioCapture, hardStopMic, startCooldown, clearCooldown } from "./audio.js";
 import {
   acquireCamera, onCameraFlip, startVideoCapture, stopVideoCapture,
-  releaseCamera, toggleVideoSize,
+  releaseCamera, toggleVideoSize, handleVideoStatus, showVideoQualityGrade,
+  startVisionCapture, stopVisionCapture,
 } from "./video.js";
 import { onFileSelected, onFormFileSelected } from "./upload.js";
 import { loadHistory, resetHistory, isHistoryLoaded } from "./history.js";
@@ -202,6 +203,9 @@ async function onStartSpeech() {
     startVideoCapture();
   }
 
+  // Sprint C2: Start Vision frame capture if tier has vision enabled (#128)
+  startVisionCapture();
+
   // Optimistic UI update (server will confirm via state_change)
   updateUI(SessionState.RECORDING);
   updateElapsedTime(0);
@@ -351,6 +355,8 @@ function onPanicMute() {
   hardStopMic();
   // Phase 4: Stop video capture immediately
   stopVideoCapture();
+  // Sprint C2: Stop Vision capture (#128)
+  stopVisionCapture();
   // Clear speech recording (#60)
   S.speechRecordingChunks = [];
   S.speechRecordingBlob = null;
