@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.14](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.13...ai-speech-evaluator-v0.6.14) (2026-03-20)
+
+
+### Features
+
+* add API call tracking for Deepgram and OpenAI ([#118](https://github.com/taverns-red/speech-evaluator/issues/118)) ([bdfb494](https://github.com/taverns-red/speech-evaluator/commit/bdfb494fd9f2cfb31effdd6976ce0a0be1e605cb))
+* add graceful shutdown with SIGTERM/SIGINT handling ([#118](https://github.com/taverns-red/speech-evaluator/issues/118)) ([682eb97](https://github.com/taverns-red/speech-evaluator/commit/682eb978b27f5ecaf2d623e7b08d2f9d8b70ec9f))
+* add in-memory metrics collector ([#118](https://github.com/taverns-red/speech-evaluator/issues/118)) ([ad56bcc](https://github.com/taverns-red/speech-evaluator/commit/ad56bcc7e52eeeb6e257bdb35439cd6dd1e40e80))
+* add request timeout middleware ([#118](https://github.com/taverns-red/speech-evaluator/issues/118)) ([87bf17a](https://github.com/taverns-red/speech-evaluator/commit/87bf17a40ec30e8209235e98fd36dddf029d8a19))
+* add retry utility with exponential backoff ([#118](https://github.com/taverns-red/speech-evaluator/issues/118)) ([5b0e899](https://github.com/taverns-red/speech-evaluator/commit/5b0e89985779a6758dce3c5341262a348ad30e03))
+* add structured JSON logger module ([#118](https://github.com/taverns-red/speech-evaluator/issues/118)) ([f310908](https://github.com/taverns-red/speech-evaluator/commit/f31090856bf47ad9126b6de07dec45964cbafb84))
+* instrument MetricsCollector across pipeline ([#118](https://github.com/taverns-red/speech-evaluator/issues/118)) ([90d7ece](https://github.com/taverns-red/speech-evaluator/commit/90d7ece4c3cd94d89c88faf7d1a61dd30a06e3c0))
+* wire structured logging across codebase, add health/metrics endpoints ([#118](https://github.com/taverns-red/speech-evaluator/issues/118)) ([3bd4c2a](https://github.com/taverns-red/speech-evaluator/commit/3bd4c2a5669221ba504781002c7c80ce893016b1))
+* wrap API calls in withRetry() for transient error resilience ([#118](https://github.com/taverns-red/speech-evaluator/issues/118)) ([afb8ea5](https://github.com/taverns-red/speech-evaluator/commit/afb8ea560faa006b5b4285afb6ef145b3aa6b01f))
+
+
+### Bug Fixes
+
+* add missing buildZip import to upload.js (Closes [#120](https://github.com/taverns-red/speech-evaluator/issues/120)) ([c8f7e90](https://github.com/taverns-red/speech-evaluator/commit/c8f7e90b8bc0f27745c66c45ef11cc9931d66381))
+* add missing STATUS_TEXT and stopVideoCapture imports to audio.js ([#121](https://github.com/taverns-red/speech-evaluator/issues/121)) ([7c82f2e](https://github.com/taverns-red/speech-evaluator/commit/7c82f2eb20ba9c7c53b6b9ff9c3ef6301a9316f4))
+* **ci:** correct Artifact Registry auth region to northamerica-northeast1 ([a0bc461](https://github.com/taverns-red/speech-evaluator/commit/a0bc461604892c5bf9458548ac2bca95c465ee47))
+* iOS Safari login fails with 'missing initial state' ([#111](https://github.com/taverns-red/speech-evaluator/issues/111)) ([53fddf8](https://github.com/taverns-red/speech-evaluator/commit/53fddf82ed332057ddb3039de60873bd72aae226))
+* speed/ETA stuck on Calculating — throttle XHR progress samples ([#105](https://github.com/taverns-red/speech-evaluator/issues/105)) ([716a8b0](https://github.com/taverns-red/speech-evaluator/commit/716a8b07ee8004f584151400d71ae5853817a8e1))
+* use co-located GCS bucket in northamerica-northeast1 ([#121](https://github.com/taverns-red/speech-evaluator/issues/121)) ([7a11413](https://github.com/taverns-red/speech-evaluator/commit/7a114136f5744189004840bd915764ca1465fa38))
+
 ## [0.6.13](https://github.com/rservant/speech-evaluator/compare/ai-speech-evaluator-v0.6.12...ai-speech-evaluator-v0.6.13) (2026-03-15)
 
 
