@@ -22,6 +22,7 @@ import type { VideoProcessorDeps } from "./video-processor.js";
 import type { VideoConfig } from "./types.js";
 import { createUploadRouter } from "./upload-handler.js";
 import { GCSUploadService, createGCSClient } from "./gcs-upload.js";
+import { GcsHistoryService, createGcsHistoryClient } from "./gcs-history.js";
 import { StubPoseDetector } from "./stub-pose-detector.js";
 import { StubFaceDetector } from "./stub-face-detector.js";
 import { TfjsFaceDetector } from "./tfjs-face-detector.js";
@@ -148,12 +149,23 @@ try {
 } catch (err) {
   log.warn("GCS upload service unavailable, using legacy direct upload only", { error: err instanceof Error ? err : new Error(String(err)) });
 }
+
+// GCS History Service (#123) — persists evaluation results for browsable history
+let gcsHistoryService: GcsHistoryService | undefined;
+const GCS_HISTORY_BUCKET = process.env.GCS_UPLOAD_BUCKET || "speech-evaluator-uploads-ca";
+try {
+  gcsHistoryService = new GcsHistoryService(createGcsHistoryClient(GCS_HISTORY_BUCKET));
+  log.info("GCS history service initialized", { bucket: GCS_HISTORY_BUCKET });
+} catch (err) {
+  log.warn("GCS history service unavailable, evaluation history disabled", { error: err instanceof Error ? err : new Error(String(err)) });
+}
 const uploadRouter = createUploadRouter({
   transcriptionEngine,
   metricsExtractor,
   evaluationGenerator,
   ttsEngine,
   gcsUploadService,
+  gcsHistoryService,
   metricsCollector,
 });
 
@@ -228,7 +240,7 @@ roleRegistry.register(new TableTopicsEvaluatorRole());
 roleRegistry.register(new GeneralEvaluatorRole());
 log.info("Meeting roles registered", { count: roleRegistry.size, roles: roleRegistry.list().map((r) => r.name) });
 
-const server = createAppServer({ sessionManager, uploadRouter, version: APP_VERSION, authMiddleware, wsAuthVerify, firebaseConfig, roleRegistry, metricsCollector });
+const server = createAppServer({ sessionManager, uploadRouter, version: APP_VERSION, authMiddleware, wsAuthVerify, firebaseConfig, roleRegistry, metricsCollector, gcsHistoryService });
 
 server.listen(port).then(() => {
   log.info("Server started", {

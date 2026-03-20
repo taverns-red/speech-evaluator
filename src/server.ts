@@ -33,6 +33,7 @@ import {
   decodeAudioFrame,
 } from "./video-frame-codec.js";
 import { serializeOutputs } from "./file-persistence.js";
+import type { GcsHistoryService } from "./gcs-history.js";
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -117,6 +118,8 @@ export interface CreateServerOptions {
   roleRegistry?: RoleRegistry;
   /** MetricsCollector for /api/health and /api/metrics (Phase 7). */
   metricsCollector?: MetricsCollector;
+  /** GCS history service for browsable evaluation history (#123). */
+  gcsHistoryService?: GcsHistoryService;
 }
 
 export interface AppServer {
@@ -256,6 +259,26 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
   if (uploadRouter) {
     app.use("/api/upload", requestTimeout(300_000), uploadRouter); // 5 min timeout for evaluations
     logger.info("Upload endpoint mounted at /api/upload (timeout: 300s)");
+  }
+
+  // History endpoint (#123) — lists past evaluations from GCS
+  const gcsHistoryService = options.gcsHistoryService ?? null;
+  if (gcsHistoryService) {
+    app.get("/api/history/:speaker", async (req, res) => {
+      try {
+        const speaker = decodeURIComponent(req.params.speaker);
+        const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? "20"), 10) || 20, 1), 50);
+        const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
+
+        const result = await gcsHistoryService.listEvaluations(speaker, limit, cursor);
+        res.json(result);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error(`History API error: ${errMsg}`);
+        res.status(500).json({ error: "Failed to load evaluation history" });
+      }
+    });
+    logger.info("History endpoint mounted at /api/history/:speaker");
   }
 
   // WebSocket server — noServer mode when auth is enabled for manual upgrade

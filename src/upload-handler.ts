@@ -26,6 +26,7 @@ import type { EvaluationGenerator } from "./evaluation-generator.js";
 import type { TTSEngine } from "./tts-engine.js";
 import type { TranscriptSegment, DeliveryMetrics } from "./types.js";
 import { type GCSUploadService } from "./gcs-upload.js";
+import { type GcsHistoryService } from "./gcs-history.js";
 import { extractFormText, isFormMimeType } from "./form-extractor.js";
 import { runEvaluationStages } from "./evaluation-pipeline.js";
 import { createLogger } from "./logger.js";
@@ -58,6 +59,8 @@ export interface UploadPipelineDeps {
     ttsEngine?: TTSEngine;
     /** GCS upload service — when provided, enables the /init + /process endpoints. */
     gcsUploadService?: GCSUploadService;
+    /** GCS history service — when provided, persists evaluation results to GCS. */
+    gcsHistoryService?: GcsHistoryService;
     /** Metrics collector for instrumentation (Phase 7). */
     metricsCollector?: MetricsCollector;
 }
@@ -366,6 +369,26 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
                     deps,
                 );
 
+                // Persist to GCS history (fire-and-forget)
+                if (deps.gcsHistoryService) {
+                    deps.gcsHistoryService.saveEvaluationResults({
+                        speakerName,
+                        speechTitle: speechTitle || "Untitled",
+                        mode: "upload",
+                        durationSeconds: result.durationSeconds,
+                        wordsPerMinute: result.metrics.wordsPerMinute,
+                        passRate: result.evaluation.passRate,
+                        projectType,
+                        transcript: result.transcript,
+                        metrics: result.metrics,
+                        evaluation: result.evaluation.evaluation,
+                        evaluationScript: result.script,
+                        ttsAudio: result.ttsAudioBase64
+                            ? Buffer.from(result.ttsAudioBase64, "base64")
+                            : undefined,
+                    }).catch(() => { /* logged inside service */ });
+                }
+
                 // Response
                 res.json({
                     status: "success",
@@ -468,6 +491,26 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
                 },
                 deps,
             );
+
+            // Persist to GCS history (fire-and-forget)
+            if (deps.gcsHistoryService) {
+                deps.gcsHistoryService.saveEvaluationResults({
+                    speakerName,
+                    speechTitle: req.body?.speechTitle || "Untitled",
+                    mode: "upload",
+                    durationSeconds: result.durationSeconds,
+                    wordsPerMinute: result.metrics.wordsPerMinute,
+                    passRate: result.evaluation.passRate,
+                    projectType: req.body?.projectType,
+                    transcript: result.transcript,
+                    metrics: result.metrics,
+                    evaluation: result.evaluation.evaluation,
+                    evaluationScript: result.script,
+                    ttsAudio: result.ttsAudioBase64
+                        ? Buffer.from(result.ttsAudioBase64, "base64")
+                        : undefined,
+                }).catch(() => { /* logged inside service */ });
+            }
 
             // ── Response ──
             res.json({
