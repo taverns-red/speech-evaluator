@@ -136,12 +136,28 @@ export async function runEvaluationStages(
   const passRate = generateResult.passRate;
   log("INFO", `Evaluation: ${evaluation.items.length} items, pass rate ${(passRate * 100).toFixed(0)}%`);
 
-  // ── Stage 2: Energy profile (optional) ──
+  // ── Stage 2: Energy profile + acoustic analysis (optional) ──
   if (deps.metricsExtractor && audioChunks && audioChunks.length > 0) {
     log("INFO", `Computing energy profile from ${audioChunks.length} audio chunks`);
     const energyProfile = deps.metricsExtractor.computeEnergyProfile(audioChunks);
     metrics.energyProfile = energyProfile;
     metrics.energyVariationCoefficient = energyProfile.coefficientOfVariation;
+
+    // #124: Pitch profile (F0 contour)
+    log("INFO", "Computing pitch profile (F0 extraction)");
+    metrics.pitchProfile = deps.metricsExtractor.computePitchProfile(audioChunks);
+
+    // #124: Prosodic indicators (jitter, onset strength) — needs transcript + audio
+    if (transcript.length > 0) {
+      log("INFO", "Computing prosodic indicators");
+      metrics.prosodicIndicators = deps.metricsExtractor.computeProsodicIndicators(audioChunks, transcript);
+    }
+  }
+
+  // #124: Pace variation (transcript-only, no audio needed)
+  if (deps.metricsExtractor && transcript.length > 0) {
+    log("INFO", "Computing pace variation");
+    metrics.paceVariation = deps.metricsExtractor.computePaceVariation(transcript);
   }
 
   // ── Stage 3: Script rendering (with markers, UNREDACTED) ──

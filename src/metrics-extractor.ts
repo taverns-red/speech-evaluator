@@ -9,6 +9,9 @@ import type {
   ClassifiedFillerEntry,
   ClassifiedPause,
   EnergyProfile,
+  PitchProfile,
+  PaceVariation,
+  ProsodicIndicators,
 } from "./types.js";
 
 // ─── Known Filler Words ─────────────────────────────────────────────────────────
@@ -885,5 +888,391 @@ export class MetricsExtractor {
     }
 
     return best;
+  }
+
+  // ─── Acoustic Analysis (#124) ─────────────────────────────────────────────────
+
+  /**
+   * Extract pitch profile (F0 contour) from raw PCM audio using autocorrelation.
+   * Audio is raw PCM 16-bit signed little-endian mono at the given sample rate.
+   *
+   * @param audioChunks - Array of raw PCM audio buffers
+   * @param windowDurationMs - Analysis window size in ms (default 30ms)
+   * @param sampleRate - Audio sample rate in Hz (default 16000)
+   * @returns PitchProfile with F0 contour and summary statistics
+   */
+  computePitchProfile(
+    audioChunks: Buffer[],
+    windowDurationMs: number = 30,
+    sampleRate: number = 16000,
+  ): PitchProfile {
+    const emptyProfile: PitchProfile = {
+      f0Values: [],
+      windowDurationMs,
+      minF0: 0,
+      maxF0: 0,
+      meanF0: 0,
+      stdDevF0: 0,
+      rangeSemitones: 0,
+      voicedFraction: 0,
+    };
+
+    const totalLength = audioChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    if (totalLength === 0) return emptyProfile;
+
+    const combined = Buffer.concat(audioChunks, totalLength);
+    const totalSamples = Math.floor(combined.length / 2);
+    if (totalSamples === 0) return emptyProfile;
+
+    const samplesPerWindow = Math.floor((sampleRate * windowDurationMs) / 1000);
+    if (samplesPerWindow < 2) return emptyProfile;
+
+    // F0 search range: 80-500 Hz (covers typical human speech)
+    const minLag = Math.floor(sampleRate / 500); // max F0 = 500 Hz
+    const maxLag = Math.floor(sampleRate / 80);   // min F0 = 80 Hz
+
+    if (maxLag >= samplesPerWindow || minLag >= maxLag) return emptyProfile;
+
+    // Hop size: 50% overlap
+    const hopSize = Math.floor(samplesPerWindow / 2);
+    const f0Values: number[] = [];
+
+    for (let offset = 0; offset + samplesPerWindow <= totalSamples; offset += hopSize) {
+      // Read window samples as floats
+      const window: number[] = new Array(samplesPerWindow);
+      for (let i = 0; i < samplesPerWindow; i++) {
+        window[i] = combined.readInt16LE((offset + i) * 2) / 32768.0;
+      }
+
+      const f0 = this.detectF0Autocorrelation(window, sampleRate, minLag, maxLag);
+      f0Values.push(f0);
+    }
+
+    // Compute statistics over voiced frames only
+    const voicedF0 = f0Values.filter((f) => f > 0);
+    const voicedFraction = f0Values.length > 0 ? voicedF0.length / f0Values.length : 0;
+
+    if (voicedF0.length === 0) {
+      return { ...emptyProfile, f0Values, voicedFraction: 0 };
+    }
+
+    const minF0 = Math.min(...voicedF0);
+    const maxF0 = Math.max(...voicedF0);
+    const meanF0 = voicedF0.reduce((a, b) => a + b, 0) / voicedF0.length;
+    const variance = voicedF0.reduce((sum, v) => sum + (v - meanF0) ** 2, 0) / voicedF0.length;
+    const stdDevF0 = Math.sqrt(variance);
+
+    // Pitch range in semitones: 12 * log2(maxF0 / minF0)
+    const rangeSemitones = minF0 > 0 ? 12 * Math.log2(maxF0 / minF0) : 0;
+
+    return {
+      f0Values,
+      windowDurationMs,
+      minF0,
+      maxF0,
+      meanF0,
+      stdDevF0,
+      rangeSemitones,
+      voicedFraction,
+    };
+  }
+
+  /**
+   * Detect F0 using normalized autocorrelation with parabolic interpolation.
+   * Returns the detected F0 in Hz, or 0 if the window is unvoiced.
+   */
+  private detectF0Autocorrelation(
+    window: number[],
+    sampleRate: number,
+    minLag: number,
+    maxLag: number,
+  ): number {
+    const n = window.length;
+
+    // Compute RMS energy — skip silent frames
+    let sumSquares = 0;
+    for (let i = 0; i < n; i++) sumSquares += window[i] * window[i];
+    const rms = Math.sqrt(sumSquares / n);
+    if (rms < 0.01) return 0; // silence threshold
+
+    // Autocorrelation for lags in [minLag, maxLag]
+    let bestLag = 0;
+    let bestCorr = -1;
+
+    // Also compute r(0) for normalization
+    let r0 = 0;
+    for (let i = 0; i < n; i++) r0 += window[i] * window[i];
+
+    for (let lag = minLag; lag <= Math.min(maxLag, n - 1); lag++) {
+      let sum = 0;
+      let denomA = 0;
+      let denomB = 0;
+      for (let i = 0; i < n - lag; i++) {
+        sum += window[i] * window[i + lag];
+        denomA += window[i] * window[i];
+        denomB += window[i + lag] * window[i + lag];
+      }
+      const denom = Math.sqrt(denomA * denomB);
+      const corr = denom > 0 ? sum / denom : 0;
+
+      if (corr > bestCorr) {
+        bestCorr = corr;
+        bestLag = lag;
+      }
+    }
+
+    // Voicing threshold — normalized correlation must be strong enough
+    if (bestCorr < 0.3 || bestLag === 0) return 0;
+
+    // Parabolic interpolation around the peak for sub-sample accuracy
+    let refinedLag = bestLag;
+    if (bestLag > minLag && bestLag < Math.min(maxLag, n - 1)) {
+      // Recompute neighbors for parabolic fit
+      const corrPrev = this.normalizedCorrelation(window, bestLag - 1);
+      const corrNext = this.normalizedCorrelation(window, bestLag + 1);
+      const shift = (corrPrev - corrNext) / (2 * (corrPrev - 2 * bestCorr + corrNext));
+      if (Math.abs(shift) < 1) {
+        refinedLag = bestLag + shift;
+      }
+    }
+
+    return sampleRate / refinedLag;
+  }
+
+  /** Compute normalized autocorrelation at a specific lag. */
+  private normalizedCorrelation(window: number[], lag: number): number {
+    const n = window.length;
+    let sum = 0;
+    let denomA = 0;
+    let denomB = 0;
+    for (let i = 0; i < n - lag; i++) {
+      sum += window[i] * window[i + lag];
+      denomA += window[i] * window[i];
+      denomB += window[i + lag] * window[i + lag];
+    }
+    const denom = Math.sqrt(denomA * denomB);
+    return denom > 0 ? sum / denom : 0;
+  }
+
+  /**
+   * Compute speaking pace variation using sliding-window WPM analysis.
+   * Analyzes how consistently the speaker maintains their pace across the speech.
+   *
+   * @param segments - Transcript segments with word-level timestamps
+   * @param windowDurationSeconds - Window size in seconds (default 30)
+   * @param strideSeconds - Stride between windows in seconds (default 10)
+   * @returns PaceVariation with local WPM values and variability statistics
+   */
+  computePaceVariation(
+    segments: TranscriptSegment[],
+    windowDurationSeconds: number = 30,
+    strideSeconds: number = 10,
+  ): PaceVariation {
+    const emptyResult: PaceVariation = {
+      localWPM: [],
+      windowDurationSeconds,
+      strideSeconds,
+      meanWPM: 0,
+      stdDevWPM: 0,
+      variationCoefficient: 0,
+      peakWPM: 0,
+      troughWPM: 0,
+    };
+
+    if (segments.length === 0) return emptyResult;
+
+    // Build flat word list with timestamps
+    const words: { startTime: number; endTime: number }[] = [];
+    for (const seg of segments) {
+      if (seg.words.length > 0) {
+        for (const w of seg.words) {
+          words.push({ startTime: w.startTime, endTime: w.endTime });
+        }
+      } else {
+        // Segment-level: distribute words evenly
+        const wordTexts = seg.text.trim().split(/\s+/).filter((w) => w.length > 0);
+        if (wordTexts.length === 0) continue;
+        const wordDuration = (seg.endTime - seg.startTime) / wordTexts.length;
+        for (let i = 0; i < wordTexts.length; i++) {
+          words.push({
+            startTime: seg.startTime + i * wordDuration,
+            endTime: seg.startTime + (i + 1) * wordDuration,
+          });
+        }
+      }
+    }
+
+    if (words.length === 0) return emptyResult;
+
+    const speechStart = words[0].startTime;
+    const speechEnd = words[words.length - 1].endTime;
+    const speechDuration = speechEnd - speechStart;
+
+    // Need at least one full window
+    if (speechDuration < windowDurationSeconds) {
+      // Single window = entire speech, no variation
+      const wpm = (words.length / speechDuration) * 60;
+      return {
+        localWPM: [wpm],
+        windowDurationSeconds,
+        strideSeconds,
+        meanWPM: wpm,
+        stdDevWPM: 0,
+        variationCoefficient: 0,
+        peakWPM: wpm,
+        troughWPM: wpm,
+      };
+    }
+
+    // Slide windows and count words in each
+    const localWPM: number[] = [];
+    for (
+      let windowStart = speechStart;
+      windowStart + windowDurationSeconds <= speechEnd;
+      windowStart += strideSeconds
+    ) {
+      const windowEnd = windowStart + windowDurationSeconds;
+      // Count words that start within this window
+      const wordCount = words.filter(
+        (w) => w.startTime >= windowStart && w.startTime < windowEnd,
+      ).length;
+      const wpm = (wordCount / windowDurationSeconds) * 60;
+      localWPM.push(wpm);
+    }
+
+    if (localWPM.length === 0) return emptyResult;
+
+    const meanWPM = localWPM.reduce((a, b) => a + b, 0) / localWPM.length;
+    const variance = localWPM.reduce((sum, v) => sum + (v - meanWPM) ** 2, 0) / localWPM.length;
+    const stdDevWPM = Math.sqrt(variance);
+    const variationCoefficient = meanWPM > 0 ? stdDevWPM / meanWPM : 0;
+
+    return {
+      localWPM,
+      windowDurationSeconds,
+      strideSeconds,
+      meanWPM,
+      stdDevWPM,
+      variationCoefficient,
+      peakWPM: Math.max(...localWPM),
+      troughWPM: Math.min(...localWPM),
+    };
+  }
+
+  /**
+   * Compute prosodic confidence indicators from audio and transcript data.
+   *
+   * - Pitch jitter: std dev of F0 deltas between consecutive voiced frames (nervousness)
+   * - Onset strength: mean RMS energy at utterance starts (confidence/projection)
+   *
+   * @param audioChunks - Raw PCM audio buffers
+   * @param segments - Transcript segments for utterance boundary detection
+   * @param sampleRate - Audio sample rate in Hz (default 16000)
+   * @returns ProsodicIndicators
+   */
+  computeProsodicIndicators(
+    audioChunks: Buffer[],
+    segments: TranscriptSegment[],
+    sampleRate: number = 16000,
+  ): ProsodicIndicators {
+    const emptyResult: ProsodicIndicators = {
+      pitchJitter: 0,
+      meanOnsetStrength: 0,
+      onsetCount: 0,
+    };
+
+    const totalLength = audioChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    if (totalLength === 0 || segments.length === 0) return emptyResult;
+
+    const combined = Buffer.concat(audioChunks, totalLength);
+    const totalSamples = Math.floor(combined.length / 2);
+    if (totalSamples === 0) return emptyResult;
+
+    // 1. Pitch jitter: compute from pitch profile
+    const pitchProfile = this.computePitchProfile(audioChunks, 30, sampleRate);
+    const voicedF0 = pitchProfile.f0Values.filter((f) => f > 0);
+    let pitchJitter = 0;
+
+    if (voicedF0.length >= 2) {
+      // Compute deltas between consecutive voiced frames
+      const deltas: number[] = [];
+      for (let i = 1; i < voicedF0.length; i++) {
+        deltas.push(Math.abs(voicedF0[i] - voicedF0[i - 1]));
+      }
+      const meanDelta = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+      const variance = deltas.reduce((sum, d) => sum + (d - meanDelta) ** 2, 0) / deltas.length;
+      pitchJitter = Math.sqrt(variance);
+    }
+
+    // 2. Onset strength: measure RMS energy at the start of each utterance
+    //    An "utterance" starts when there's a gap >= 300ms followed by speech
+    const onsetWindowMs = 100; // first 100ms of each utterance
+    const onsetSamples = Math.floor((sampleRate * onsetWindowMs) / 1000);
+    const gapThresholdMs = 300;
+
+    // Find utterance starts from transcript word gaps
+    const flatWords: { startTime: number }[] = [];
+    for (const seg of segments) {
+      if (seg.words.length > 0) {
+        for (const w of seg.words) {
+          flatWords.push({ startTime: w.startTime });
+        }
+      }
+    }
+
+    const onsetStrengths: number[] = [];
+
+    if (flatWords.length > 0) {
+      // First word is always an onset
+      const firstOnsetRMS = this.computeRMSAt(combined, totalSamples, flatWords[0].startTime, onsetSamples, sampleRate);
+      if (firstOnsetRMS > 0) onsetStrengths.push(firstOnsetRMS);
+
+      // Subsequent onsets: words preceded by gaps >= gapThresholdMs
+      for (let i = 1; i < flatWords.length; i++) {
+        // Estimate gap from transcript (approximate, but consistent with existing pause detection)
+        const gap = flatWords[i].startTime - flatWords[i - 1].startTime;
+        if (gap >= gapThresholdMs / 1000) {
+          const rms = this.computeRMSAt(combined, totalSamples, flatWords[i].startTime, onsetSamples, sampleRate);
+          if (rms > 0) onsetStrengths.push(rms);
+        }
+      }
+    }
+
+    const meanOnsetStrength = onsetStrengths.length > 0
+      ? onsetStrengths.reduce((a, b) => a + b, 0) / onsetStrengths.length
+      : 0;
+
+    return {
+      pitchJitter,
+      meanOnsetStrength,
+      onsetCount: onsetStrengths.length,
+    };
+  }
+
+  /**
+   * Compute RMS energy at a specific time offset in the audio buffer.
+   * Returns 0 if the offset is out of range.
+   */
+  private computeRMSAt(
+    buffer: Buffer,
+    totalSamples: number,
+    timeSeconds: number,
+    windowSamples: number,
+    sampleRate: number,
+  ): number {
+    const startSample = Math.floor(timeSeconds * sampleRate);
+    const endSample = Math.min(startSample + windowSamples, totalSamples);
+
+    if (startSample >= totalSamples || startSample < 0) return 0;
+    if (endSample <= startSample) return 0;
+
+    let sumSquares = 0;
+    const count = endSample - startSample;
+    for (let i = startSample; i < endSample; i++) {
+      const sample = buffer.readInt16LE(i * 2) / 32768.0;
+      sumSquares += sample * sample;
+    }
+
+    return Math.sqrt(sumSquares / count);
   }
 }

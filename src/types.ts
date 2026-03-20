@@ -144,6 +144,10 @@ export interface DeliveryMetrics {
   energyProfile: EnergyProfile;
   classifiedFillers: ClassifiedFillerEntry[];
   visualMetrics: VisualMetrics | null; // Phase 4 (Req 9.1) — null when video not available
+  // #124 — Acoustic analysis (optional, computed when audio is available)
+  pitchProfile?: PitchProfile;
+  paceVariation?: PaceVariation;
+  prosodicIndicators?: ProsodicIndicators;
 }
 
 export interface FillerWordEntry {
@@ -178,6 +182,59 @@ export interface EnergyProfile {
   windows: number[];
   coefficientOfVariation: number;
   silenceThreshold: number;
+}
+
+// ─── Pitch Profile (#124 — Acoustic Analysis) ──────────────────────────────────
+
+export interface PitchProfile {
+  /** Extracted F0 values in Hz (one per analysis window, 0 = unvoiced) */
+  f0Values: number[];
+  /** Window duration in milliseconds */
+  windowDurationMs: number;
+  /** Minimum F0 across voiced windows (Hz) */
+  minF0: number;
+  /** Maximum F0 across voiced windows (Hz) */
+  maxF0: number;
+  /** Mean F0 across voiced windows (Hz) */
+  meanF0: number;
+  /** Standard deviation of F0 across voiced windows (Hz) */
+  stdDevF0: number;
+  /** Pitch range in semitones (musical measure of variation) */
+  rangeSemitones: number;
+  /** Fraction of windows that were voiced (0.0-1.0) */
+  voicedFraction: number;
+}
+
+// ─── Pace Variation (#124 — Acoustic Analysis) ─────────────────────────────────
+
+export interface PaceVariation {
+  /** Local WPM values computed over sliding windows */
+  localWPM: number[];
+  /** Window duration in seconds */
+  windowDurationSeconds: number;
+  /** Stride between windows in seconds */
+  strideSeconds: number;
+  /** Mean local WPM */
+  meanWPM: number;
+  /** Standard deviation of local WPM */
+  stdDevWPM: number;
+  /** Coefficient of variation (stdDev / mean) — higher = more variation */
+  variationCoefficient: number;
+  /** Peak local WPM (fastest section) */
+  peakWPM: number;
+  /** Trough local WPM (slowest section) */
+  troughWPM: number;
+}
+
+// ─── Prosodic Indicators (#124 — Acoustic Analysis) ────────────────────────────
+
+export interface ProsodicIndicators {
+  /** Vocal jitter: std dev of F0 deltas between consecutive voiced frames (Hz) */
+  pitchJitter: number;
+  /** Mean RMS energy at the start of utterances (first 100ms after silence) */
+  meanOnsetStrength: number;
+  /** Number of utterance onsets detected */
+  onsetCount: number;
 }
 
 // ─── Structured Evaluation ──────────────────────────────────────────────────────

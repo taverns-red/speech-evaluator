@@ -2108,6 +2108,17 @@ describe("Video Lifecycle Methods", () => {
           classifiedFillers: [], visualMetrics: null,
         }),
         computeEnergyProfile: vi.fn(),
+        computePitchProfile: vi.fn().mockReturnValue({
+          f0Values: [], windowDurationMs: 30, minF0: 0, maxF0: 0,
+          meanF0: 0, stdDevF0: 0, rangeSemitones: 0, voicedFraction: 0,
+        }),
+        computePaceVariation: vi.fn().mockReturnValue({
+          localWPM: [], windowDurationSeconds: 30, strideSeconds: 10,
+          meanWPM: 0, stdDevWPM: 0, variationCoefficient: 0, peakWPM: 0, troughWPM: 0,
+        }),
+        computeProsodicIndicators: vi.fn().mockReturnValue({
+          pitchJitter: 0, meanOnsetStrength: 0, onsetCount: 0,
+        }),
       };
     }
 
