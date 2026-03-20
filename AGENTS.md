@@ -10,7 +10,7 @@ This file contains **project-specific** context only.
 When beginning a new session or task in this project:
 
 1. **Read lessons**: Review the last 5 entries in `tasks/lessons.md`
-2. **Establish baseline**: Run `npx vitest run` and record the pass count (currently 1762)
+2. **Establish baseline**: Run `npx vitest run` and record the pass count (currently 1788)
 3. **Identify or create an issue**: Use `gh issue list` or `gh issue create` before writing code
 4. **If root cause is unknown**: Use `tasks/experiment_template.md` before implementing
 

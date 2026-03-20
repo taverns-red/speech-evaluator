@@ -12,6 +12,14 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-20 — Lesson 36: DI via Client Interface for GCS Testability
+
+**The Discovery**: When building `GcsHistoryService`, rather than mocking `@google-cloud/storage` directly (brittle, tightly coupled to SDK internals), defining a thin `GcsHistoryClient` interface with `saveFile/listPrefixes/readFile/getSignedReadUrl/fileExists` allowed the entire service to be tested with simple `vi.fn()` mocks — 26 tests, zero SDK coupling. The real `createGcsHistoryClient()` factory wraps the SDK into that interface.
+
+**The Resulting Rule**: For external service integrations (GCS, Deepgram, OpenAI), always define a minimal client interface at the service boundary. Test the business logic against the interface, not the SDK. The factory function is the only place that touches the SDK.
+
+**Future Warning**: If you find yourself importing `@google-cloud/storage` in a test file, you're testing the wrong thing. Mock the interface, not the SDK.
+
 ## 🗓️ 2026-03-19 — Lesson 35: Verify Runtime State, Not Source Comments
 
 **The Discovery**: Issue #27 (ML detector stubs) appeared open and multiple source-level signals suggested the detectors were unimplemented: Lesson 9 mentioned "stub detectors", AGENTS.md listed "stubs", `video-processor.ts` had 12 stale STUB comments/docstrings, and `index.ts` imported both `StubFaceDetector` and `TfjsFaceDetector`. All signals pointed to incomplete implementation. But checking Cloud Run production logs revealed `"BlazeFace loaded"` and `"MoveNet Lightning loaded"` — real detectors were running. The stubs were fallback-only code that never activates.
