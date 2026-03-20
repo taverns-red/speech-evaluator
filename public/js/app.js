@@ -27,6 +27,7 @@ import {
   releaseCamera, toggleVideoSize,
 } from "./video.js";
 import { onFileSelected, onFormFileSelected } from "./upload.js";
+import { loadHistory, resetHistory, isHistoryLoaded } from "./history.js";
 import {
   connectWebSocket, connectWebSocketAndWait, manualReconnect,
   wsSend, sendAudioFormatHandshake, forceStopTtsAndCancelDeferral,
@@ -246,26 +247,54 @@ function switchMode(mode) {
   S.currentMode = mode;
   const tabLive = document.getElementById("tab-live");
   const tabUpload = document.getElementById("tab-upload");
+  const tabHistory = document.getElementById("tab-history");
   const btnStart = document.getElementById("btn-start");
   const btnUpload = document.getElementById("btn-upload");
   const btnPanic = document.getElementById("btn-panic");
   const videoContainer = document.querySelector(".video-preview-container");
+  const historyPanel = document.getElementById("history-panel");
+  const controlsEl = document.querySelector(".controls");
+  const transcriptPanel = document.getElementById("transcript-panel");
+  const evaluationPanel = document.getElementById("evaluation-panel");
 
+  // Update tab active states
   tabLive.classList.toggle("active", mode === "live");
   tabUpload.classList.toggle("active", mode === "upload");
+  if (tabHistory) tabHistory.classList.toggle("active", mode === "history");
 
-  // Live mode: show start + panic, hide upload
-  // Upload mode: show upload, hide start + panic
   if (mode === "live") {
     btnStart.classList.remove("hidden");
     btnPanic.classList.remove("hidden");
     btnUpload.classList.add("hidden");
     if (videoContainer) videoContainer.classList.add("visible");
-  } else {
+    if (historyPanel) historyPanel.style.display = "none";
+    if (controlsEl) controlsEl.style.display = "";
+    if (transcriptPanel) transcriptPanel.style.display = "";
+    if (evaluationPanel) evaluationPanel.style.display = "";
+  } else if (mode === "upload") {
     btnStart.classList.add("hidden");
     btnPanic.classList.add("hidden");
     btnUpload.classList.remove("hidden");
     if (videoContainer) videoContainer.classList.remove("visible");
+    if (historyPanel) historyPanel.style.display = "none";
+    if (controlsEl) controlsEl.style.display = "";
+    if (transcriptPanel) transcriptPanel.style.display = "";
+    if (evaluationPanel) evaluationPanel.style.display = "";
+  } else if (mode === "history") {
+    btnStart.classList.add("hidden");
+    btnPanic.classList.add("hidden");
+    btnUpload.classList.add("hidden");
+    if (videoContainer) videoContainer.classList.remove("visible");
+    if (historyPanel) historyPanel.style.display = "block";
+    if (controlsEl) controlsEl.style.display = "none";
+    if (transcriptPanel) transcriptPanel.style.display = "none";
+    if (evaluationPanel) evaluationPanel.style.display = "none";
+
+    // Auto-load history for current speaker if not already loaded
+    const speaker = S.consentSpeakerName || "";
+    if (speaker && !isHistoryLoaded()) {
+      loadHistory(speaker);
+    }
   }
 }
 
@@ -420,6 +449,11 @@ document.getElementById("btn-camera-flip").addEventListener("click", onCameraFli
 document.getElementById("btn-video-toggle").addEventListener("click", toggleVideoSize);
 document.getElementById("tab-live").addEventListener("click", function () { switchMode("live"); });
 document.getElementById("tab-upload").addEventListener("click", function () { switchMode("upload"); });
+document.getElementById("tab-history").addEventListener("click", function () { switchMode("history"); });
+document.getElementById("history-load-more").addEventListener("click", function () {
+  const speaker = S.consentSpeakerName || "";
+  if (speaker) loadHistory(speaker);
+});
 document.getElementById("btn-start").addEventListener("click", onStartSpeech);
 document.getElementById("btn-upload").addEventListener("click", function () {
   document.getElementById("upload-file-input").click();
