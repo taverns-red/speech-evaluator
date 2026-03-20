@@ -12,6 +12,16 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-19 — Lesson 35: Verify Runtime State, Not Source Comments
+
+**The Discovery**: Issue #27 (ML detector stubs) appeared open and multiple source-level signals suggested the detectors were unimplemented: Lesson 9 mentioned "stub detectors", AGENTS.md listed "stubs", `video-processor.ts` had 12 stale STUB comments/docstrings, and `index.ts` imported both `StubFaceDetector` and `TfjsFaceDetector`. All signals pointed to incomplete implementation. But checking Cloud Run production logs revealed `"BlazeFace loaded"` and `"MoveNet Lightning loaded"` — real detectors were running. The stubs were fallback-only code that never activates.
+
+**The Scientific Proof**: `gcloud logging read` for the service showed real models loading. The entire VideoProcessor (1617 LoC) was fully implemented with gaze classification, gesture detection, body stability, facial energy.
+
+**The Resulting Rule**: When assessing feature completeness, verify the actual runtime behavior (logs, deployed state) before trusting source-level comments, issue titles, or documentation. Comments rot faster than code. Production logs are the source of truth.
+
+**Future Warning**: If source comments say "stub" but the code block below the comment has a full implementation, the comment is stale. Clean them up immediately — they will mislead future developers and agents.
+
 ## 🗓️ 2026-03-15 — Lesson 34: DOM Cache Key Names Must Match Usage Sites During State Extraction
 
 **The Discovery**: When extracting shared state into `state.js`, the `dom` cache renamed `videoFpsConfig` to `videoFpsConfig_el` (to disambiguate from `S.videoFpsConfig`, the numeric FPS value). But `app.js` still referenced `dom.videoFpsConfig` (no `_el` suffix) in 5 locations. Since `dom.videoFpsConfig` was `undefined`, calling `hide(undefined)` threw `TypeError: Cannot read properties of undefined (reading 'classList')`. This crashed the entire module before the Module→Global Bridge could execute, making ALL other functions fail with `ReferenceError`.
