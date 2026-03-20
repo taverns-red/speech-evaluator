@@ -53,6 +53,8 @@ export interface EvaluationPipelineInput {
   evalConfig?: EvaluationConfig;
   /** Optional visual observations from video processing */
   visualObservations?: VisualObservations | null;
+  /** Optional extracted video frame paths for GPT-4o Vision (#125) */
+  visionFrames?: string[];
   /** Optional raw audio chunks for energy profile computation */
   audioChunks?: Buffer[];
   /** Optional consent record for name redaction */
@@ -117,7 +119,7 @@ export async function runEvaluationStages(
   input: EvaluationPipelineInput,
   deps: EvaluationPipelineDeps,
 ): Promise<EvaluationPipelineResult | undefined> {
-  const { transcript, metrics, evalConfig, visualObservations, audioChunks, consent } = input;
+  const { transcript, metrics, evalConfig, visualObservations, visionFrames, audioChunks, consent } = input;
   const log = input.log ?? (() => {});
   const isCancelled = input.isCancelled ?? (() => false);
 
@@ -128,6 +130,7 @@ export async function runEvaluationStages(
     metrics,
     evalConfig,
     visualObservations ?? null,
+    visionFrames,
   );
 
   if (isCancelled()) return undefined;

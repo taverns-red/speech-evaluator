@@ -406,6 +406,7 @@ export class EvaluationGenerator {
     metrics: DeliveryMetrics,
     config?: EvaluationConfig,
     visualObservations?: VisualObservations | null,
+    visionFrames?: string[],
   ): Promise<GenerateResult> {
     const transcriptText = this.buildTranscriptText(transcript);
     const qualityWarning = this.assessTranscriptQuality(transcript, metrics);
@@ -430,8 +431,8 @@ export class EvaluationGenerator {
 
     for (let attempt = 0; attempt < MAX_FULL_GENERATION_ATTEMPTS; attempt++) {
       // Stage 1: Call LLM
-      const prompt = this.buildPrompt(transcriptText, metrics, qualityWarning, config, highConfidenceSegments, visualObservations);
-      const raw = await this.callLLM(prompt);
+      const prompt = this.buildPrompt(transcriptText, metrics, qualityWarning, config, highConfidenceSegments, visualObservations, visionFrames && visionFrames.length > 0);
+      const raw = await this.callLLM(prompt, visionFrames);
       const evaluation = this.parseEvaluation(raw);
 
       // Stage 2: Validate evidence (with pass-rate tracking)
@@ -474,8 +475,8 @@ export class EvaluationGenerator {
     }
 
     // Short-form fallback couldn't produce valid items — best-effort last LLM call
-    const lastPrompt = this.buildPrompt(transcriptText, metrics, qualityWarning, config, highConfidenceSegments, visualObservations);
-    const lastRaw = await this.callLLM(lastPrompt);
+    const lastPrompt = this.buildPrompt(transcriptText, metrics, qualityWarning, config, highConfidenceSegments, visualObservations, visionFrames && visionFrames.length > 0);
+    const lastRaw = await this.callLLM(lastPrompt, visionFrames);
     const lastEval = this.parseEvaluation(lastRaw);
     return {
       evaluation: lastEval,
@@ -610,11 +611,12 @@ export class EvaluationGenerator {
     config?: EvaluationConfig,
     highConfidenceSegments?: TranscriptSegment[],
     visualObservations?: VisualObservations | null,
+    hasVisionFrames?: boolean,
   ): { system: string; user: string } {
     const hasVisual = visualObservations != null && visualObservations.videoQualityGrade !== "poor";
     const hasForm = !!config?.evaluationFormText;
-    const system = this.buildSystemPrompt(qualityWarning, hasVisual, hasForm);
-    const user = this.buildUserPrompt(transcriptText, metrics, config, highConfidenceSegments, visualObservations);
+    const system = this.buildSystemPrompt(qualityWarning, hasVisual || !!hasVisionFrames, hasForm);
+    const user = this.buildUserPrompt(transcriptText, metrics, config, highConfidenceSegments, visualObservations, hasVisionFrames);
     return { system, user };
   }
 
@@ -628,6 +630,7 @@ export class EvaluationGenerator {
     config?: EvaluationConfig,
     highConfidenceSegments?: TranscriptSegment[],
     visualObservations?: VisualObservations | null,
+    hasVisionFrames?: boolean,
   ): string {
     let prompt = `## Speech Transcript
 ${transcriptText}
@@ -702,6 +705,26 @@ ${JSON.stringify(filteredObs, null, 2)}
       }
     }
 
+    // Vision frame analysis (#125) — GPT-4o Vision prompt for uploaded video frames
+    if (hasVisionFrames) {
+      prompt += `
+
+## Video Frame Analysis (GPT-4o Vision)
+The attached images are frames extracted from the speaker's video at regular intervals.
+Analyze the visual delivery and produce 1-3 visual_feedback items covering:
+- **Body language**: posture, openness, energy level
+- **Gestures**: hand movements, purposeful vs nervous gestures
+- **Eye contact**: whether the speaker appears to look at the audience vs notes/screen
+- **Stage presence**: movement patterns, use of space
+- **Slides/visual aids**: if visible, quality and relevance
+
+Each visual_feedback item must have:
+- type: "visual_observation"
+- summary: brief 1-line summary
+- observation_data: "source=visionFrames"
+- explanation: 2-3 sentences describing what you observed`;
+    }
+
     if (config?.projectType) {
       // Project-Specific Evaluation section REPLACES the Evaluation Objectives section
       // when projectType is provided (Req 5.1, 5.2, 5.5)
@@ -774,13 +797,37 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
 
   // ── LLM call ───────────────────────────────────────────────────────────────
 
-  private async callLLM(prompt: { system: string; user: string }): Promise<string> {
+  private async callLLM(prompt: { system: string; user: string }, visionFrames?: string[]): Promise<string> {
+    // Build user content: text-only or multimodal with Vision frames
+    let userContent: string | Array<{ type: string; text?: string; image_url?: { url: string; detail?: string } }>;
+
+    if (visionFrames && visionFrames.length > 0) {
+      // Multimodal: text + image_url parts
+      const parts: Array<{ type: string; text?: string; image_url?: { url: string; detail?: string } }> = [
+        { type: "text", text: prompt.user },
+      ];
+      for (const framePath of visionFrames) {
+        // Read frame file and convert to base64 data URI
+        const { readFile } = await import("fs/promises");
+        const frameBuffer = await readFile(framePath);
+        const base64 = frameBuffer.toString("base64");
+        const dataUri = `data:image/jpeg;base64,${base64}`;
+        parts.push({
+          type: "image_url",
+          image_url: { url: dataUri, detail: "low" },
+        });
+      }
+      userContent = parts;
+    } else {
+      userContent = prompt.user;
+    }
+
     const response = await withRetry(
       () => this.openai.chat.completions.create({
         model: this.model,
         messages: [
           { role: "system", content: prompt.system },
-          { role: "user", content: prompt.user },
+          { role: "user", content: userContent as string },
         ],
         response_format: { type: "json_object" },
         temperature: 0.7,

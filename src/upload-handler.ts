@@ -31,6 +31,8 @@ import { extractFormText, isFormMimeType } from "./form-extractor.js";
 import { runEvaluationStages } from "./evaluation-pipeline.js";
 import { createLogger } from "./logger.js";
 import type { MetricsCollector } from "./metrics-collector.js";
+import { AnalysisTier, getTierConfig } from "./analysis-tiers.js";
+import { extractFrames, type FrameExtractionResult } from "./frame-extractor.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────────
 
@@ -157,7 +159,7 @@ function log(msg: string): void {
  */
 async function runEvaluationPipeline(
     uploadedPath: string,
-    formData: { speakerName: string; speechTitle?: string; projectType?: string; objectives?: string; evaluationFormText?: string },
+    formData: { speakerName: string; speechTitle?: string; projectType?: string; objectives?: string; evaluationFormText?: string; analysisTier?: string },
     deps: UploadPipelineDeps,
 ): Promise<{
     durationSeconds: number;
@@ -168,6 +170,7 @@ async function runEvaluationPipeline(
     ttsAudioBase64?: string;
 }> {
     let audioPath: string | undefined;
+    let frameResult: FrameExtractionResult | undefined;
 
     try {
         // ── Duration ──
@@ -199,6 +202,20 @@ async function runEvaluationPipeline(
         const metrics: DeliveryMetrics = deps.metricsExtractor.extract(transcript);
         log(`Metrics: ${metrics.totalWords} words, ${Math.round(metrics.wordsPerMinute)} WPM`);
 
+        // ── Extract frames for Vision tier (#125) ──
+        const tier = (formData.analysisTier as AnalysisTier) || AnalysisTier.Standard;
+        const tierConfig = getTierConfig(tier);
+
+        if (tierConfig.vision && durationSeconds > 0) {
+            log(`Extracting frames: tier=${tier}, interval=${tierConfig.samplingIntervalSeconds}s, detail=${tierConfig.detail}`);
+            frameResult = await extractFrames({
+                videoPath: uploadedPath,
+                durationSeconds,
+                tier,
+            });
+            log(`Frames extracted: ${frameResult.frameCount} frames`);
+        }
+
         // ── Run shared evaluation pipeline (stages 1-8) ──
         log("Running evaluation pipeline...");
         const evalConfig = formData.speechTitle || formData.projectType || formData.evaluationFormText
@@ -217,7 +234,8 @@ async function runEvaluationPipeline(
                 transcript,
                 metrics,
                 evalConfig,
-                visualObservations: null, // no visual observations for uploaded video (yet)
+                visualObservations: null,
+                visionFrames: frameResult?.frames,
                 log: (_level, msg) => log(msg),
             },
             {
@@ -257,6 +275,8 @@ async function runEvaluationPipeline(
         };
     } finally {
         if (audioPath) await cleanupFile(audioPath);
+        // Clean up extracted frames
+        if (frameResult) await frameResult.cleanup();
     }
 }
 
