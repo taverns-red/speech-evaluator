@@ -584,7 +584,7 @@ export class VideoProcessor {
         this.faceNotDetectedCount++;
       }
 
-      // Step 5: Detect gesture (stub — returns false for now)
+      // Step 5: Detect gesture from hand keypoint displacement
       const handKeypoints = poseValid
         ? this.extractHandKeypoints(poseResult!)
         : null;
@@ -612,7 +612,7 @@ export class VideoProcessor {
       this.previousHandKeypoints = handKeypoints;
       this.previousBodyBboxHeight = bodyBboxHeight;
 
-      // Step 6: Body stability (stub — empty for now)
+      // Step 6: Body center tracking for stability analysis
       if (poseValid) {
         const center = this.computeBodyCenter(poseResult!, header);
         if (center) {
@@ -620,7 +620,7 @@ export class VideoProcessor {
         }
       }
 
-      // Step 7: Facial energy (stub — returns 0 for now)
+      // Step 7: Facial energy delta computation
       if (faceValid) {
         const energyDelta = this.computeFacialEnergyDelta(
           faceResult!.landmarks,
@@ -652,7 +652,7 @@ export class VideoProcessor {
     }
   }
 
-  // ─── Stub Methods (to be implemented in tasks 4.2, 4.5, 4.8, 4.11) ─────────
+  // ─── Analysis Methods ──────────────────────────────────────────────────────
 
   /**
    * Classify gaze direction from face landmarks using head pose estimation.
@@ -718,10 +718,7 @@ export class VideoProcessor {
     return "other";
   }
 
-  /**
-   * Detect gesture from hand keypoint displacement.
-   * STUB: returns false — full implementation in task 4.5.
-   */
+
   /**
      * Detect gesture from hand keypoint displacement.
      * Normalizes displacement by body bounding box height.
@@ -747,10 +744,7 @@ export class VideoProcessor {
       return normalizedDisplacement > threshold;
     }
 
-  /**
-   * Compute body center-of-mass from pose keypoints.
-   * STUB: returns null — full implementation in task 4.8.
-   */
+
   /**
      * Compute body center-of-mass from pose keypoints.
      * Uses average of hip keypoints (left_hip, right_hip) from MoveNet,
@@ -796,10 +790,7 @@ export class VideoProcessor {
       return { timestamp: header.timestamp, x, y };
     }
 
-  /**
-   * Compute facial energy delta between current and previous landmarks.
-   * STUB: returns 0 — full implementation in task 4.11.
-   */
+
   /**
      * Compute facial energy delta between current and previous landmarks.
      * Measures the magnitude of facial landmark movement between consecutive frames:
@@ -990,11 +981,11 @@ export class VideoProcessor {
       transcriptSegments,
     );
 
-    // Body stability (stub aggregates)
+    // Body stability aggregates
     const { meanStability, stageCrossings, movementClass } =
       this.computeBodyStabilityAggregates();
 
-    // Facial energy (stub aggregates)
+    // Facial energy aggregates
     const { meanEnergy, energyVariation, lowSignal } =
       this.computeFacialEnergyAggregates();
 
@@ -1126,7 +1117,7 @@ export class VideoProcessor {
     );
   }
 
-  /** Compute body stability aggregates (stub). */
+  /** Compute body stability aggregates over rolling windows. */
   /**
      * Compute body stability aggregates over rolling 5-second windows.
      * - Body_Stability_Score per window: 1.0 - normalizedMaxDisplacement (clamped [0, 1])
@@ -1420,9 +1411,9 @@ export class VideoProcessor {
   /** Get the video processing version tuple for reproducibility. */
   private getVideoProcessingVersion(): VisualObservations["videoProcessingVersion"] {
     return {
-      tfjsVersion: "stub",
-      tfjsBackend: "stub",
-      modelVersions: { blazeface: "stub", movenet: "stub" },
+      tfjsVersion: "4.x-wasm",
+      tfjsBackend: "wasm",
+      modelVersions: { blazeface: "1.x", movenet: "lightning-1.x" },
       configHash: computeConfigHash(this.config),
     };
   }
