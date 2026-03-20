@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.16](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.15...ai-speech-evaluator-v0.6.16) (2026-03-20)
+
+
+### Features
+
+* add analysis tier selector UI + backend plumbing ([#125](https://github.com/taverns-red/speech-evaluator/issues/125)) ([30b17e8](https://github.com/taverns-red/speech-evaluator/commit/30b17e8c9f4d08623f2b2a7300a0d31e10e913b0))
+* add analysis tiers module with config and cost estimation ([#125](https://github.com/taverns-red/speech-evaluator/issues/125)) ([dcfde8b](https://github.com/taverns-red/speech-evaluator/commit/dcfde8b491d2279f29626ab0625a60c631899c44))
+* add cost guardrails — tier cost display + upload analysisTier ([#125](https://github.com/taverns-red/speech-evaluator/issues/125)) ([2cf44c4](https://github.com/taverns-red/speech-evaluator/commit/2cf44c48511a63338bff3c68d2de481bdb5252c1))
+* add frame extractor with DI interface for upload-mode Vision ([#125](https://github.com/taverns-red/speech-evaluator/issues/125)) ([af68b45](https://github.com/taverns-red/speech-evaluator/commit/af68b4504f84bc1b4589f2e2f8722179a53182eb))
+* integrate Vision frame extraction into upload evaluation pipeline ([#125](https://github.com/taverns-red/speech-evaluator/issues/125)) ([28df491](https://github.com/taverns-red/speech-evaluator/commit/28df49123daf52342aa05da882e51a43ab59bf43))
+
 ## [0.6.15](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.14...ai-speech-evaluator-v0.6.15) (2026-03-20)
 
 
