@@ -482,3 +482,11 @@
 **The Discovery**: The download evaluation button did nothing — zero user feedback. Root cause: `buildZip()` was called in `upload.js` but never imported from `ui.js`. In ES modules, this is a `ReferenceError` at call time, not at module load. Since the call was inside an `onclick` handler with no `try/catch`, the error was swallowed silently.
 
 **The Resulting Rule**: When extracting functions into a new module, `grep` for every call site to verify imports are wired. ES module missing-import errors are silent at load time and only surface when the code path is actually executed — which may be a rarely-tested UI flow like "download after upload."
+
+## 🗓️ 2026-03-19 — Lesson 43: Recurring Missing Imports After Module Extraction (#110)
+
+**The Discovery**: `audio.js` used `STATUS_TEXT` (line 194, from `constants.js`) and `stopVideoCapture` (line 160, from `video.js`) without importing either. The `STATUS_TEXT` error only surfaced when the cooldown timer fired after TTS playback — a code path that requires a full live-mode speech cycle to reach. The `stopVideoCapture` error was latent in `hardStopMic()`, only triggered during echo prevention.
+
+**The Scientific Proof**: Browser console showed `ReferenceError: Can't find variable: STATUS_TEXT` at `audio.js:194`. Adding both imports and re-testing eliminated the error.
+
+**The Resulting Rule**: This is the **third** instance of this bug class (Lessons 35, 42, 43). After any module extraction, run `grep -rn 'IDENTIFIER' public/js/` for **every** identifier used in the extracted file and verify each has a corresponding `import` statement. Do not rely on page-load testing — many code paths are only reachable through specific user flows (cooldown, panic mute, upload-then-download).
