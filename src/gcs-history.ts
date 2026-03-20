@@ -33,6 +33,10 @@ export interface EvaluationMetadata {
   mode: "live" | "upload";
   /** GCS prefix for this evaluation's files */
   prefix: string;
+  /** Analysis tier used for this evaluation (#128) */
+  analysisTier?: string;
+  /** Number of Vision frames captured (#128) */
+  visionFrameCount?: number;
 }
 
 export interface EvaluationListItem {
@@ -64,6 +68,8 @@ export interface SaveEvaluationInput {
   evaluation: StructuredEvaluation;
   evaluationScript?: string;
   ttsAudio?: Buffer;
+  analysisTier?: string;
+  visionFrameCount?: number;
 }
 
 // ─── GCS History Client Interface (for testability) ──────────────────────────────
@@ -203,6 +209,8 @@ export class GcsHistoryService {
         projectType: input.projectType,
         mode: input.mode,
         prefix,
+        analysisTier: input.analysisTier,
+        visionFrameCount: input.visionFrameCount,
       };
 
       // Save all files in parallel
