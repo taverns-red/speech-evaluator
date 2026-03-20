@@ -28,6 +28,7 @@ import {
 } from "./video.js";
 import { onFileSelected, onFormFileSelected } from "./upload.js";
 import { loadHistory, resetHistory, isHistoryLoaded } from "./history.js";
+import { updateTierCostLabels } from "./tier-costs.js";
 import {
   connectWebSocket, connectWebSocketAndWait, manualReconnect,
   wsSend, sendAudioFormatHandshake, forceStopTtsAndCancelDeferral,
@@ -430,8 +431,14 @@ dom.objectivesTextarea.addEventListener("input", onObjectivesChange);
 
 // Analysis Tier: listen for radio button changes (#125)
 document.querySelectorAll('input[name="analysis-tier"]').forEach(radio => {
-  radio.addEventListener("change", onAnalysisTierChange);
+  radio.addEventListener("change", () => {
+    onAnalysisTierChange();
+    updateTierCostLabels();
+  });
 });
+
+// Initialize tier cost labels
+updateTierCostLabels();
 
 // Phase 4: Listen for video consent and FPS config changes
 dom.videoConsentCheckbox.addEventListener("change", onVideoConsentChange);

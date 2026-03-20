@@ -12,6 +12,14 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-20 — Lesson 37: Multimodal LLM Prompts via Content Parts
+
+**The Discovery**: When adding GPT-4o Vision support to the evaluation generator, the `callLLM` method needed to switch between text-only prompts (standard tier) and multipart content with `image_url` parts (vision tiers). The OpenAI API accepts either a string or an array of content parts for the `content` field. The key insight is that text-only and multimodal prompts share the same system prompt — only the user message changes shape.
+
+**The Resulting Rule**: When adding multimodal support to an existing text-only LLM call, keep the system prompt unchanged and conditionally construct the user content. Read frames from disk as base64 data URIs (`data:image/jpeg;base64,...`) rather than uploading to a URL. This keeps the change isolated to the `callLLM` method.
+
+**Future Warning**: When using `image_url` content parts with `detail: "low"`, each image costs ~85 tokens. At Maximum tier (1 frame/sec, 20-min speech), that's ~102,000 tokens from images alone. Always enforce `maxFrames` caps.
+
 ## 🗓️ 2026-03-20 — Lesson 36: DI via Client Interface for GCS Testability
 
 **The Discovery**: When building `GcsHistoryService`, rather than mocking `@google-cloud/storage` directly (brittle, tightly coupled to SDK internals), defining a thin `GcsHistoryClient` interface with `saveFile/listPrefixes/readFile/getSignedReadUrl/fileExists` allowed the entire service to be tested with simple `vi.fn()` mocks — 26 tests, zero SDK coupling. The real `createGcsHistoryClient()` factory wraps the SDK into that interface.
