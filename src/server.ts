@@ -75,6 +75,8 @@ interface ConnectionState {
   stopRecordingPromise: Promise<void> | null;
   /** IDs of active meeting roles selected by the operator (Phase 9, #72) */
   activeRoles: string[];
+  /** Configured analysis tier (#125) */
+  analysisTier: string;
 }
 
 // ─── Logging ────────────────────────────────────────────────────────────────────
@@ -376,6 +378,7 @@ function handleConnection(
     videoStatusInterval: null,
     stopRecordingPromise: null,
     activeRoles: [],
+    analysisTier: "standard",
   };
 
   logger.info(`New WebSocket connection, session ${session.id}`);
@@ -619,6 +622,11 @@ function handleClientMessage(
     case "set_active_roles":
       connState.activeRoles = message.roleIds ?? [];
       logger.info(`Active roles set: [${connState.activeRoles.join(", ")}] for session ${connState.sessionId}`);
+      break;
+
+    case "set_analysis_tier":
+      connState.analysisTier = message.tier ?? "standard";
+      logger.info(`Analysis tier set: ${connState.analysisTier} for session ${connState.sessionId}`);
       break;
 
     default: {

@@ -26,6 +26,7 @@ export function saveFormState() {
       speechTitle: dom.speechTitleInput.value,
       projectType: dom.projectTypeSelect.value,
       objectives: dom.objectivesTextarea.value,
+      analysisTier: S.analysisTier,
     };
     localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(state));
   } catch (e) {
@@ -53,6 +54,13 @@ export function restoreFormState() {
       S.projectContext.objectives = state.objectives.split("\n")
         .map(function (l) { return l.trim(); })
         .filter(function (l) { return l.length > 0; });
+    }
+
+    // Restore analysis tier
+    if (state.analysisTier) {
+      S.analysisTier = state.analysisTier;
+      const radio = document.querySelector(`input[name="analysis-tier"][value="${state.analysisTier}"]`);
+      if (radio) radio.checked = true;
     }
 
     // Enable video consent checkbox if audio consent is confirmed
@@ -398,5 +406,24 @@ export function resetProjectContextForm() {
   dom.speechTitleInput.value = "";
   dom.projectTypeSelect.value = "";
   dom.objectivesTextarea.value = "";
+}
+
+// ─── Analysis Tier Event Handlers (#125) ──────────────────────────
+
+/**
+ * Called when the analysis tier radio selection changes.
+ * Updates local state, persists, and sends set_analysis_tier to server.
+ */
+export function onAnalysisTierChange() {
+  const selected = document.querySelector('input[name="analysis-tier"]:checked');
+  if (!selected) return;
+
+  S.analysisTier = selected.value;
+  saveFormState();
+
+  wsSend({
+    type: "set_analysis_tier",
+    tier: S.analysisTier,
+  });
 }
 

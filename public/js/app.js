@@ -18,7 +18,7 @@ import {
   showVideoConsentError, hideVideoConsentError, onVideoFpsChange, onVideoFpsInput,
   onTimeLimitChange, handleVADSpeechEnd, onVADConfirmStop, onVADDismiss,
   onVADConfigChange, onVADThresholdInput, onSpeechTitleChange, onProjectTypeChange,
-  onObjectivesChange, resetProjectContextForm,
+  onObjectivesChange, resetProjectContextForm, onAnalysisTierChange,
 } from "./consent.js";
 import { updateTranscript, showEvaluation, displayRoleResults, clearEvidenceHighlight } from "./transcript.js";
 import { checkMicPermission, startAudioCapture, stopAudioCapture, hardStopMic, startCooldown, clearCooldown } from "./audio.js";
@@ -427,6 +427,11 @@ dom.vadThresholdSlider.addEventListener("input", onVADThresholdInput);
 dom.speechTitleInput.addEventListener("input", onSpeechTitleChange);
 dom.projectTypeSelect.addEventListener("change", onProjectTypeChange);
 dom.objectivesTextarea.addEventListener("input", onObjectivesChange);
+
+// Analysis Tier: listen for radio button changes (#125)
+document.querySelectorAll('input[name="analysis-tier"]').forEach(radio => {
+  radio.addEventListener("change", onAnalysisTierChange);
+});
 
 // Phase 4: Listen for video consent and FPS config changes
 dom.videoConsentCheckbox.addEventListener("change", onVideoConsentChange);

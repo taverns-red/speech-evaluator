@@ -169,6 +169,37 @@
       </div>
     </div>
 
+    <!-- Analysis Depth Selector (#125) -->
+    <div id="analysis-tier-config" class="analysis-tier-config" aria-label="Analysis depth configuration">
+      <div class="analysis-tier-title">Analysis Depth</div>
+      <div class="analysis-tier-options">
+        <label class="analysis-tier-option">
+          <input type="radio" name="analysis-tier" value="standard" checked>
+          <span class="tier-label">Standard</span>
+          <span class="tier-desc">Text-only evaluation</span>
+          <span class="tier-cost" data-tier="standard"></span>
+        </label>
+        <label class="analysis-tier-option">
+          <input type="radio" name="analysis-tier" value="enhanced">
+          <span class="tier-label">Enhanced</span>
+          <span class="tier-desc">+ Visual analysis (1 frame / 10s, low detail)</span>
+          <span class="tier-cost" data-tier="enhanced"></span>
+        </label>
+        <label class="analysis-tier-option">
+          <input type="radio" name="analysis-tier" value="detailed">
+          <span class="tier-label">Detailed</span>
+          <span class="tier-desc">+ Visual analysis (1 frame / 5s, high detail)</span>
+          <span class="tier-cost" data-tier="detailed"></span>
+        </label>
+        <label class="analysis-tier-option">
+          <input type="radio" name="analysis-tier" value="maximum">
+          <span class="tier-label">Maximum</span>
+          <span class="tier-desc">+ Visual analysis (1 frame / sec, high detail)</span>
+          <span class="tier-cost" data-tier="maximum"></span>
+        </label>
+      </div>
+    </div>
+
     <!-- Video FPS Configuration (visible in IDLE state when video consent enabled — Req 2.9) -->
     <div id="video-fps-config" class="video-fps-config" aria-label="Video frame rate configuration">
       <div class="video-fps-config-title">Video Configuration</div>

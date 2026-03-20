@@ -43,6 +43,9 @@ export const S = {
   videoStreamReady: false,
   videoFpsConfig: 2,
 
+  // ─── Analysis Tier (#125) ─────────────────────────────────────
+  analysisTier: "standard",
+
   // ─── VAD Audio Level Meter ───────────────────────────────────
   lastVadStatusTime: 0,
   useVadEnergy: false,
@@ -160,6 +163,8 @@ export const dom = {
   videoFpsConfig_el: document.getElementById("video-fps-config"),
   videoFpsSlider: document.getElementById("video-fps-slider"),
   videoFpsValue: document.getElementById("video-fps-value"),
+  // Analysis Tier (#125)
+  analysisTierConfig: document.getElementById("analysis-tier-config"),
 };
 
 // ─── Video DOM References ────────────────────────────────────────
