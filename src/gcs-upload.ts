@@ -18,7 +18,7 @@ import { pipeline } from "stream/promises";
 
 // ─── Config ──────────────────────────────────────────────────────────────────────
 
-const BUCKET_NAME = process.env.GCS_UPLOAD_BUCKET || "speech-evaluator-uploads";
+const BUCKET_NAME = process.env.GCS_UPLOAD_BUCKET || "speech-evaluator-uploads-ca";
 const SIGNED_URL_EXPIRY_MINUTES = 15;
 const MAX_UPLOAD_SIZE_BYTES = 2048 * 1024 * 1024; // 2 GB
 
