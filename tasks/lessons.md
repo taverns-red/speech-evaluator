@@ -12,6 +12,16 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-20 — Lesson 38: Parallel Frame Capture for Different Consumers
+
+**The Discovery**: The system already had a 5fps binary frame capture (TM-prefixed wire format) for Phase 4 ML processing (face/gaze/gesture detection). Vision tiers (GPT-4o) need much lower-frequency captures (1-10s intervals) sent as JSON data URIs. These are fundamentally different consumers: ML wants high-frequency raw frames, LLM wants low-frequency base64 for prompt content parts.
+
+**The Scientific Proof**: Attempting to reuse the existing 5fps capture would either overwhelm the LLM with too many frames (hitting maxFrames instantly) or require complex filtering logic. Separate `startVisionCapture()` / `stopVisionCapture()` functions run independently from the ML capture with their own interval timers and frame buffers.
+
+**The Resulting Rule**: When two consumers want the same data (video frames) at different frequencies and in different formats, implement parallel capture paths rather than trying to multiplex one stream. The shared resource (canvas element, video stream) can be safely reused since canvas snapshot is synchronous.
+
+**Future Warning**: If a third consumer emerges (e.g., thumbnail capture for UI), evaluate whether it's another parallel path or if a generic "capture at N fps, distribute to subscribers" pattern is warranted.
+
 ## 🗓️ 2026-03-20 — Lesson 37: Multimodal LLM Prompts via Content Parts
 
 **The Discovery**: When adding GPT-4o Vision support to the evaluation generator, the `callLLM` method needed to switch between text-only prompts (standard tier) and multipart content with `image_url` parts (vision tiers). The OpenAI API accepts either a string or an array of content parts for the `content` field. The key insight is that text-only and multimodal prompts share the same system prompt — only the user message changes shape.
