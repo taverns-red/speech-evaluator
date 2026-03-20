@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.15](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.14...ai-speech-evaluator-v0.6.15) (2026-03-20)
+
+
+### Features
+
+* add acoustic analysis — pitch, pace variation, prosodic indicators ([#124](https://github.com/taverns-red/speech-evaluator/issues/124)) ([09de6e1](https://github.com/taverns-red/speech-evaluator/commit/09de6e18b320079a99d3717e8caf5a7ae3b4173b))
+* add frontend history tab with list, expand, and playback ([#123](https://github.com/taverns-red/speech-evaluator/issues/123)) ([68bce70](https://github.com/taverns-red/speech-evaluator/commit/68bce7092b3e40dfd9f480b0e6b68ff655a33cdf))
+* add GCS history service with save/list/sign + backend API ([#123](https://github.com/taverns-red/speech-evaluator/issues/123)) ([93a87d1](https://github.com/taverns-red/speech-evaluator/commit/93a87d118a016346303792904ce0feb512f930d8))
+
 ## [0.6.14](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.13...ai-speech-evaluator-v0.6.14) (2026-03-20)
 
 
