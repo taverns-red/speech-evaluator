@@ -63,6 +63,7 @@ function createMockClient(): GcsHistoryClient & {
   readFile: ReturnType<typeof vi.fn>;
   getSignedReadUrl: ReturnType<typeof vi.fn>;
   fileExists: ReturnType<typeof vi.fn>;
+  deletePrefix: ReturnType<typeof vi.fn>;
 } {
   return {
     saveFile: vi.fn().mockResolvedValue(undefined),
@@ -70,6 +71,7 @@ function createMockClient(): GcsHistoryClient & {
     readFile: vi.fn().mockResolvedValue("{}"),
     getSignedReadUrl: vi.fn().mockResolvedValue("https://signed-url.example.com"),
     fileExists: vi.fn().mockResolvedValue(true),
+    deletePrefix: vi.fn().mockResolvedValue(0),
   };
 }
 
@@ -387,5 +389,75 @@ describe("GcsHistoryService - listEvaluations", () => {
       "results/jane-obrien/",
       "/",
     );
+  });
+});
+
+// ─── GcsHistoryService.deleteEvaluation ─────────────────────────────────────────
+
+describe("GcsHistoryService - deleteEvaluation", () => {
+  let client: ReturnType<typeof createMockClient>;
+  let service: GcsHistoryService;
+
+  beforeEach(() => {
+    client = createMockClient();
+    service = new GcsHistoryService(client);
+  });
+
+  it("deletes files under the given prefix", async () => {
+    client.deletePrefix.mockResolvedValue(5);
+
+    const count = await service.deleteEvaluation("results/jane/2026-01-01-0900-test/");
+
+    expect(count).toBe(5);
+    expect(client.deletePrefix).toHaveBeenCalledWith("results/jane/2026-01-01-0900-test/");
+  });
+
+  it("returns 0 when no files found", async () => {
+    client.deletePrefix.mockResolvedValue(0);
+
+    const count = await service.deleteEvaluation("results/jane/2026-01-01-0900-nonexistent/");
+
+    expect(count).toBe(0);
+  });
+
+  it("rejects invalid prefix not starting with results/", async () => {
+    await expect(service.deleteEvaluation("other/jane/test/")).rejects.toThrow("Invalid evaluation prefix");
+  });
+});
+
+// ─── GcsHistoryService.deleteSpeakerHistory ─────────────────────────────────────
+
+describe("GcsHistoryService - deleteSpeakerHistory", () => {
+  let client: ReturnType<typeof createMockClient>;
+  let service: GcsHistoryService;
+
+  beforeEach(() => {
+    client = createMockClient();
+    service = new GcsHistoryService(client);
+  });
+
+  it("deletes all files under the speaker prefix", async () => {
+    client.deletePrefix.mockResolvedValue(15);
+
+    const count = await service.deleteSpeakerHistory("Jane Doe");
+
+    expect(count).toBe(15);
+    expect(client.deletePrefix).toHaveBeenCalledWith("results/jane-doe/");
+  });
+
+  it("sanitizes speaker name", async () => {
+    client.deletePrefix.mockResolvedValue(0);
+
+    await service.deleteSpeakerHistory("John O'Brien");
+
+    expect(client.deletePrefix).toHaveBeenCalledWith("results/john-obrien/");
+  });
+
+  it("returns 0 for speaker with no history", async () => {
+    client.deletePrefix.mockResolvedValue(0);
+
+    const count = await service.deleteSpeakerHistory("Unknown Speaker");
+
+    expect(count).toBe(0);
   });
 });

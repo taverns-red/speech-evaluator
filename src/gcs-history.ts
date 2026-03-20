@@ -74,6 +74,7 @@ export interface GcsHistoryClient {
   readFile(path: string): Promise<string>;
   getSignedReadUrl(path: string, expiryMinutes: number): Promise<string>;
   fileExists(path: string): Promise<boolean>;
+  deletePrefix(prefix: string): Promise<number>;
 }
 
 // ─── Real GCS Client ─────────────────────────────────────────────────────────────
@@ -117,6 +118,13 @@ export function createGcsHistoryClient(bucketName: string): GcsHistoryClient {
       const file = bucket.file(path);
       const [exists] = await file.exists();
       return exists;
+    },
+
+    async deletePrefix(prefix: string): Promise<number> {
+      const [files] = await bucket.getFiles({ prefix });
+      if (files.length === 0) return 0;
+      await Promise.all(files.map(f => f.delete()));
+      return files.length;
     },
   };
 }
@@ -340,5 +348,32 @@ export class GcsHistoryService {
 
     await Promise.all(checks);
     return urls;
+  }
+
+  /**
+   * Delete a single evaluation by prefix (#128 — privacy hardening).
+   * @param prefix - The full GCS prefix for the evaluation (e.g., "results/speaker/timestamp-title/")
+   * @returns Number of files deleted
+   */
+  async deleteEvaluation(prefix: string): Promise<number> {
+    if (!prefix.startsWith(RESULTS_PREFIX)) {
+      throw new Error(`Invalid evaluation prefix: ${prefix}`);
+    }
+    const count = await this.client.deletePrefix(prefix);
+    log.info("Deleted evaluation", { prefix, filesDeleted: count });
+    return count;
+  }
+
+  /**
+   * Delete all evaluations for a speaker (#128 — privacy hardening).
+   * @param speakerName - The speaker name (sanitized internally)
+   * @returns Number of files deleted
+   */
+  async deleteSpeakerHistory(speakerName: string): Promise<number> {
+    const sanitized = sanitizeForPath(speakerName);
+    const prefix = `${RESULTS_PREFIX}${sanitized}/`;
+    const count = await this.client.deletePrefix(prefix);
+    log.info("Deleted speaker history", { speaker: speakerName, prefix, filesDeleted: count });
+    return count;
   }
 }

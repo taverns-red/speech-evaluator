@@ -284,6 +284,34 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
       }
     });
     logger.info("History endpoint mounted at /api/history/:speaker");
+
+    // DELETE /api/history/:speaker — delete all evaluations for a speaker (#128)
+    app.delete("/api/history/:speaker", async (req, res) => {
+      try {
+        const speaker = decodeURIComponent(req.params.speaker);
+        const count = await gcsHistoryService.deleteSpeakerHistory(speaker);
+        res.json({ deleted: count });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error(`Delete speaker history error: ${errMsg}`);
+        res.status(500).json({ error: "Failed to delete speaker history" });
+      }
+    });
+
+    // DELETE /api/history/:speaker/:evaluationId — delete a single evaluation (#128)
+    // evaluationId is the full GCS prefix (URL-encoded)
+    app.delete("/api/history/:speaker/:evaluationId", async (req, res) => {
+      try {
+        const prefix = decodeURIComponent(req.params.evaluationId);
+        const count = await gcsHistoryService.deleteEvaluation(prefix);
+        res.json({ deleted: count });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error(`Delete evaluation error: ${errMsg}`);
+        res.status(500).json({ error: "Failed to delete evaluation" });
+      }
+    });
+    logger.info("History DELETE endpoints mounted (#128)");
   }
 
   // WebSocket server — noServer mode when auth is enabled for manual upgrade

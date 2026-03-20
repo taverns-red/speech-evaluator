@@ -43,6 +43,14 @@ async function fetchHistory(speaker, cursor) {
   return res.json();
 }
 
+async function deleteEvaluationApi(speaker, prefix) {
+  const encodedSpeaker = encodeURIComponent(speaker);
+  const encodedPrefix = encodeURIComponent(prefix);
+  const res = await fetch(`/api/history/${encodedSpeaker}/${encodedPrefix}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete API error: ${res.status}`);
+  return res.json();
+}
+
 // ─── Rendering ──────────────────────────────────────────────────────
 
 function formatDate(isoString) {
@@ -178,6 +186,7 @@ async function toggleHistoryDetail(div, item) {
     html += '<div class="history-links">';
     if (urls.transcript) html += `<a href="${escapeHtml(urls.transcript)}" target="_blank" class="history-link">📄 Transcript</a>`;
     if (urls.metrics) html += `<a href="${escapeHtml(urls.metrics)}" target="_blank" class="history-link">📊 Metrics</a>`;
+    html += `<button class="history-delete-btn" title="Delete this evaluation">🗑️ Delete</button>`;
     html += "</div>";
 
     html += "</div>";
@@ -199,6 +208,32 @@ async function toggleHistoryDetail(div, item) {
       });
       audio.addEventListener("ended", () => {
         playBtn.textContent = "▶ Play Evaluation";
+      });
+    }
+    // Wire delete button (#128)
+    const deleteBtn = detail.querySelector(".history-delete-btn");
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const ok = confirm(`Delete evaluation "${item.metadata.speechTitle || "Untitled"}"? This cannot be undone.`);
+        if (!ok) return;
+        deleteBtn.disabled = true;
+        deleteBtn.textContent = "Deleting...";
+        try {
+          await deleteEvaluationApi(item.metadata.speakerName, item.metadata.prefix);
+          // Remove from list
+          div.remove();
+          historyResults = historyResults.filter(r => r.metadata.prefix !== item.metadata.prefix);
+          if (historyResults.length === 0) {
+            const emptyEl = getHistoryEmpty();
+            if (emptyEl) emptyEl.style.display = "block";
+          }
+        } catch (err) {
+          console.error("[History] Failed to delete:", err);
+          deleteBtn.textContent = "🗑️ Delete";
+          deleteBtn.disabled = false;
+          alert("Failed to delete: " + err.message);
+        }
       });
     }
   } catch (err) {
