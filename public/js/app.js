@@ -209,6 +209,17 @@ async function onStartSpeech() {
   // Optimistic UI update (server will confirm via state_change)
   updateUI(SessionState.RECORDING);
   updateElapsedTime(0);
+
+  // Practice mode: 5-minute auto-stop timer (#146)
+  if (S.currentMode === "practice") {
+    clearTimeout(S.practiceAutoStopTimer);
+    S.practiceAutoStopTimer = setTimeout(() => {
+      if (S.currentState === SessionState.RECORDING) {
+        showNotification("Practice time limit (5 minutes) reached — auto-stopping.");
+        onStopSpeech();
+      }
+    }, 5 * 60 * 1000);
+  }
 }
 
 
@@ -252,6 +263,7 @@ function switchMode(mode) {
   S.currentMode = mode;
   const tabLive = document.getElementById("tab-live");
   const tabUpload = document.getElementById("tab-upload");
+  const tabPractice = document.getElementById("tab-practice");
   const tabHistory = document.getElementById("tab-history");
   const btnStart = document.getElementById("btn-start");
   const btnUpload = document.getElementById("btn-upload");
@@ -261,21 +273,39 @@ function switchMode(mode) {
   const controlsEl = document.querySelector(".controls");
   const transcriptPanel = document.getElementById("transcript-panel");
   const evaluationPanel = document.getElementById("evaluation-panel");
+  // Practice mode hides advanced config sections
+  const projectContextForm = document.getElementById("project-context-form");
+  const videoConsentRow = document.getElementById("video-consent-row");
+  const evalStyleConfig = document.getElementById("evaluation-style-config");
+  const practiceLabel = document.getElementById("practice-mode-label");
 
   // Update tab active states
   tabLive.classList.toggle("active", mode === "live");
   tabUpload.classList.toggle("active", mode === "upload");
+  if (tabPractice) tabPractice.classList.toggle("active", mode === "practice");
   if (tabHistory) tabHistory.classList.toggle("active", mode === "history");
 
-  if (mode === "live") {
+  if (mode === "live" || mode === "practice") {
     btnStart.classList.remove("hidden");
     btnPanic.classList.remove("hidden");
     btnUpload.classList.add("hidden");
-    if (videoContainer) videoContainer.classList.add("visible");
+    if (videoContainer) videoContainer.classList.toggle("visible", mode === "live");
     if (historyPanel) historyPanel.style.display = "none";
     if (controlsEl) controlsEl.style.display = "";
     if (transcriptPanel) transcriptPanel.style.display = "";
     if (evaluationPanel) evaluationPanel.style.display = "";
+
+    // Practice mode: simplify UI — hide project context, video, eval style
+    const isPractice = mode === "practice";
+    if (projectContextForm) projectContextForm.style.display = isPractice ? "none" : "";
+    if (videoConsentRow) videoConsentRow.style.display = isPractice ? "none" : "";
+    if (evalStyleConfig) evalStyleConfig.style.display = isPractice ? "none" : "";
+    if (practiceLabel) practiceLabel.style.display = isPractice ? "block" : "none";
+
+    // Notify server of session mode
+    if (S.ws && S.ws.readyState === WebSocket.OPEN) {
+      wsSend({ type: "set_session_mode", mode: isPractice ? "practice" : "live" });
+    }
   } else if (mode === "upload") {
     btnStart.classList.add("hidden");
     btnPanic.classList.add("hidden");
@@ -285,6 +315,11 @@ function switchMode(mode) {
     if (controlsEl) controlsEl.style.display = "";
     if (transcriptPanel) transcriptPanel.style.display = "";
     if (evaluationPanel) evaluationPanel.style.display = "";
+    // Restore hidden sections
+    if (projectContextForm) projectContextForm.style.display = "";
+    if (videoConsentRow) videoConsentRow.style.display = "";
+    if (evalStyleConfig) evalStyleConfig.style.display = "";
+    if (practiceLabel) practiceLabel.style.display = "none";
   } else if (mode === "history") {
     btnStart.classList.add("hidden");
     btnPanic.classList.add("hidden");
@@ -294,6 +329,7 @@ function switchMode(mode) {
     if (controlsEl) controlsEl.style.display = "none";
     if (transcriptPanel) transcriptPanel.style.display = "none";
     if (evaluationPanel) evaluationPanel.style.display = "none";
+    if (practiceLabel) practiceLabel.style.display = "none";
 
     // Auto-load history for current speaker if not already loaded
     const speaker = S.consentSpeakerName || "";
@@ -472,6 +508,7 @@ document.getElementById("btn-camera-flip").addEventListener("click", onCameraFli
 document.getElementById("btn-video-toggle").addEventListener("click", toggleVideoSize);
 document.getElementById("tab-live").addEventListener("click", function () { switchMode("live"); });
 document.getElementById("tab-upload").addEventListener("click", function () { switchMode("upload"); });
+document.getElementById("tab-practice").addEventListener("click", function () { switchMode("practice"); });
 document.getElementById("tab-history").addEventListener("click", function () { switchMode("history"); });
 document.getElementById("history-load-more").addEventListener("click", function () {
   const speaker = S.consentSpeakerName || "";

@@ -2208,6 +2208,19 @@ body::before {
   margin-top: 10px;
 }
 
+/* ── Practice Mode (#146) ────────────────────────────────────────────────── */
+
+.practice-mode-label {
+  background: rgba(100, 181, 246, 0.08);
+  border: 1px solid rgba(100, 181, 246, 0.3);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
 .history-links {
   display: flex;
   gap: 12px;

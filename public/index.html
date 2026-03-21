@@ -90,13 +90,16 @@
         <label id="consent-label" for="consent-checkbox">I confirm the speaker has given verbal consent to be recorded
           and evaluated</label>
       </div>
-      <div class="checkbox-group">
+      <div id="video-consent-row" class="checkbox-group">
         <input type="checkbox" id="video-consent-checkbox" aria-describedby="video-consent-label" disabled>
         <label id="video-consent-label" for="video-consent-checkbox">Enable video capture for visual delivery
           feedback</label>
       </div>
       <div id="video-consent-error" class="video-consent-error" role="alert" aria-live="polite"></div>
       <p class="privacy-notice">🔒 Evaluation data is stored for 90 days and can be deleted at any time from the History tab. Audio is never persisted to disk.</p>
+    </div>
+    <div id="practice-mode-label" class="practice-mode-label" style="display:none;">
+      🏋️ <strong>Practice Mode</strong> — Record a short rehearsal (max 5 min) and get instant AI feedback. No video, no project context.
     </div>
 
     <!-- Project Context Form (visible in IDLE state) -->
@@ -303,6 +306,7 @@
     <div id="mode-tabs" class="mode-tabs">
       <button id="tab-live" class="mode-tab active">🎙️ Live</button>
       <button id="tab-upload" class="mode-tab">📁 Upload</button>
+      <button id="tab-practice" class="mode-tab">🏋️ Practice</button>
       <button id="tab-history" class="mode-tab">📚 History</button>
     </div>
 

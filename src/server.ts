@@ -85,6 +85,8 @@ interface ConnectionState {
   evaluationStyle: string;
   /** Buffer of base64 Vision frames for GPT-4o analysis (#128) */
   visionFrameBuffer: string[];
+  /** Session mode: live meeting or solo practice (#146) */
+  sessionMode: "live" | "practice";
 }
 
 // ─── Logging ────────────────────────────────────────────────────────────────────
@@ -476,6 +478,7 @@ function handleConnection(
     analysisTier: "standard",
     evaluationStyle: "classic",
     visionFrameBuffer: [],
+    sessionMode: "live",
   };
 
   logger.info(`New WebSocket connection, session ${session.id}`);
@@ -725,6 +728,11 @@ function handleClientMessage(
       connState.analysisTier = message.tier ?? "standard";
       connState.visionFrameBuffer = []; // Reset buffer on tier change
       logger.info(`Analysis tier set: ${connState.analysisTier} for session ${connState.sessionId}`);
+      break;
+
+    case "set_session_mode":
+      connState.sessionMode = message.mode === "practice" ? "practice" : "live";
+      logger.info(`Session mode set: ${connState.sessionMode} for session ${connState.sessionId}`);
       break;
 
     case "set_evaluation_style": {

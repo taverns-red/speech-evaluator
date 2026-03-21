@@ -29,8 +29,8 @@ export interface EvaluationMetadata {
   wordsPerMinute: number;
   passRate: number;
   projectType?: string;
-  /** "live" or "upload" */
-  mode: "live" | "upload";
+  /** "live", "upload", or "practice" (#146) */
+  mode: "live" | "upload" | "practice";
   /** GCS prefix for this evaluation's files */
   prefix: string;
   /** Analysis tier used for this evaluation (#128) */
@@ -58,7 +58,7 @@ export interface ListEvaluationsResult {
 export interface SaveEvaluationInput {
   speakerName: string;
   speechTitle: string;
-  mode: "live" | "upload";
+  mode: "live" | "upload" | "practice";
   durationSeconds: number;
   wordsPerMinute: number;
   passRate: number;

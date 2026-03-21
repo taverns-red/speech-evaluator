@@ -92,6 +92,7 @@ export const S = {
 
   // ─── Mode ────────────────────────────────────────────────────
   currentMode: "live",
+  practiceAutoStopTimer: null,
 
   // ─── WebSocket ───────────────────────────────────────────────
   liveSessionActive: false,

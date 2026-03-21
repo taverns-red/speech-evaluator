@@ -619,6 +619,7 @@ export type ClientMessage =
   | { type: "set_active_roles"; roleIds: string[] }
   | { type: "set_analysis_tier"; tier: string }
   | { type: "set_evaluation_style"; style: string }
+  | { type: "set_session_mode"; mode: string }
   | { type: "vision_frame"; data: string; seq: number };
 
 // Server → Client messages
