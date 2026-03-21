@@ -738,6 +738,7 @@ async function toggleHistoryDetail(div, item) {
     if (urls.transcript) html += `<a href="${escapeHtml(urls.transcript)}" target="_blank" class="history-link">📄 Transcript</a>`;
     if (urls.metrics) html += `<a href="${escapeHtml(urls.metrics)}" target="_blank" class="history-link">📊 Metrics</a>`;
     html += `<button class="history-export-btn" title="Export as Markdown">📄 Export</button>`;
+    html += `<button class="history-share-btn" title="Create shareable link">🔗 Share</button>`;
     html += `<button class="history-delete-btn" title="Delete this evaluation">🗑️ Delete</button>`;
     html += "</div>";
 
@@ -821,6 +822,37 @@ async function toggleHistoryDetail(div, item) {
           exportBtn.textContent = "📄 Export";
           exportBtn.disabled = false;
           alert("Failed to export: " + err.message);
+        }
+      });
+    }
+
+    // Wire share button (#164)
+    const shareBtn = detail.querySelector(".history-share-btn");
+    if (shareBtn) {
+      shareBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        shareBtn.disabled = true;
+        shareBtn.textContent = "Creating...";
+        try {
+          const res = await fetch("/api/share", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ evalPrefix: item.metadata.prefix }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          const shareUrl = `${window.location.origin}${data.url}`;
+          await navigator.clipboard.writeText(shareUrl);
+          shareBtn.textContent = "✅ Copied!";
+          setTimeout(() => {
+            shareBtn.textContent = "🔗 Share";
+            shareBtn.disabled = false;
+          }, 2000);
+        } catch (err) {
+          console.error("[History] Failed to share:", err);
+          shareBtn.textContent = "🔗 Share";
+          shareBtn.disabled = false;
+          alert("Failed to create share link: " + err.message);
         }
       });
     }

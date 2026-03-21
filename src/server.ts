@@ -386,6 +386,106 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
     });
     logger.info("Export endpoint mounted at /api/export/:speaker/* (#164)");
 
+    // POST /api/share — create shareable link (#164)
+    app.post("/api/share", async (req, res) => {
+      try {
+        const { evalPrefix } = req.body;
+        if (!evalPrefix || typeof evalPrefix !== "string") {
+          res.status(400).json({ error: "Missing evalPrefix" });
+          return;
+        }
+
+        // Ensure evaluation exists
+        const metadataPath = `${evalPrefix}metadata.json`;
+        const exists = await gcsHistoryService.client.fileExists(metadataPath);
+        if (!exists) {
+          res.status(404).json({ error: "Evaluation not found" });
+          return;
+        }
+
+        // Check for existing share record
+        const { buildSharePath, buildShareIndexPath, createShareRecord } = await import("./share-token.js");
+        const sharePath = buildSharePath(evalPrefix);
+        const shareExists = await gcsHistoryService.client.fileExists(sharePath);
+
+        if (shareExists) {
+          // Return existing share token
+          const existing = JSON.parse(await gcsHistoryService.client.readFile(sharePath));
+          res.json({ token: existing.token, url: `/share/${existing.token}` });
+          return;
+        }
+
+        // Create new share record
+        const metadataRaw = await gcsHistoryService.client.readFile(metadataPath);
+        const metadata = JSON.parse(metadataRaw);
+        const record = createShareRecord(metadata.speakerName, evalPrefix);
+
+        // Save share record alongside evaluation
+        await gcsHistoryService.client.saveFile(
+          sharePath,
+          JSON.stringify(record, null, 2),
+          "application/json",
+        );
+
+        // Save token index for O(1) lookup
+        await gcsHistoryService.client.saveFile(
+          buildShareIndexPath(record.token),
+          JSON.stringify({ evalPrefix, speaker: record.speaker }, null, 2),
+          "application/json",
+        );
+
+        res.json({ token: record.token, url: `/share/${record.token}` });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error(`Share API error: ${errMsg}`);
+        res.status(500).json({ error: "Failed to create share link" });
+      }
+    });
+
+    // GET /share/:token — public read-only evaluation view (#164)
+    app.get("/share/:token", async (req, res) => {
+      try {
+        const token = req.params.token;
+        if (!token || !/^[A-Za-z0-9_-]+$/.test(token)) {
+          res.status(400).send("Invalid share token");
+          return;
+        }
+
+        const { buildShareIndexPath } = await import("./share-token.js");
+        const indexPath = buildShareIndexPath(token);
+
+        const indexExists = await gcsHistoryService.client.fileExists(indexPath);
+        if (!indexExists) {
+          res.status(404).send("Share link not found or has expired");
+          return;
+        }
+
+        const indexData = JSON.parse(await gcsHistoryService.client.readFile(indexPath));
+        const { evalPrefix } = indexData;
+
+        // Read evaluation data
+        const [metadataRaw, evaluationRaw, metricsRaw] = await Promise.all([
+          gcsHistoryService.client.readFile(`${evalPrefix}metadata.json`),
+          gcsHistoryService.client.readFile(`${evalPrefix}evaluation.json`),
+          gcsHistoryService.client.readFile(`${evalPrefix}metrics.json`),
+        ]);
+
+        const metadata = JSON.parse(metadataRaw);
+        const evalData = JSON.parse(evaluationRaw);
+        const metrics = JSON.parse(metricsRaw);
+
+        // Serve a self-contained HTML page
+        const html = buildSharePage(metadata, evalData.evaluation, metrics);
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.send(html);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error(`Share view error: ${errMsg}`);
+        res.status(500).send("Failed to load shared evaluation");
+      }
+    });
+    logger.info("Share endpoints mounted (#164)");
+
     // GET /api/improvement-plan/:speaker — personalized practice plan (#145)
     if (options.openaiClient) {
       const openaiClient = options.openaiClient;
@@ -1977,6 +2077,135 @@ function cleanupConnection(connState: ConnectionState): void {
   stopCoachingCueTicker(connState);
   clearPurgeTimer(connState);
   stopVideoStatusSender(connState);
+}
+
+// ─── Share Page Builder (#164) ───────────────────────────────────────────────────
+
+function escapeHtmlServer(str: string): string {
+  if (!str) return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildSharePage(metadata: any, evaluation: any, metrics: any): string {
+  const date = new Date(metadata.date).toLocaleDateString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+
+  let itemsHtml = "";
+  if (evaluation?.items) {
+    for (const item of evaluation.items) {
+      const icon = item.type === "commendation" ? "✅" : "💡";
+      itemsHtml += `
+        <div class="eval-item ${item.type}">
+          <div class="eval-item-header">${icon} <strong>${escapeHtmlServer(item.summary)}</strong></div>
+          <div class="eval-item-body">${escapeHtmlServer(item.explanation)}</div>
+          ${item.evidence_quote ? `<div class="eval-evidence">"${escapeHtmlServer(item.evidence_quote)}"</div>` : ""}
+        </div>`;
+    }
+  }
+
+  let scoresHtml = "";
+  if (evaluation?.category_scores?.length > 0) {
+    scoresHtml = `<div class="scores-section"><h3>Category Scores</h3><div class="scores-grid">`;
+    for (const cs of evaluation.category_scores) {
+      const pct = Math.round((cs.score / 10) * 100);
+      const cls = cs.score >= 7 ? "good" : cs.score >= 4 ? "fair" : "poor";
+      const label = cs.category.charAt(0).toUpperCase() + cs.category.slice(1);
+      scoresHtml += `
+        <div class="score-row">
+          <span class="score-label">${escapeHtmlServer(label)}</span>
+          <div class="score-track"><div class="score-fill ${cls}" style="width:${pct}%"></div></div>
+          <span class="score-value">${cs.score}/10</span>
+        </div>`;
+    }
+    scoresHtml += `</div></div>`;
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtmlServer(metadata.speechTitle || "Evaluation")} — Speech Evaluator</title>
+  <style>
+    :root { --bg: #0f0f1a; --bg-card: #1a1a2e; --text: #e6e6e6; --text-sec: #888; --red: #e63946; --border: #333; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, sans-serif; line-height: 1.6; padding: 20px; }
+    .container { max-width: 720px; margin: 0 auto; }
+    .header { text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+    .header h1 { font-size: 1.5rem; margin-bottom: 8px; }
+    .meta { color: var(--text-sec); font-size: 0.85rem; }
+    .meta span { margin: 0 8px; }
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 24px 0; }
+    .metric-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; text-align: center; }
+    .metric-value { font-size: 1.3rem; font-weight: 700; color: var(--red); }
+    .metric-label { font-size: 0.75rem; color: var(--text-sec); text-transform: uppercase; }
+    .opening, .closing { font-style: italic; padding: 16px 20px; margin: 16px 0; border-left: 3px solid var(--red); background: var(--bg-card); border-radius: 4px; }
+    .eval-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 12px 0; }
+    .eval-item.commendation { border-left: 3px solid #2ecc71; }
+    .eval-item.recommendation { border-left: 3px solid #f39c12; }
+    .eval-item-header { font-size: 0.95rem; margin-bottom: 8px; }
+    .eval-item-body { color: var(--text-sec); font-size: 0.85rem; }
+    .eval-evidence { font-style: italic; color: var(--text-sec); font-size: 0.8rem; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+    .scores-section { margin: 24px 0; }
+    .scores-section h3 { font-size: 1rem; margin-bottom: 12px; }
+    .score-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+    .score-label { width: 100px; font-size: 0.85rem; }
+    .score-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .score-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+    .score-fill.good { background: #2ecc71; }
+    .score-fill.fair { background: #f39c12; }
+    .score-fill.poor { background: var(--red); }
+    .score-value { font-size: 0.8rem; color: var(--text-sec); width: 45px; text-align: right; }
+    .footer { text-align: center; margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border); }
+    .footer a { color: var(--red); text-decoration: none; font-size: 0.85rem; }
+    .badge { display: inline-block; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 2px 10px; font-size: 0.75rem; color: var(--text-sec); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>${escapeHtmlServer(metadata.speechTitle || "Untitled Speech")}</h1>
+      <div class="meta">
+        <span>${escapeHtmlServer(metadata.speakerName)}</span>
+        <span>·</span>
+        <span>${escapeHtmlServer(date)}</span>
+        ${metadata.projectType ? `<span>·</span><span class="badge">${escapeHtmlServer(metadata.projectType)}</span>` : ""}
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric-card"><div class="metric-value">${Math.round(metrics.wordsPerMinute || metadata.wordsPerMinute)}</div><div class="metric-label">Words/Min</div></div>
+      <div class="metric-card"><div class="metric-value">${escapeHtmlServer(metrics.durationFormatted || formatDurationStr(metadata.durationSeconds))}</div><div class="metric-label">Duration</div></div>
+      <div class="metric-card"><div class="metric-value">${Math.round((metadata.passRate || 0) * 100)}%</div><div class="metric-label">Pass Rate</div></div>
+      <div class="metric-card"><div class="metric-value">${metrics.fillerWordCount ?? "—"}</div><div class="metric-label">Fillers</div></div>
+    </div>
+
+    ${evaluation?.opening ? `<div class="opening">${escapeHtmlServer(evaluation.opening)}</div>` : ""}
+
+    ${scoresHtml}
+
+    ${itemsHtml}
+
+    ${evaluation?.closing ? `<div class="closing">${escapeHtmlServer(evaluation.closing)}</div>` : ""}
+
+    <div class="footer">
+      <a href="/">Powered by Speech Evaluator</a>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+function formatDurationStr(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 // ─── Exports for Testing ────────────────────────────────────────────────────────
