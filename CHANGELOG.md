@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.23](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.22...ai-speech-evaluator-v0.6.23) (2026-03-21)
+
+
+### Features
+
+* 5 new feedback styles — EEC, Radical Candour, Socratic, Comparative, Micro-Focus ([#149](https://github.com/taverns-red/speech-evaluator/issues/149)) ([636ddb3](https://github.com/taverns-red/speech-evaluator/commit/636ddb3a86a226b13c4d2f2fd484c3e7d27da528))
+* coaching cues module — pure logic + 16 TDD tests ([#155](https://github.com/taverns-red/speech-evaluator/issues/155)) ([8cdbfc6](https://github.com/taverns-red/speech-evaluator/commit/8cdbfc69fb4ef0e2582bd8f768d4022acc0cb673))
+* comparative evaluation analytics — side-by-side view ([#154](https://github.com/taverns-red/speech-evaluator/issues/154)) ([6bddd8f](https://github.com/taverns-red/speech-evaluator/commit/6bddd8f36aa82c82037de5a1c6a829dc8221797d))
+* first-run setup wizard with multi-step modal ([#156](https://github.com/taverns-red/speech-evaluator/issues/156)) ([3f3025d](https://github.com/taverns-red/speech-evaluator/commit/3f3025d4eb6c4eda7f6a8e5836f3d8c29ad80ff8))
+* goals panel — API endpoints + frontend rendering ([#153](https://github.com/taverns-red/speech-evaluator/issues/153)) ([bcdd06a](https://github.com/taverns-red/speech-evaluator/commit/bcdd06a60d03326199f04f131de2e6cf0326cdd1))
+* speaker goal setting module with CRUD + evaluation logic ([#153](https://github.com/taverns-red/speech-evaluator/issues/153)) ([bde9b9a](https://github.com/taverns-red/speech-evaluator/commit/bde9b9a23d3f5c01e037fc85f7cdab0f3d230559))
+* svg radar chart for category scores ([#151](https://github.com/taverns-red/speech-evaluator/issues/151)) ([8ad5d29](https://github.com/taverns-red/speech-evaluator/commit/8ad5d292967e1dfe33f2c77217bac7fd61a499e9))
+* wire coaching cues end-to-end — server timer + WS handler + toast UI ([#155](https://github.com/taverns-red/speech-evaluator/issues/155)) ([d9acad4](https://github.com/taverns-red/speech-evaluator/commit/d9acad4526373d8245d4cc3d9cc567357f9b4c53))
+
 ## [0.6.22](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.21...ai-speech-evaluator-v0.6.22) (2026-03-21)
 
 
