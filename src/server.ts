@@ -226,6 +226,19 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
   // Serve static files from public/ directory
   app.use(express.static(staticDir));
 
+  // Current user endpoint — returns authenticated user info for the header (#162)
+  app.get("/api/me", (_req, res) => {
+    if (!_req.user) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+    res.json({
+      email: _req.user.email,
+      name: _req.user.name ?? null,
+      picture: _req.user.picture ?? null,
+    });
+  });
+
   // Version endpoint — serves package.json version for the UI footer
   app.get("/api/version", (_req, res) => {
     res.json({ version });
