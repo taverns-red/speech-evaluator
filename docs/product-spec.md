@@ -70,7 +70,7 @@ After a speech ends, the system delivers a spoken and written evaluation in unde
 |---------|-------------|-----------|
 | **Structured Logging** | JSON logging compatible with Cloud Logging | `logger.ts` |
 | **Health & Metrics** | `/api/health`, `/api/metrics` endpoints | `server.ts`, `metrics-collector.ts` |
-| **Firebase Auth** | Google Sign-In with email allowlist | `auth.ts`, `server.ts` |
+| **Clerk Auth** | Clerk sign-in/sign-up with email allowlist | `auth-middleware.ts`, `login.js` |
 | **Privacy Notice** | 90-day retention notice in consent form | `index.html` |
 | **Cost Metadata** | `analysisTier` + `visionFrameCount` in GCS metadata | `gcs-history.ts` |
 
@@ -187,5 +187,6 @@ After a speech ends, the system delivers a spoken and written evaluation in unde
 | `GCS_UPLOAD_BUCKET` | `speech-evaluator-uploads-ca` | GCS bucket for uploads + history |
 | `DATA_RETENTION_DAYS` | 90 | Auto-delete evaluations older than N days |
 | `RETENTION_CHECK_INTERVAL_HOURS` | 24 | How often (hours) to run the retention sweep |
-| `ALLOWED_EMAILS` | — | Comma-separated email allowlist for Firebase auth |
-| `FIREBASE_API_KEY` | — | Firebase client config |
+| `ALLOWED_EMAILS` | — | Comma-separated email allowlist for Clerk auth |
+| `CLERK_PUBLISHABLE_KEY` | — | Clerk publishable key (pk_test_ or pk_live_) |
+| `CLERK_SECRET_KEY` | — | Clerk secret key (sk_test_ or sk_live_) |

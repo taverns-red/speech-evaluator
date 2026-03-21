@@ -30,14 +30,14 @@ graph TD
         RR["RoleRegistry<br/>(Meeting Roles)"]
         UH["UploadHandler<br/>(Video/Audio Upload)"]
         GH["GcsHistoryService<br/>(Evaluation Storage)"]
-        Auth["Firebase Auth<br/>(Email Allowlist)"]
+        Auth["Clerk Auth<br/>(JWT + Email Allowlist)"]
     end
 
     subgraph External
         DG["Deepgram API"]
         OAI["OpenAI API"]
         GCS["Google Cloud Storage"]
-        FA["Firebase Auth"]
+        CK["Clerk"]
     end
 
     Browser -->|"WebSocket<br/>(audio chunks)"| SM
@@ -54,7 +54,7 @@ graph TD
     UH --> EG
     UH --> TTS
     UH --> GH
-    Auth --> FA
+    Auth --> CK
 ```
 
 ---
@@ -93,7 +93,7 @@ graph TD
 
 | Component | File | Responsibility | Dependencies |
 |-----------|------|---------------|-------------|
-| **AuthMiddleware** | `auth-middleware.ts` | Firebase token verification + email allowlist | firebase-admin |
+| **AuthMiddleware** | `auth-middleware.ts` | Clerk JWT verification + email allowlist | @clerk/express |
 | **RoleRegistry** | `role-registry.ts` | Toastmasters meeting role definitions | None |
 | **Roles** | `roles/*.ts` | Ah-Counter, Timer, Grammarian, etc. | None |
 
@@ -121,7 +121,7 @@ index.ts (composition root)
   │           └── vad-monitor.ts (pure)
   ├── upload-handler.ts (HTTP upload pipeline)
   ├── gcs-history.ts → [GCS]
-  └── auth-middleware.ts → [Firebase]
+  └── auth-middleware.ts → [Clerk]
 ```
 
 **Key principle**: `index.ts` is the **composition root** — it is the only file that creates concrete instances. All other modules depend on **interfaces**, not implementations. This allows complete testability via mocks.
@@ -167,7 +167,7 @@ Browser → [HTTP multipart POST /api/upload]
 | **In-memory sessions** | Privacy by design — no database, sessions die with the process |
 | **Composition root pattern** | All dependencies injected via interfaces → 100% testable |
 | **GCS for persistence** | Evaluation history in cloud storage, not a database — simple, cheap, scalable |
-| **Firebase Auth (email allowlist)** | Lightweight auth, no user management — just verify & check email list |
+| **Clerk Auth (email allowlist)** | Purpose-built SaaS auth — JWT verification, embeddable sign-in/sign-up, org management |
 | **TF.js WASM** | ML runs server-side in WASM — no GPU required, works on Cloud Run |
 
 ---
@@ -180,8 +180,8 @@ Browser → [HTTP multipart POST /api/upload]
 | `OPENAI_API_KEY` | ✅ | Evaluation generation + TTS |
 | `PORT` | ❌ | Server port (default: 3000) |
 | `ALLOWED_EMAILS` | ❌ | Comma-separated emails for auth (empty = no auth) |
-| `FIREBASE_API_KEY` | ❌ | Required when auth is enabled |
-| `FIREBASE_AUTH_DOMAIN` | ❌ | Auth domain (default: eval.taverns.red) |
+| `CLERK_PUBLISHABLE_KEY` | ❌ | Clerk publishable key (required when auth is enabled) |
+| `CLERK_SECRET_KEY` | ❌ | Clerk secret key (required when auth is enabled) |
 | `GCS_UPLOAD_BUCKET` | ❌ | GCS bucket for history (default: speech-evaluator-uploads-ca) |
 | `DATA_RETENTION_DAYS` | ❌ | Auto-delete data older than N days (default: 90) |
 | `RETENTION_CHECK_INTERVAL_HOURS` | ❌ | Retention sweep interval (default: 24) |

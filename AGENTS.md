@@ -10,7 +10,7 @@ This file contains **project-specific** context only.
 When beginning a new session or task in this project:
 
 1. **Read lessons**: Review the last 5 entries in `tasks/lessons.md`
-2. **Establish baseline**: Run `npx vitest run` and record the pass count (currently 1867)
+2. **Establish baseline**: Run `npx vitest run` and record the pass count (currently 1940)
 3. **Identify or create an issue**: Use `gh issue list` or `gh issue create` before writing code
 4. **If root cause is unknown**: Use `tasks/experiment_template.md` before implementing
 
@@ -75,6 +75,8 @@ Requires `.env` with:
 ```
 DEEPGRAM_API_KEY=...   # For live + post-speech transcription
 OPENAI_API_KEY=...     # For evaluation generation + TTS
+CLERK_PUBLISHABLE_KEY=...  # Clerk auth (pk_test_ or pk_live_)
+CLERK_SECRET_KEY=...       # Clerk auth (sk_test_ or sk_live_)
 PORT=3004              # Optional, defaults to 3000
 ```
 
