@@ -47,14 +47,19 @@
       font-size: 0.9rem;
     }
 
-    /* Let Clerk's own component handle all card styling */
-    #clerk-sign-in {
+    /* Clerk component containers — only one visible at a time */
+    #clerk-sign-in,
+    #clerk-sign-up {
       width: 100%;
       max-width: 400px;
       min-height: 200px;
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+
+    #clerk-sign-up {
+      display: none;
     }
 
     .login-error {
@@ -91,12 +96,14 @@
   <div class="login-container">
     <div class="login-header">
       <h1><span>AI</span> Speech Evaluator</h1>
-      <p>Sign in to continue</p>
+      <p id="login-subtitle">Sign in to continue</p>
     </div>
 
     <div id="clerk-sign-in">
       <div class="login-loading">Loading authentication...</div>
     </div>
+
+    <div id="clerk-sign-up"></div>
 
     <div class="login-error" id="login-error"></div>
 
