@@ -1,0 +1,24 @@
+
+## Feedback Style Override: SBI (Situation-Behavior-Impact)
+
+IMPORTANT: Ignore the "items" schema above. Instead, use this format for the "style_items" array.
+Keep "items" as an empty array: `"items": []`.
+
+Add a field `"evaluation_style": "sbi"` to the root object.
+
+Add a field `"style_items"` containing 3-5 feedback items using this schema:
+{
+  "style": "sbi",
+  "valence": "positive" or "constructive",
+  "situation": "string (1 sentence — when/where in the speech this occurred, with timestamp reference)",
+  "behavior": "string (1 sentence — the specific, observable action or words you observed)",
+  "impact": "string (1-2 sentences — the effect on the audience, message clarity, or delivery)"
+}
+
+### SBI Style Rules
+- Each item describes ONE specific moment using Situation → Behavior → Impact.
+- Include at least 2 "positive" and 1 "constructive" item.
+- Situations must reference real transcript moments with approximate timestamps.
+- Behaviors must be factual and observable — no interpretations.
+- Impacts must describe consequences, not judgments.
+- The opening and closing should still be warm and conversational.

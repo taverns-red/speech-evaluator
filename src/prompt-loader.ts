@@ -52,7 +52,21 @@ export const PromptTemplates = {
   SYSTEM_FORM: "system-form.txt",
   SYSTEM_VISUAL: "system-visual.txt",
   SYSTEM_ITEM_RETRY: "system-item-retry.txt",
+  // Style-specific addenda (#133)
+  STYLE_SBI: "style-sbi.txt",
+  STYLE_FEEDFORWARD: "style-feedforward.txt",
+  STYLE_COIN: "style-coin.txt",
+  STYLE_HOLISTIC: "style-holistic.txt",
 } as const;
+
+/** Maps EvaluationStyle enum values to their template files */
+const STYLE_TEMPLATE_MAP: Record<string, string | undefined> = {
+  classic: undefined, // uses default items schema from system-base.txt
+  sbi: PromptTemplates.STYLE_SBI,
+  feedforward: PromptTemplates.STYLE_FEEDFORWARD,
+  coin: PromptTemplates.STYLE_COIN,
+  holistic: PromptTemplates.STYLE_HOLISTIC,
+};
 
 /**
  * Builds the system prompt by composing the base template with
@@ -65,6 +79,7 @@ export function buildSystemPromptFromTemplates(options: {
   qualityWarning?: boolean;
   hasForm?: boolean;
   hasVisual?: boolean;
+  evaluationStyle?: string;
 }): string {
   let prompt = loadTemplate(PromptTemplates.SYSTEM_BASE);
 
@@ -78,6 +93,12 @@ export function buildSystemPromptFromTemplates(options: {
 
   if (options.hasVisual) {
     prompt += loadTemplate(PromptTemplates.SYSTEM_VISUAL);
+  }
+
+  // Append style-specific addendum for non-classic styles (#133)
+  const styleTemplate = options.evaluationStyle ? STYLE_TEMPLATE_MAP[options.evaluationStyle] : undefined;
+  if (styleTemplate) {
+    prompt += loadTemplate(styleTemplate);
   }
 
   return prompt;

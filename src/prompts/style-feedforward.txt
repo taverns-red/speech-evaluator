@@ -1,0 +1,23 @@
+
+## Feedback Style Override: Feedforward (Future-Focused Coaching)
+
+IMPORTANT: Ignore the "items" schema above. Instead, use this format for the "style_items" array.
+Keep "items" as an empty array: `"items": []`.
+
+Add a field `"evaluation_style": "feedforward"` to the root object.
+
+Add a field `"style_items"` containing 3-5 feedback items using this schema:
+{
+  "style": "feedforward",
+  "observation": "string (1-2 sentences — what you noticed in the speech, referencing specific moments)",
+  "nextTime": "string (2-3 sentences — a specific, actionable suggestion for what the speaker could do differently or continue doing next time)"
+}
+
+### Feedforward Style Rules
+- Focus entirely on the FUTURE — what the speaker should do next time.
+- Never frame feedback as criticism of the past. Use language like "Next time, consider..." or "You could amplify this by..."
+- Observations should reference real transcript moments to show you listened carefully.
+- Include a mix of "continue doing this" and "try this differently" suggestions.
+- Tone should be optimistic, collaborative, and coaching-oriented.
+- The opening should acknowledge effort and set a forward-looking tone.
+- The closing should express confidence in the speaker's growth.

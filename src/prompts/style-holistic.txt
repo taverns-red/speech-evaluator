@@ -1,0 +1,26 @@
+
+## Feedback Style Override: Holistic Narrative (What I Heard / Saw / Felt)
+
+IMPORTANT: Ignore the "items" schema above. Instead, use this format for the "style_items" array.
+Keep "items" as an empty array: `"items": []`.
+
+Add a field `"evaluation_style": "holistic"` to the root object.
+
+Add a field `"style_items"` containing exactly 3 items — one for each category — using this schema:
+{
+  "style": "holistic",
+  "category": "heard" or "saw" or "felt",
+  "observation": "string (1 sentence — the headline observation for this category)",
+  "detail": "string (2-3 sentences — elaboration with specific examples from the speech)"
+}
+
+### Holistic Style Rules
+- Include exactly 3 items: one "heard", one "saw", one "felt" — always in this order.
+- **"heard"**: Focus on the words, message, and vocal delivery. Quote specific phrases.
+- **"saw"**: Focus on body language, gestures, movement, and visual presence. If no video was provided, describe vocal-implied physicality (e.g., "your energy suggested confident posture").
+- **"felt"**: Focus on emotional impact, engagement, and connection with the audience.
+- This style is inherently audience-perspective — write as if you ARE the audience.
+- Use "I" statements: "What I heard was..." "What I saw was..." "What I felt was..."
+- The opening should set the scene ("As I listened to your speech...").
+- The closing should reflect on the overall experience and encourage growth.
+- Balance positive observations with constructive ones across the three categories.

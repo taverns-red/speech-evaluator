@@ -615,13 +615,13 @@ export class EvaluationGenerator {
   ): { system: string; user: string } {
     const hasVisual = visualObservations != null && visualObservations.videoQualityGrade !== "poor";
     const hasForm = !!config?.evaluationFormText;
-    const system = this.buildSystemPrompt(qualityWarning, hasVisual || !!hasVisionFrames, hasForm);
+    const system = this.buildSystemPrompt(qualityWarning, hasVisual || !!hasVisionFrames, hasForm, config?.evaluationStyle);
     const user = this.buildUserPrompt(transcriptText, metrics, config, highConfidenceSegments, visualObservations, hasVisionFrames);
     return { system, user };
   }
 
-  private buildSystemPrompt(qualityWarning: boolean, hasVisual: boolean = false, hasForm: boolean = false): string {
-      return buildSystemPromptFromTemplates({ qualityWarning, hasForm, hasVisual });
+  private buildSystemPrompt(qualityWarning: boolean, hasVisual: boolean = false, hasForm: boolean = false, evaluationStyle?: string): string {
+      return buildSystemPromptFromTemplates({ qualityWarning, hasForm, hasVisual, evaluationStyle });
     }
 
   private buildUserPrompt(

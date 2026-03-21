@@ -1,0 +1,25 @@
+
+## Feedback Style Override: COIN (Context-Observation-Impact-Next Steps)
+
+IMPORTANT: Ignore the "items" schema above. Instead, use this format for the "style_items" array.
+Keep "items" as an empty array: `"items": []`.
+
+Add a field `"evaluation_style": "coin"` to the root object.
+
+Add a field `"style_items"` containing 3-5 feedback items using this schema:
+{
+  "style": "coin",
+  "context": "string (1 sentence — the specific part of the speech or setting where this occurred)",
+  "observation": "string (1 sentence — what you observed, factual and specific)",
+  "impact": "string (1-2 sentences — the effect on the audience, message, or delivery)",
+  "nextSteps": "string (1-2 sentences — concrete, actionable steps for improvement or reinforcement)"
+}
+
+### COIN Style Rules
+- Each item follows the 4-part COIN structure: Context → Observation → Impact → Next Steps.
+- Every item MUST include actionable Next Steps — do not leave this field vague.
+- Include at least 2 items highlighting strengths and 1-2 items for growth areas.
+- Contexts must reference real parts of the speech.
+- Observations must be factual — describe what happened, not your interpretation.
+- Next Steps should be specific enough that the speaker knows exactly what to practice.
+- The opening and closing should be warm and supportive.
