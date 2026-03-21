@@ -38,6 +38,14 @@
 
 **Future Warning**: When using `image_url` content parts with `detail: "low"`, each image costs ~85 tokens. At Maximum tier (1 frame/sec, 20-min speech), that's ~102,000 tokens from images alone. Always enforce `maxFrames` caps.
 
+## 🗓️ 2026-03-21 — Lesson 40: Full-Stack Feature Threading Pattern
+
+**The Discovery**: Adding `evaluationStyle` as a configurable option required changes across 12 files in a predictable order: types.ts (enum + interfaces) → prompt partials → prompt-loader → evaluation-generator → frontend HTML → frontend JS (state/consent/app/upload) → server WebSocket handler → session-manager evalConfig builds → upload-handler. Each layer had minimal blast radius because the pattern follows existing precedents (like `analysisTier`).
+
+**The Resulting Rule**: When adding a new configurable option to the speech evaluator, follow the "analysisTier pattern": types → prompts → generator → frontend → server → session-manager → upload-handler. The ProjectContext interface carries per-speech settings from WebSocket to evalConfig naturally, avoiding the need for a new session-manager method.
+
+**Future Warning**: When `evaluationStyle` is stored on `ProjectContext` (which accepts `string`), but `EvaluationConfig` expects the `EvaluationStyle` enum, a cast is needed (`as EvaluationStyle`). This is safe for known enum values but could silently pass invalid strings from unvalidated WebSocket input. Consider adding server-side validation of the style value.
+
 ## 🗓️ 2026-03-20 — Lesson 36: DI via Client Interface for GCS Testability
 
 **The Discovery**: When building `GcsHistoryService`, rather than mocking `@google-cloud/storage` directly (brittle, tightly coupled to SDK internals), defining a thin `GcsHistoryClient` interface with `saveFile/listPrefixes/readFile/getSignedReadUrl/fileExists` allowed the entire service to be tested with simple `vi.fn()` mocks — 26 tests, zero SDK coupling. The real `createGcsHistoryClient()` factory wraps the SDK into that interface.
