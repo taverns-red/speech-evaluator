@@ -106,6 +106,14 @@ After a speech ends, the system delivers a spoken and written evaluation in unde
 | **Progress Trend Chart** | SVG sparklines for WPM, pass rate, and filler rate in History tab | `history.js`, `style.css` |
 | **Empty State Polish** | Motivational empty state with progress tracking prompt | `index.html` |
 
+### Trust the Green (Sprint C9)
+
+| Feature | Description | Key Files |
+|---------|-------------|-----------|
+| **Audio Integration Tests** | Real audio fixtures (`tone-speech.mp3`, `silence.mp3`) processed through MetricsExtractor | `audio-fixtures.integration.test.ts` |
+| **Golden File Snapshots** | Shape verification for Classic, SBI evaluations and DeliveryMetrics against golden JSON | `golden-shape.snapshot.test.ts`, `test-fixtures/golden/` |
+| **Browser E2E Tests** | Automated page load, history tab, and responsive layout verification | Browser subagent recordings |
+
 ---
 
 ## Business Rules

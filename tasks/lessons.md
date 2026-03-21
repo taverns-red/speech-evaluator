@@ -12,6 +12,14 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-21 — Lesson 44: Golden File Shape Testing Catches Frontend Contract Drift
+
+**The Discovery**: After 8 sprints, the backend test suite had 1849 tests but none verified the JSON shape consumed by the frontend. A change to `StructuredEvaluation` (e.g., renaming `evidence_quote` → `quote`) would pass all backend tests because they only check interface compliance. The frontend would break silently because it reads `data.evidence_quote` directly. A recursive "shape verifier" that walks golden JSON files catches this: it checks that every key in the golden file exists in the actual output, and that arrays contain elements matching the golden element shape.
+
+**The Resulting Rule**: For any JSON contract between two layers (backend → frontend, server → API consumer), create a golden file defining the expected shape and a test that verifies the actual output matches. The golden file should define structure (key names, nesting) not values. Update golden files deliberately — never auto-update, because the purpose is to catch unintentional drift.
+
+**Future Warning**: If a new evaluation style (e.g., "star") is added, a golden file must be added simultaneously or the shape test won't cover it. Consider a meta-test that asserts `EvaluationStyle` enum values each have a corresponding golden file.
+
 ## 🗓️ 2026-03-21 — Lesson 43: Inline SVG Sparklines Beat Chart Libraries for Simple Trends
 
 **The Discovery**: The progress chart needed to show WPM, pass rate, and filler rate trends across speeches. Instead of pulling in Chart.js (250KB+ min) or D3 (280KB+), a simple `<svg>` with `<polyline>` and `<circle>` generates the same sparkline in ~15 lines of JS. The trick: normalize values to the SVG viewBox, compute x from step width and y from `(value - min) / range * plotHeight`. A dot on the last point completes the effect.

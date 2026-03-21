@@ -8,7 +8,7 @@
 |--------|-------|
 | **Framework** | Vitest |
 | **Property testing** | fast-check |
-| **Test count** | 1849 (as of Sprint C8) |
+| **Test count** | 1867 (as of Sprint C9) |
 | **Suite duration** | ~20s |
 | **Test location** | Co-located (`*.test.ts` next to source) |
 
@@ -33,7 +33,9 @@
 | **Unit** | `*.test.ts` | ~800 | Core logic, transformations, edge cases |
 | **Property-based** | `*.property.test.ts` | ~800 | Randomized input exploration |
 | **Integration** | `server.test.ts`, `server.property.test.ts` | ~100 | HTTP/WS server behavior |
-| **Browser** | Browser subagent | Manual | Visual verification, responsive layout |
+| **Audio fixture** | `audio-fixtures.integration.test.ts` | 5 | Real audio through MetricsExtractor (#141) |
+| **Golden shape** | `golden-shape.snapshot.test.ts` | 13 | Evaluation/metrics output shape verification (#142) |
+| **Browser** | Browser subagent | 3 | Visual verification, responsive layout (#143) |
 
 ---
 
@@ -154,3 +156,4 @@ npx vitest run   # 0 test failures
 | C6 | 1788 |
 | C7 | 1842 |
 | C8 | 1849 |
+| C9 | 1867 |
