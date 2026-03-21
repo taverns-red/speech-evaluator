@@ -156,15 +156,15 @@ After a speech ends, the system delivers a spoken and written evaluation in unde
 - Not yet scoped — aspirational goal of real-time feedback during speech
 
 ### Phase 7 (remaining): Production Hardening
-- Speaker diarization for multi-speaker scenarios
-- Fault tolerance: automatic recovery from API failures
-- Mobile-responsive UI for tablet operation
-- Setup wizard for new clubs
+- Speaker diarization for multi-speaker scenarios ✅ (Sprint C10 — #157)
+- Fault tolerance: automatic recovery from API failures ✅ (Sprint C7 — Deepgram auto-reconnect)
+- Mobile-responsive UI for tablet operation ✅ (Sprint C7)
+- Setup wizard for new clubs ✅ (Sprint C6 — #156)
 
 ### Phase 8 (remaining): Advanced Coaching & Analytics
 - Speech-over-speech progress tracking ✅ (Sprint C8 — MVP)
 - Personalized improvement plans
-- Score breakdowns by category
+- Score breakdowns by category ✅ (Sprint C12 — #144)
 
 ---
 
