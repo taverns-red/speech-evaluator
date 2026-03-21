@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.17](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.16...ai-speech-evaluator-v0.6.17) (2026-03-21)
+
+
+### Features
+
+* add evaluation deletion API and UI ([#128](https://github.com/taverns-red/speech-evaluator/issues/128)) ([4cee365](https://github.com/taverns-red/speech-evaluator/commit/4cee3659e40d984b402838442cb01b3a772340c0))
+* add live-mode Vision frame capture via WebSocket ([#128](https://github.com/taverns-red/speech-evaluator/issues/128)) ([fff200a](https://github.com/taverns-red/speech-evaluator/commit/fff200a178c0411218368e4cdf64d0754907bb39))
+* add privacy notice, delete button CSS, and cost metadata ([#128](https://github.com/taverns-red/speech-evaluator/issues/128)) ([c9c7359](https://github.com/taverns-red/speech-evaluator/commit/c9c73594273c342ef5c34c96cf6999b768284100))
+
 ## [0.6.16](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.15...ai-speech-evaluator-v0.6.16) (2026-03-20)
 
 
