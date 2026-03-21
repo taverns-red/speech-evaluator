@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.22](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.21...ai-speech-evaluator-v0.6.22) (2026-03-21)
+
+
+### Features
+
+* habit detection with patterns card in history tab ([#147](https://github.com/taverns-red/speech-evaluator/issues/147)) ([cbb5202](https://github.com/taverns-red/speech-evaluator/commit/cbb52025160b1e8eb150e3de3a33c5703166bcc1))
+* practice mode for solo speech rehearsal ([#146](https://github.com/taverns-red/speech-evaluator/issues/146)) ([b3b43a5](https://github.com/taverns-red/speech-evaluator/commit/b3b43a549833fdfecc6a281c8f68ee8b8929282e))
+
 ## [0.6.21](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.20...ai-speech-evaluator-v0.6.21) (2026-03-21)
 
 
