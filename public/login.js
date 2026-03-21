@@ -34,9 +34,8 @@ function showError(message) {
     // Load Clerk JS from the Clerk Frontend API host.
     // The publishable key encodes the host: pk_test_<base64(host)>$
     // Clerk's browser script auto-instantiates and assigns window.Clerk.
-    const pkParts = config.publishableKey.replace(/\$$/, "").split("_");
-    const encodedHost = pkParts[pkParts.length - 1];
-    const clerkHost = atob(encodedHost);
+    const encodedHost = config.publishableKey.replace(/^pk_(test|live)_/, "");
+    const clerkHost = atob(encodedHost).replace(/\$+$/, "");
 
     const script = document.createElement("script");
     script.src = `https://${clerkHost}/npm/@clerk/clerk-js@latest/dist/clerk.browser.js`;
