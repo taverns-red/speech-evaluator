@@ -95,7 +95,7 @@ async function loadRoles() {
     if (!data.roles || data.roles.length === 0) return;
 
     const container = document.getElementById("role-checkboxes");
-    const selector = document.getElementById("role-selector");
+    const selector = document.getElementById("config-roles");
 
     for (const role of data.roles) {
       const div = document.createElement("div");

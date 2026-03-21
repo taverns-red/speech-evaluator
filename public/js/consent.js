@@ -246,6 +246,10 @@ export function onTimeLimitChange() {
 
   S.configuredTimeLimit = seconds;
 
+  // Update collapsed summary label (#137)
+  const tlSummary = document.getElementById("time-limit-summary");
+  if (tlSummary) tlSummary.textContent = `${seconds}s`;
+
   // Send time limit to server
   wsSend({
     type: "set_time_limit",
@@ -429,6 +433,14 @@ export function onAnalysisTierChange() {
   S.analysisTier = selected.value;
   saveFormState();
 
+  // Update collapsed summary label (#137)
+  const tierSummary = document.getElementById("tier-summary");
+  if (tierSummary) {
+    const label = selected.closest(".analysis-tier-option")?.querySelector(".tier-label")?.textContent || selected.value;
+    const cost = selected.closest(".analysis-tier-option")?.querySelector(".tier-cost")?.textContent || "";
+    tierSummary.textContent = `${label} ${cost}`.trim();
+  }
+
   wsSend({
     type: "set_analysis_tier",
     tier: S.analysisTier,
@@ -447,6 +459,13 @@ export function onEvaluationStyleChange() {
 
   S.evaluationStyle = selected.value;
   saveFormState();
+
+  // Update collapsed summary label (#137)
+  const styleSummary = document.getElementById("style-summary");
+  if (styleSummary) {
+    const label = selected.closest(".feedback-style-option")?.querySelector(".tier-label")?.textContent || selected.value;
+    styleSummary.textContent = label;
+  }
 
   wsSend({
     type: "set_evaluation_style",

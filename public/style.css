@@ -2027,6 +2027,114 @@ body::before {
   }
 }
 
+/* ─── Collapsible Config Sections (#137) ─────────────────────────── */
+
+.config-section {
+  background: var(--bg-card, #1e1e1e);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.config-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary, #aaa);
+  cursor: pointer;
+  user-select: none;
+  list-style: none; /* remove default disclosure triangle */
+}
+
+.config-header::-webkit-details-marker {
+  display: none;
+}
+
+.config-header::after {
+  content: "▸";
+  font-size: 0.9em;
+  transition: transform 0.2s ease;
+  color: var(--text-muted, #666);
+}
+
+.config-section[open] > .config-header::after {
+  transform: rotate(90deg);
+}
+
+.config-body {
+  padding: 0 18px 14px;
+}
+
+.config-summary-value {
+  font-weight: 400;
+  font-size: 0.85em;
+  color: var(--text-muted, #666);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* ─── Feedback Style Options (#137) ─────────────────────────────── */
+
+.feedback-style-config {
+  display: flex;
+  flex-direction: column;
+}
+
+.feedback-style-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.feedback-style-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.feedback-style-option:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.feedback-style-option input[type="radio"] {
+  accent-color: var(--red-primary, #e53935);
+}
+
+/* ─── Sticky Action Bar (#137) ──────────────────────────────────── */
+
+.controls-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 100;
+  background: var(--bg-card, #1e1e1e);
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding-bottom: env(safe-area-inset-bottom, 8px);
+}
+
+/* Add bottom padding so content isn't hidden behind sticky bar */
+.app {
+  padding-bottom: 80px;
+}
+
+/* Remove inner titles from sections now using details/summary */
+.config-section .vad-config-title,
+.config-section .analysis-tier-title {
+  display: none;
+}
+
 /* ─── Evaluation Style Items (#135) ─────────────────────────────── */
 
 .style-items-container {

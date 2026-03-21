@@ -137,101 +137,120 @@
     </div>
 
     <!-- Meeting Roles Selector (Phase 9, #72) -->
-    <div id="role-selector" class="project-context-form" role="group" aria-label="Meeting roles" style="display:none;">
-      <div class="project-context-form-title">Meeting Roles</div>
-      <p style="font-size: 0.85em; color: var(--text-secondary); margin: 0 0 10px 0;">
-        Select additional AI meeting roles to run alongside the evaluation.
-      </p>
-      <div id="role-checkboxes"></div>
-    </div>
+    <details id="config-roles" class="config-section" style="display:none;">
+      <summary class="config-header">Meeting Roles</summary>
+      <div id="role-selector" class="config-body" role="group" aria-label="Meeting roles">
+        <p style="font-size: 0.85em; color: var(--text-secondary); margin: 0 0 10px 0;">
+          Select additional AI meeting roles to run alongside the evaluation.
+        </p>
+        <div id="role-checkboxes"></div>
+      </div>
+    </details>
 
     <!-- Time Limit Control (visible in IDLE and PROCESSING states) -->
-    <div id="time-limit-control" class="time-limit-control" aria-label="Evaluation time limit">
-      <label for="time-limit-input">Evaluation time limit</label>
-      <input type="number" id="time-limit-input" value="120" min="30" max="600" step="10"
-        aria-label="Time limit in seconds">
-      <span class="time-unit">seconds</span>
-    </div>
+    <details class="config-section">
+      <summary class="config-header">Time Limit <span class="config-summary-value" id="time-limit-summary">120s</span></summary>
+      <div class="config-body">
+        <div id="time-limit-control" class="time-limit-control" aria-label="Evaluation time limit">
+          <label for="time-limit-input">Evaluation time limit</label>
+          <input type="number" id="time-limit-input" value="120" min="30" max="600" step="10"
+            aria-label="Time limit in seconds">
+          <span class="time-unit">seconds</span>
+        </div>
+      </div>
+    </details>
 
     <!-- VAD Configuration (visible in IDLE state) -->
-    <div id="vad-config" class="vad-config" aria-label="Voice Activity Detection configuration">
-      <div class="vad-config-title">Voice Activity Detection</div>
-      <div class="vad-config-row">
-        <div class="vad-toggle-group">
-          <input type="checkbox" id="vad-enabled-checkbox" checked aria-label="Enable voice activity detection">
-          <label for="vad-enabled-checkbox">Enable VAD</label>
-        </div>
-        <div class="vad-slider-group">
-          <label for="vad-threshold-slider">Silence threshold</label>
-          <input type="range" id="vad-threshold-slider" min="3" max="15" value="5" step="1"
-            aria-label="Silence threshold in seconds">
-          <span id="vad-threshold-value" class="vad-value">5s</span>
+    <details class="config-section">
+      <summary class="config-header">Voice Activity Detection <span class="config-summary-value">On · 5s</span></summary>
+      <div class="config-body">
+        <div id="vad-config" class="vad-config" aria-label="Voice Activity Detection configuration">
+          <div class="vad-config-row">
+            <div class="vad-toggle-group">
+              <input type="checkbox" id="vad-enabled-checkbox" checked aria-label="Enable voice activity detection">
+              <label for="vad-enabled-checkbox">Enable VAD</label>
+            </div>
+            <div class="vad-slider-group">
+              <label for="vad-threshold-slider">Silence threshold</label>
+              <input type="range" id="vad-threshold-slider" min="3" max="15" value="5" step="1"
+                aria-label="Silence threshold in seconds">
+              <span id="vad-threshold-value" class="vad-value">5s</span>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </details>
 
     <!-- Analysis Depth Selector (#125) -->
-    <div id="analysis-tier-config" class="analysis-tier-config" aria-label="Analysis depth configuration">
-      <div class="analysis-tier-title">Analysis Depth</div>
-      <div class="analysis-tier-options">
-        <label class="analysis-tier-option">
-          <input type="radio" name="analysis-tier" value="standard" checked>
-          <span class="tier-label">Standard</span>
-          <span class="tier-desc">Text-only evaluation</span>
-          <span class="tier-cost" data-tier="standard"></span>
-        </label>
-        <label class="analysis-tier-option">
-          <input type="radio" name="analysis-tier" value="enhanced">
-          <span class="tier-label">Enhanced</span>
-          <span class="tier-desc">+ Visual analysis (1 frame / 10s, low detail)</span>
-          <span class="tier-cost" data-tier="enhanced"></span>
-        </label>
-        <label class="analysis-tier-option">
-          <input type="radio" name="analysis-tier" value="detailed">
-          <span class="tier-label">Detailed</span>
-          <span class="tier-desc">+ Visual analysis (1 frame / 5s, high detail)</span>
-          <span class="tier-cost" data-tier="detailed"></span>
-        </label>
-        <label class="analysis-tier-option">
-          <input type="radio" name="analysis-tier" value="maximum">
-          <span class="tier-label">Maximum</span>
-          <span class="tier-desc">+ Visual analysis (1 frame / sec, high detail)</span>
-          <span class="tier-cost" data-tier="maximum"></span>
-        </label>
+    <details class="config-section">
+      <summary class="config-header">Analysis Depth <span class="config-summary-value" id="tier-summary">Standard ~$0.10</span></summary>
+      <div class="config-body">
+        <div id="analysis-tier-config" class="analysis-tier-config" aria-label="Analysis depth configuration">
+          <div class="analysis-tier-options">
+            <label class="analysis-tier-option">
+              <input type="radio" name="analysis-tier" value="standard" checked>
+              <span class="tier-label">Standard</span>
+              <span class="tier-desc">Text-only evaluation</span>
+              <span class="tier-cost" data-tier="standard"></span>
+            </label>
+            <label class="analysis-tier-option">
+              <input type="radio" name="analysis-tier" value="enhanced">
+              <span class="tier-label">Enhanced</span>
+              <span class="tier-desc">+ Visual analysis (1 frame / 10s, low detail)</span>
+              <span class="tier-cost" data-tier="enhanced"></span>
+            </label>
+            <label class="analysis-tier-option">
+              <input type="radio" name="analysis-tier" value="detailed">
+              <span class="tier-label">Detailed</span>
+              <span class="tier-desc">+ Visual analysis (1 frame / 5s, high detail)</span>
+              <span class="tier-cost" data-tier="detailed"></span>
+            </label>
+            <label class="analysis-tier-option">
+              <input type="radio" name="analysis-tier" value="maximum">
+              <span class="tier-label">Maximum</span>
+              <span class="tier-desc">+ Visual analysis (1 frame / sec, high detail)</span>
+              <span class="tier-cost" data-tier="maximum"></span>
+            </label>
+          </div>
+        </div>
       </div>
-    </div>
+    </details>
 
     <!-- Evaluation Feedback Style Selector (#133) -->
-    <div id="evaluation-style-config" class="analysis-tier-config" aria-label="Evaluation feedback style">
-      <div class="analysis-tier-title">Feedback Style</div>
-      <div class="analysis-tier-options">
-        <label class="analysis-tier-option">
-          <input type="radio" name="evaluation-style" value="classic" checked>
-          <span class="tier-label">Classic</span>
-          <span class="tier-desc">Commendations + recommendations with evidence</span>
-        </label>
-        <label class="analysis-tier-option">
-          <input type="radio" name="evaluation-style" value="sbi">
-          <span class="tier-label">SBI</span>
-          <span class="tier-desc">Situation → Behavior → Impact</span>
-        </label>
-        <label class="analysis-tier-option">
-          <input type="radio" name="evaluation-style" value="feedforward">
-          <span class="tier-label">Feedforward</span>
-          <span class="tier-desc">Future-focused coaching ("Next time...")</span>
-        </label>
-        <label class="analysis-tier-option">
-          <input type="radio" name="evaluation-style" value="coin">
-          <span class="tier-label">COIN</span>
-          <span class="tier-desc">Context → Observation → Impact → Next Steps</span>
-        </label>
-        <label class="analysis-tier-option">
-          <input type="radio" name="evaluation-style" value="holistic">
-          <span class="tier-label">Holistic</span>
-          <span class="tier-desc">What I Heard / Saw / Felt</span>
-        </label>
+    <details class="config-section">
+      <summary class="config-header">Feedback Style <span class="config-summary-value" id="style-summary">Classic</span></summary>
+      <div class="config-body">
+        <div id="evaluation-style-config" class="feedback-style-config" aria-label="Evaluation feedback style">
+          <div class="feedback-style-options">
+            <label class="feedback-style-option">
+              <input type="radio" name="evaluation-style" value="classic" checked>
+              <span class="tier-label">Classic</span>
+              <span class="tier-desc">Commendations + recommendations with evidence</span>
+            </label>
+            <label class="feedback-style-option">
+              <input type="radio" name="evaluation-style" value="sbi">
+              <span class="tier-label">SBI</span>
+              <span class="tier-desc">Situation → Behavior → Impact</span>
+            </label>
+            <label class="feedback-style-option">
+              <input type="radio" name="evaluation-style" value="feedforward">
+              <span class="tier-label">Feedforward</span>
+              <span class="tier-desc">Future-focused coaching ("Next time...")</span>
+            </label>
+            <label class="feedback-style-option">
+              <input type="radio" name="evaluation-style" value="coin">
+              <span class="tier-label">COIN</span>
+              <span class="tier-desc">Context → Observation → Impact → Next Steps</span>
+            </label>
+            <label class="feedback-style-option">
+              <input type="radio" name="evaluation-style" value="holistic">
+              <span class="tier-label">Holistic</span>
+              <span class="tier-desc">What I Heard / Saw / Felt</span>
+            </label>
+          </div>
+        </div>
       </div>
-    </div>
+    </details>
 
     <!-- Video FPS Configuration (visible in IDLE state when video consent enabled — Req 2.9) -->
     <div id="video-fps-config" class="video-fps-config" aria-label="Video frame rate configuration">
@@ -288,7 +307,7 @@
     </div>
 
     <!-- Controls -->
-    <div class="controls">
+    <div class="controls controls-sticky">
       <button id="btn-start" class="btn btn-success">
         ● Start Speech
       </button>
