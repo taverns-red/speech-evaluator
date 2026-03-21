@@ -20,6 +20,20 @@
 
 **Future Warning**: If a new evaluation style (e.g., "star") is added, a golden file must be added simultaneously or the shape test won't cover it. Consider a meta-test that asserts `EvaluationStyle` enum values each have a corresponding golden file.
 
+## 🗓️ 2026-03-21 — Lesson 45: Composable Prompt Addenda Enable Feature-Level LLM Expansion
+
+**The Discovery**: Adding category scores (#144) required the LLM to produce new JSON fields alongside existing ones. Rather than editing the main system prompt (risking regression on existing evaluation quality), we created a standalone `system-category-scores.txt` addendum that the prompt loader auto-appends. This addendum only adds the `category_scores` schema and rubric — the LLM merges it into its existing JSON response naturally.
+
+**The Resulting Rule**: When extending LLM output with a new structured field, create a separate prompt addendum file rather than modifying the main prompt. Register it in `prompt-loader.ts` with `alwaysInclude: true`. This keeps prompt evolution atomic and reversible. Each addendum owns its own schema documentation and rubric.
+
+**Future Warning**: As addenda accumulate, total token count grows. Monitor system prompt token usage; when it exceeds ~3K tokens, consider consolidating addenda into a single prompt with feature flags.
+
+## 🗓️ 2026-03-21 — Lesson 46: Public Accessor Beats Private Field Renaming for Cross-Module Access
+
+**The Discovery**: The improvement plan module (#145) needed the GCS client from `GcsHistoryService`, but the client was private. Instead of making it public (breaking encapsulation) or adding a method per operation (explosion of pass-through methods), we renamed the private field to `_client` and added a public `get client()` accessor. This preserves the constructor's dependency injection pattern while allowing controlled external access for authorized consumers.
+
+**The Resulting Rule**: When an encapsulated dependency needs cross-module access, prefer a public getter over making the field itself public. This maintains the option to add validation or logging in the accessor later.
+
 ## 🗓️ 2026-03-21 — Lesson 43: Inline SVG Sparklines Beat Chart Libraries for Simple Trends
 
 **The Discovery**: The progress chart needed to show WPM, pass rate, and filler rate trends across speeches. Instead of pulling in Chart.js (250KB+ min) or D3 (280KB+), a simple `<svg>` with `<polyline>` and `<circle>` generates the same sparkline in ~15 lines of JS. The trick: normalize values to the SVG viewBox, compute x from step width and y from `(value - min) / range * plotHeight`. A dot on the last point completes the effect.
