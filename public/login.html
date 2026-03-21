@@ -22,43 +22,36 @@
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      padding: 2rem;
+      padding: 2rem 1rem;
+      gap: 1.5rem;
     }
 
-    .login-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: 20px;
-      padding: 2.5rem;
-      width: 100%;
-      max-width: 420px;
-      backdrop-filter: blur(12px);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    .login-header {
+      text-align: center;
     }
 
-    .login-card h1 {
+    .login-header h1 {
       font-family: 'Outfit', sans-serif;
-      font-size: 1.8rem;
+      font-size: 2rem;
       font-weight: 600;
       color: var(--text-primary);
-      text-align: center;
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.25rem;
     }
 
-    .login-card h1 span {
+    .login-header h1 span {
       color: var(--red-primary);
     }
 
-    .login-subtitle {
+    .login-header p {
       color: var(--text-muted);
-      text-align: center;
       font-size: 0.9rem;
-      margin-bottom: 2rem;
     }
 
-    /* Clerk sign-in component container */
+    /* Let Clerk's own component handle all card styling */
     #clerk-sign-in {
-      min-height: 300px;
+      width: 100%;
+      max-width: 400px;
+      min-height: 200px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -71,7 +64,7 @@
       padding: 0.75rem 1rem;
       color: var(--red-primary);
       font-size: 0.85rem;
-      margin-top: 1rem;
+      max-width: 400px;
       display: none;
       text-align: center;
     }
@@ -83,13 +76,11 @@
     .login-loading {
       color: var(--text-muted);
       text-align: center;
-      margin-top: 1rem;
       font-size: 0.85rem;
     }
 
     .login-footer {
       text-align: center;
-      margin-top: 2rem;
       color: var(--text-muted);
       font-size: 0.75rem;
     }
@@ -98,16 +89,16 @@
 
 <body>
   <div class="login-container">
-    <div class="login-card">
+    <div class="login-header">
       <h1><span>AI</span> Speech Evaluator</h1>
-      <p class="login-subtitle">Sign in to continue</p>
-
-      <div id="clerk-sign-in">
-        <div class="login-loading">Loading authentication...</div>
-      </div>
-
-      <div class="login-error" id="login-error"></div>
+      <p>Sign in to continue</p>
     </div>
+
+    <div id="clerk-sign-in">
+      <div class="login-loading">Loading authentication...</div>
+    </div>
+
+    <div class="login-error" id="login-error"></div>
 
     <div class="login-footer">
       <a href="https://taverns.red" target="_blank" rel="noopener"
