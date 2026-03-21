@@ -588,3 +588,11 @@
 **The Scientific Proof**: Browser console showed `ReferenceError: Can't find variable: STATUS_TEXT` at `audio.js:194`. Adding both imports and re-testing eliminated the error.
 
 **The Resulting Rule**: This is the **third** instance of this bug class (Lessons 35, 42, 43). After any module extraction, run `grep -rn 'IDENTIFIER' public/js/` for **every** identifier used in the extracted file and verify each has a corresponding `import` statement. Do not rely on page-load testing — many code paths are only reachable through specific user flows (cooldown, panic mute, upload-then-download).
+
+## 🗓️ 2026-03-21 — Lesson 45: Frontend Mode Toggles Are Cheaper Than Backend Mode Variants
+
+**The Discovery**: When adding Practice Mode (solo rehearsal), the initial instinct was to create a new session type or backend pipeline variant. Analysis of `session-manager.ts` showed the existing pipeline (consent → record → transcribe → evaluate → TTS) already handles everything Practice Mode needs — the difference is purely UI: simplified consent, no video, no project context. The backend only needed a thin `sessionMode` field on `ConnectionState` (3 lines) plus a `set_session_mode` case in the WS switch (2 lines). The entire feature was 70 net new lines across 7 files — of which 45 were frontend.
+
+**The Resulting Rule**: Before adding a new "mode" to a backend pipeline, audit whether the existing pipeline already covers the use case. Often, new modes differ only in **UI gating** (what's shown/hidden) and **metadata tagging** (GCS labels). A frontend-only mode toggle paired with a thin backend metadata tag is dramatically cheaper and safer than a full pipeline variant.
+
+**Future Warning**: If a future feature like "Classroom Mode" or "Interview Prep Mode" is proposed, first check if it's just a different preset of the existing consent + configuration + evaluation pipeline with different UI visibility.
