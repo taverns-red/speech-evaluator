@@ -4,7 +4,6 @@
 import "dotenv/config";
 import { createClient as createDeepgramClient } from "@deepgram/sdk";
 import OpenAI from "openai";
-import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { createAppServer } from "./server.js";
 import { SessionManager } from "./session-manager.js";
 import { TranscriptionEngine } from "./transcription-engine.js";
@@ -172,7 +171,7 @@ const uploadRouter = createUploadRouter({
   metricsCollector,
 });
 
-// ─── Firebase Auth & Authorization ──────────────────────────────────────────────
+// ─── Clerk Auth & Authorization (#158) ──────────────────────────────────────────
 
 const allowedEmailsRaw = process.env.ALLOWED_EMAILS || "";
 const allowedEmails = new Set(
@@ -186,40 +185,30 @@ let authMiddleware;
 let wsAuthVerify;
 
 if (allowedEmails.size > 0) {
-  log.info("Auth enabled", { allowedCount: allowedEmails.size });
-  const firebaseApp = initializeApp({
-    credential: applicationDefault(),
-  });
+  log.info("Auth enabled (Clerk)", { allowedCount: allowedEmails.size });
 
-  authMiddleware = createAuthMiddleware({ firebaseApp, allowedEmails });
+  authMiddleware = createAuthMiddleware({ allowedEmails });
 
   wsAuthVerify = async (req: import("node:http").IncomingMessage) => {
     const cookieHeader = req.headers.cookie || "";
     const cookies = parseCookie(cookieHeader);
     const token = cookies.__session;
     if (!token) return false;
-    const decoded = await verifyAndAuthorize(token, firebaseApp, allowedEmails);
+    const decoded = await verifyAndAuthorize(token, allowedEmails);
     return decoded !== null;
   };
 } else {
   log.info("Auth disabled: ALLOWED_EMAILS not set (dev mode)");
 }
 
-// ─── Firebase client config (served at /api/config for login page) ───────────
-const firebaseApiKey = process.env.FIREBASE_API_KEY?.trim();
-const firebaseConfig = firebaseApiKey
-  ? {
-    apiKey: firebaseApiKey,
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN?.trim() || "eval.taverns.red",
-    projectId: "toast-stats-prod-6d64a",
-    appId: "1:736334703361:web:b7174dfd26dab25cf2c900",
-    messagingSenderId: "736334703361",
-    measurementId: "G-LLLNH352T3",
-  }
+// ─── Clerk client config (served at /api/config for login page) ─────────────
+const clerkPublishableKey = process.env.CLERK_PUBLISHABLE_KEY?.trim();
+const firebaseConfig = clerkPublishableKey
+  ? { publishableKey: clerkPublishableKey }
   : undefined;
 
-if (!firebaseConfig) {
-  log.warn("FIREBASE_API_KEY not set — /api/config will not be available");
+if (!clerkPublishableKey) {
+  log.warn("CLERK_PUBLISHABLE_KEY not set — /api/config will not include auth config");
 }
 
 // ─── Start server ───────────────────────────────────────────────────────────────

@@ -1,9 +1,9 @@
-// Auth Middleware — Firebase Auth JWT verification + email allowlist
-// Issue #37: Protect the app so only authenticated, allowlisted users can access it.
+// Auth Middleware — Clerk Auth JWT verification + email allowlist
+// Issue #158: Migrate from Firebase Auth to Clerk, unblocking Admin & User Management (#150).
 
 import type { Request, Response, NextFunction } from "express";
-import type { App as FirebaseApp } from "firebase-admin/app";
-import { getAuth, type DecodedIdToken } from "firebase-admin/auth";
+import { clerkMiddleware, getAuth } from "@clerk/express";
+import { verifyToken } from "@clerk/express";
 
 // Extend Express Request to carry authenticated user info
 declare global {
@@ -29,7 +29,7 @@ const PUBLIC_PATHS = [
   "/api/config",
 ];
 
-/** Prefixes that bypass authentication (fonts, Firebase SDK, etc.) */
+/** Prefixes that bypass authentication (fonts, etc.) */
 const PUBLIC_PREFIXES = [
   "/fonts/",
 ];
@@ -40,52 +40,54 @@ function isPublicPath(path: string): boolean {
 }
 
 export interface AuthMiddlewareOptions {
-  /** Firebase Admin app instance */
-  firebaseApp: FirebaseApp;
   /** Set of allowed email addresses (lowercase) */
   allowedEmails: Set<string>;
 }
 
 /**
- * Creates Express middleware that:
- * 1. Exempts public paths (health, login page, static assets)
- * 2. Extracts Firebase ID token from __session cookie
- * 3. Verifies the token via Firebase Admin Auth
- * 4. Checks the email against the allowlist
- * 5. Attaches req.user on success, redirects to /login.html on failure
+ * Creates Clerk-powered Express middleware that:
+ * 1. Applies Clerk's clerkMiddleware() to parse session cookies/headers
+ * 2. Exempts public paths (health, login page, static assets)
+ * 3. Checks the authenticated user's email against the allowlist
+ * 4. Attaches req.user on success, redirects to /login.html on failure
  */
 export function createAuthMiddleware(options: AuthMiddlewareOptions) {
-  const { firebaseApp, allowedEmails } = options;
-  const auth = getAuth(firebaseApp);
+  const { allowedEmails } = options;
+
+  // Clerk's middleware handles cookie parsing and JWT verification
+  const clerkMw = clerkMiddleware();
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // First, run Clerk middleware to populate req.auth
+    await new Promise<void>((resolve) => {
+      clerkMw(req, res, () => resolve());
+    });
+
     // Skip auth for public paths
     if (isPublicPath(req.path)) {
       next();
       return;
     }
 
-    const token = req.cookies?.__session;
+    const auth = getAuth(req);
 
-    if (!token) {
-      // No session cookie — redirect to login
+    if (!auth.userId) {
+      // Not authenticated — redirect to login
       res.redirect("/login.html");
       return;
     }
 
-    let decoded: DecodedIdToken;
-    try {
-      decoded = await auth.verifyIdToken(token);
-    } catch {
-      // Invalid/expired token — redirect to login
-      res.redirect("/login.html");
-      return;
-    }
-
-    const email = decoded.email?.toLowerCase();
+    // Clerk stores email in session claims. We need to check the allowlist.
+    // The email comes from the session claims via Clerk's `sessionClaims`.
+    const claims = auth.sessionClaims as Record<string, unknown> | undefined;
+    const email = (
+      claims?.email as string ??
+      claims?.primary_email_address as string ??
+      ""
+    ).toLowerCase();
 
     if (!email || !allowedEmails.has(email)) {
-      // Valid Firebase user but not on the allowlist
+      // Valid Clerk user but not on the allowlist
       res.status(403).send(accessDeniedHTML(email));
       return;
     }
@@ -93,30 +95,31 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions) {
     // Attach user info to request
     req.user = {
       email,
-      uid: decoded.uid,
-      ...(decoded.name ? { name: decoded.name as string } : {}),
-      ...(decoded.picture ? { picture: decoded.picture as string } : {}),
+      uid: auth.userId,
+      ...(claims?.name ? { name: claims.name as string } : {}),
+      ...(claims?.picture ? { picture: claims.picture as string } : {}),
     };
     next();
   };
 }
 
 /**
- * Verifies a Firebase ID token and checks the email against the allowlist.
+ * Verifies a Clerk session token and checks the email against the allowlist.
  * Used for WebSocket upgrade authentication.
- * Returns the decoded token if valid and allowed, null otherwise.
+ * Returns true if valid and allowed, false otherwise.
  */
 export async function verifyAndAuthorize(
   token: string,
-  firebaseApp: FirebaseApp,
   allowedEmails: Set<string>,
-): Promise<DecodedIdToken | null> {
+  secretKey?: string,
+): Promise<{ userId: string; email: string } | null> {
   try {
-    const auth = getAuth(firebaseApp);
-    const decoded = await auth.verifyIdToken(token);
-    const email = decoded.email?.toLowerCase();
+    const decoded = await verifyToken(token, {
+      secretKey: secretKey ?? process.env.CLERK_SECRET_KEY ?? "",
+    });
+    const email = (decoded.email as string ?? "").toLowerCase();
     if (!email || !allowedEmails.has(email)) return null;
-    return decoded;
+    return { userId: decoded.sub, email };
   } catch {
     return null;
   }
@@ -188,7 +191,7 @@ function accessDeniedHTML(email?: string): string {
     ${email ? `<p>Signed in as <span class="email">${email}</span></p>` : ""}
     <p>Contact the administrator to request access.</p>
     <div class="actions">
-      <a href="/login.html" class="btn-back" onclick="document.cookie='__session=;path=/;max-age=0'">Sign in with a different account</a>
+      <a href="/login.html" class="btn-back">Sign in with a different account</a>
     </div>
   </div>
 </body>
