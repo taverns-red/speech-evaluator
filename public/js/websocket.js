@@ -292,6 +292,16 @@ export function handleServerMessage(message) {
       // Phase 4: Handle video processing status updates (Req 10.8)
       handleVideoStatus(message);
       break;
+    case "transcription_status":
+      // Sprint C7: Deepgram reconnection status indicator (#139)
+      if (message.status === "reconnecting") {
+        showNotification("Live transcription reconnecting…", "warning");
+      } else if (message.status === "reconnected") {
+        showNotification("Live transcription reconnected", "success");
+      } else if (message.status === "failed") {
+        showNotification("Live transcription connection lost — evaluation will use post-speech transcript", "warning");
+      }
+      break;
     default:
       console.warn("Unknown server message type:", message.type);
   }

@@ -472,7 +472,11 @@ export class SessionManager {
    *
    * @throws Error if the session is not in IDLE state.
    */
-  startRecording(sessionId: string, onLiveSegment?: (segment: TranscriptSegment) => void): void {
+  startRecording(
+    sessionId: string,
+    onLiveSegment?: (segment: TranscriptSegment) => void,
+    onReconnectStatus?: (status: "reconnecting" | "reconnected" | "failed") => void,
+  ): void {
       const session = this.getSession(sessionId);
       this.assertTransition(session, SessionState.RECORDING, "startRecording");
 
@@ -502,16 +506,27 @@ export class SessionManager {
         this.log("INFO", `Starting Deepgram live transcription for session ${sessionId}`);
         this.deps.metricsCollector?.incrementApiCalls("deepgram");
         const capturedRunId = session.runId;
-        this.deps.transcriptionEngine.startLive((segment: TranscriptSegment) => {
-          // Only commit live transcript if runId still matches (not cancelled)
-          if (session.runId === capturedRunId) {
-            session.liveTranscript.push(segment);
-            // Notify the server layer so it can push to the client
-            if (onLiveSegment) {
-              onLiveSegment(segment);
+        this.deps.transcriptionEngine.startLive(
+          (segment: TranscriptSegment) => {
+            // Only commit live transcript if runId still matches (not cancelled)
+            if (session.runId === capturedRunId) {
+              session.liveTranscript.push(segment);
+              // Notify the server layer so it can push to the client
+              if (onLiveSegment) {
+                onLiveSegment(segment);
+              }
             }
-          }
-        });
+          },
+          {
+            onReconnectStatus: (status) => {
+              this.log(status === "failed" ? "ERROR" : "WARN",
+                `Deepgram reconnection ${status} for session ${sessionId}`);
+              if (onReconnectStatus) {
+                onReconnectStatus(status);
+              }
+            },
+          },
+        );
         this.log("INFO", `Deepgram live connection opened for session ${sessionId}`);
       } else {
         this.log("WARN", `No TranscriptionEngine configured — live transcription disabled`);

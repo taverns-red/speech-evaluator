@@ -83,11 +83,21 @@ const DEFAULT_LIVE_CONFIG: LiveSchema = {
 };
 
 /**
+ * Optional callbacks for the live transcription session.
+ * Used to notify callers about reconnection status (#139).
+ */
+export interface LiveStartOptions {
+  /** Called when connection drops and reconnection starts/completes/fails. */
+  onReconnectStatus?: (status: "reconnecting" | "reconnected" | "failed") => void;
+}
+
+/**
  * TranscriptionEngine manages live captioning via Deepgram and post-speech
  * transcription via OpenAI. Both clients are injected for testability.
  *
  * Design decisions:
- * - Single connection per speech: no reconnect on drop, just mark quality warning.
+ * - Auto-reconnect on drop: up to 3 attempts with exponential backoff. Audio is
+ *   buffered during the gap and replayed after successful reconnect (#139).
  * - Interim vs final segments: both emitted with `isFinal` flag for UI responsiveness.
  * - Post-speech pass (finalize) produces the canonical transcript for metrics/evaluation.
  * - gpt-4o-transcribe returns text-only (no word timestamps), so we use segment-level
@@ -102,6 +112,12 @@ export class TranscriptionEngine {
   private _qualityWarning = false;
   private liveConfig: LiveSchema;
   private openaiModel: string;
+  private _reconnecting = false;
+  private _stopped = false;
+  private reconnectBuffer: Buffer[] = [];
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 3;
+  private reconnectOptions: LiveStartOptions = {};
 
   constructor(
     deepgramClient: DeepgramClient,
@@ -128,20 +144,37 @@ export class TranscriptionEngine {
    * Each transcript result from Deepgram is converted to a TranscriptSegment
    * and emitted via the onSegment callback.
    *
+   * On unexpected close or error, automatically reconnects up to 3 times
+   * with exponential backoff. Audio is buffered during the gap and replayed
+   * after successful reconnect (#139).
+   *
    * Audio format: mono LINEAR16 16kHz (per Audio Format Contract).
    *
    * @param onSegment - Callback invoked for each interim or final transcript segment.
+   * @param options - Optional reconnection callbacks.
    * @throws Error if a live session is already active.
    */
-  startLive(onSegment: (segment: TranscriptSegment) => void): void {
+  startLive(onSegment: (segment: TranscriptSegment) => void, options?: LiveStartOptions): void {
     if (this.liveClient) {
       throw new Error("Live transcription session already active. Call stopLive() first.");
     }
 
     this._qualityWarning = false;
+    this._stopped = false;
+    this._reconnecting = false;
+    this.reconnectAttempts = 0;
+    this.reconnectBuffer = [];
     this.onSegmentCallback = onSegment;
+    this.reconnectOptions = options ?? {};
 
-    // Open Deepgram live WebSocket with configured audio format
+    this.openLiveConnection();
+  }
+
+  /**
+   * Opens a Deepgram live WebSocket and wires up event handlers.
+   * Called from startLive() and from the reconnection loop.
+   */
+  private openLiveConnection(): void {
     this.liveClient = this.deepgramClient.listen.live(this.liveConfig);
 
     // Handle transcript results (both interim and final)
@@ -150,18 +183,77 @@ export class TranscriptionEngine {
       this.handleTranscriptEvent(event);
     });
 
-    // Handle connection errors — mark quality warning, do not reconnect
+    // Handle connection errors — attempt reconnection (#139)
     this.liveClient.on(LiveTranscriptionEvents.Error, (_error: unknown) => {
-      this._qualityWarning = true;
-    });
-
-    // Handle unexpected close — mark quality warning
-    this.liveClient.on(LiveTranscriptionEvents.Close, () => {
-      // If we didn't initiate the close (liveClient still set), it's an unexpected drop
-      if (this.liveClient) {
-        this._qualityWarning = true;
+      if (!this._stopped) {
+        this.handleUnexpectedDrop();
       }
     });
+
+    // Handle unexpected close — attempt reconnection (#139)
+    this.liveClient.on(LiveTranscriptionEvents.Close, () => {
+      if (!this._stopped) {
+        this.handleUnexpectedDrop();
+      }
+    });
+  }
+
+  /**
+   * Handles an unexpected WebSocket close or error.
+   * Initiates async reconnection with exponential backoff.
+   * Audio is buffered during the gap and replayed after success.
+   */
+  private handleUnexpectedDrop(): void {
+    if (this._reconnecting || this._stopped) return;
+    this._reconnecting = true;
+    this.liveClient = null;
+
+    this.reconnectOptions.onReconnectStatus?.("reconnecting");
+
+    this.reconnectLoop().catch(() => {
+      // All retries exhausted — quality warning set inside reconnectLoop
+    });
+  }
+
+  /**
+   * Reconnection loop: attempts to re-open the Deepgram WS up to maxReconnectAttempts times.
+   */
+  private async reconnectLoop(): Promise<void> {
+    for (let attempt = 1; attempt <= this.maxReconnectAttempts; attempt++) {
+      if (this._stopped) return;
+
+      this.reconnectAttempts = attempt;
+
+      // Exponential backoff: 500ms, 1000ms, 2000ms
+      const delay = 500 * Math.pow(2, attempt - 1);
+      await new Promise((r) => setTimeout(r, delay));
+
+      if (this._stopped) return;
+
+      try {
+        this.openLiveConnection();
+        this._reconnecting = false;
+
+        // Replay buffered audio
+        const buffered = this.reconnectBuffer;
+        this.reconnectBuffer = [];
+        for (const chunk of buffered) {
+          if (this.liveClient) {
+            this.liveClient.send(chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength));
+          }
+        }
+
+        this.reconnectOptions.onReconnectStatus?.("reconnected");
+        return;
+      } catch {
+        // Connection attempt failed, try next
+      }
+    }
+
+    // All attempts exhausted
+    this._reconnecting = false;
+    this._qualityWarning = true;
+    this.reconnectOptions.onReconnectStatus?.("failed");
   }
 
   /**
@@ -172,6 +264,12 @@ export class TranscriptionEngine {
    * @throws Error if no live session is active.
    */
   feedAudio(chunk: Buffer): void {
+    // During reconnection, buffer audio for replay after reconnect (#139)
+    if (this._reconnecting) {
+      this.reconnectBuffer.push(Buffer.from(chunk));
+      return;
+    }
+
     if (!this.liveClient) {
       throw new Error("No active live transcription session. Call startLive() first.");
     }
@@ -185,19 +283,25 @@ export class TranscriptionEngine {
    * After calling this, feedAudio() will throw until startLive() is called again.
    */
   stopLive(): void {
-    if (!this.liveClient) {
+    if (!this.liveClient && !this._reconnecting) {
       return; // Already stopped, no-op
     }
+
+    this._stopped = true;
+    this._reconnecting = false;
+    this.reconnectBuffer = [];
 
     const client = this.liveClient;
     this.liveClient = null;
     this.onSegmentCallback = null;
 
     // Request graceful close from Deepgram
-    try {
-      client.requestClose();
-    } catch {
-      // Ignore errors during close — connection may already be dead
+    if (client) {
+      try {
+        client.requestClose();
+      } catch {
+        // Ignore errors during close — connection may already be dead
+      }
     }
   }
 

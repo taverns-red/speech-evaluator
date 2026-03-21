@@ -136,13 +136,31 @@ describe("TranscriptionEngine", () => {
       );
     });
 
-    it("should reset quality warning on new session", () => {
-      // First session: simulate error to set quality warning
+    it("should reset quality warning on new session", async () => {
+      // Force reconnection failure by making listen.live throw after first call
+      let callCount = 0;
+      const originalLive = mock.client.listen.live;
+      mock.client.listen.live = vi.fn(() => {
+        callCount++;
+        if (callCount > 1) throw new Error("Cannot reconnect");
+        return originalLive();
+      });
+
+      // First session: simulate error, wait for reconnection to exhaust
+      engine = new TranscriptionEngine(mock.client);
       engine.startLive(vi.fn());
       mock.emit(LiveTranscriptionEvents.Error, new Error("test"));
-      expect(engine.qualityWarning).toBe(true);
+
+      // Wait for reconnection loop to exhaust (qualityWarning set async)
+      await vi.waitFor(() => {
+        expect(engine.qualityWarning).toBe(true);
+      }, { timeout: 10000 });
 
       engine.stopLive();
+
+      // Reset the mock to allow reconnection again
+      callCount = 0;
+      mock.client.listen.live = originalLive;
 
       // Second session: quality warning should be reset
       engine.startLive(vi.fn());
@@ -353,21 +371,58 @@ describe("TranscriptionEngine", () => {
       expect(engine.qualityWarning).toBe(false);
     });
 
-    it("should be set to true on Deepgram error event", () => {
+    it("should be set to true after reconnection attempts exhausted on error", async () => {
+      // Make listen.live throw after first call to force reconnection failure
+      let callCount = 0;
+      const originalLive = mock.client.listen.live;
+      mock.client.listen.live = vi.fn(() => {
+        callCount++;
+        if (callCount > 1) throw new Error("Cannot reconnect");
+        return originalLive();
+      });
+      engine = new TranscriptionEngine(mock.client);
       engine.startLive(vi.fn());
 
       mock.emit(LiveTranscriptionEvents.Error, new Error("connection failed"));
 
-      expect(engine.qualityWarning).toBe(true);
+      // Quality warning is set asynchronously after reconnection loop exhausts
+      await vi.waitFor(() => {
+        expect(engine.qualityWarning).toBe(true);
+      }, { timeout: 10000 });
     });
 
-    it("should be set to true on unexpected connection close", () => {
+    it("should be set to true after reconnection attempts exhausted on close", async () => {
+      // Make listen.live throw after first call to force reconnection failure
+      let callCount = 0;
+      const originalLive = mock.client.listen.live;
+      mock.client.listen.live = vi.fn(() => {
+        callCount++;
+        if (callCount > 1) throw new Error("Cannot reconnect");
+        return originalLive();
+      });
+      engine = new TranscriptionEngine(mock.client);
       engine.startLive(vi.fn());
 
-      // Simulate unexpected close (liveClient still set)
+      // Simulate unexpected close
       mock.emit(LiveTranscriptionEvents.Close);
 
-      expect(engine.qualityWarning).toBe(true);
+      // Quality warning is set asynchronously after reconnection loop exhausts
+      await vi.waitFor(() => {
+        expect(engine.qualityWarning).toBe(true);
+      }, { timeout: 10000 });
+    });
+
+    it("should NOT set quality warning when reconnection succeeds", async () => {
+      // Default mock allows successful reconnection
+      engine.startLive(vi.fn());
+
+      mock.emit(LiveTranscriptionEvents.Close);
+
+      // Wait for reconnection to succeed
+      await new Promise((r) => setTimeout(r, 2000));
+
+      // Quality warning should NOT be set since reconnection succeeded
+      expect(engine.qualityWarning).toBe(false);
     });
   });
 
@@ -802,6 +857,171 @@ describe("TranscriptionEngine", () => {
           channels: 1,
         })
       );
+    });
+  });
+
+  describe("reconnection (#139)", () => {
+    /**
+     * Creates a mock Deepgram client that tracks multiple live client instances.
+     * Each call to listen.live() creates a new mock client, allowing us to simulate
+     * reconnection by emitting Close on one and verifying a new one is opened.
+     */
+    function createReconnectableMockClient() {
+      const clients: Array<{
+        liveClient: ReturnType<typeof createMockDeepgramClient>["liveClient"];
+        emit: ReturnType<typeof createMockDeepgramClient>["emit"];
+      }> = [];
+
+      const mockDeepgramClient = {
+        listen: {
+          live: vi.fn(() => {
+            const eventHandlers: Record<string, Array<(...args: unknown[]) => void>> = {};
+            const liveClient = {
+              on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+                if (!eventHandlers[event]) eventHandlers[event] = [];
+                eventHandlers[event].push(handler);
+              }),
+              send: vi.fn(),
+              requestClose: vi.fn(),
+            };
+            function emit(event: string, ...args: unknown[]) {
+              for (const handler of eventHandlers[event] ?? []) handler(...args);
+            }
+            clients.push({ liveClient, emit });
+            return liveClient;
+          }),
+        },
+      };
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return { client: mockDeepgramClient as any, clients };
+    }
+
+    it("should attempt reconnection on unexpected close", async () => {
+      const { client, clients } = createReconnectableMockClient();
+      const engine = new TranscriptionEngine(client);
+      const onSegment = vi.fn();
+      const onReconnect = vi.fn();
+
+      engine.startLive(onSegment, { onReconnectStatus: onReconnect });
+
+      expect(clients).toHaveLength(1);
+
+      // Simulate unexpected close
+      clients[0].emit(LiveTranscriptionEvents.Close);
+
+      // Wait for reconnection attempt (first backoff is 500ms in withRetry default)
+      await vi.waitFor(() => {
+        expect(clients.length).toBeGreaterThanOrEqual(2);
+      }, { timeout: 3000 });
+
+      // Should have created a new live client
+      expect(client.listen.live).toHaveBeenCalledTimes(2);
+    });
+
+    it("should buffer audio during reconnection and replay after", async () => {
+      const { client, clients } = createReconnectableMockClient();
+      const engine = new TranscriptionEngine(client);
+      const onSegment = vi.fn();
+
+      engine.startLive(onSegment);
+
+      // Simulate unexpected close
+      clients[0].emit(LiveTranscriptionEvents.Close);
+
+      // Feed audio during reconnection gap
+      const chunk1 = Buffer.alloc(1600, 1);
+      const chunk2 = Buffer.alloc(1600, 2);
+      engine.feedAudio(chunk1);
+      engine.feedAudio(chunk2);
+
+      // First client should NOT have received these chunks (it's dead)
+      expect(clients[0].liveClient.send).toHaveBeenCalledTimes(0);
+
+      // Wait for reconnection
+      await vi.waitFor(() => {
+        expect(clients.length).toBeGreaterThanOrEqual(2);
+      }, { timeout: 3000 });
+
+      // After reconnection, buffered chunks should be replayed on the new client
+      await vi.waitFor(() => {
+        expect(clients[1].liveClient.send).toHaveBeenCalledTimes(2);
+      }, { timeout: 1000 });
+    });
+
+    it("should set quality warning after max reconnection attempts exhausted", async () => {
+      const { client, clients } = createReconnectableMockClient();
+      // Make listen.live throw after the first call (initial connection)
+      let callCount = 0;
+      const originalLive = client.listen.live;
+      client.listen.live = vi.fn(() => {
+        callCount++;
+        if (callCount > 1) throw new Error("Cannot reconnect");
+        return originalLive();
+      });
+
+      const engine = new TranscriptionEngine(client);
+      const onReconnect = vi.fn();
+
+      engine.startLive(vi.fn(), { onReconnectStatus: onReconnect });
+      expect(engine.qualityWarning).toBe(false);
+
+      // Simulate unexpected close
+      clients[0].emit(LiveTranscriptionEvents.Close);
+
+      // After all retries exhausted, quality warning should be set
+      // The reconnect loop delays 500/1000/2000ms between attempts
+      await vi.waitFor(() => {
+        expect(engine.qualityWarning).toBe(true);
+      }, { timeout: 15000 });
+
+      // onReconnectStatus should have been called with "failed"
+      expect(onReconnect).toHaveBeenCalledWith("reconnecting");
+      expect(onReconnect).toHaveBeenCalledWith("failed");
+    });
+
+    it("should not reconnect after intentional stopLive", async () => {
+      const { client, clients } = createReconnectableMockClient();
+      const engine = new TranscriptionEngine(client);
+
+      engine.startLive(vi.fn());
+      engine.stopLive();
+
+      // Simulate the Close event firing after stopLive
+      clients[0].emit(LiveTranscriptionEvents.Close);
+
+      // Wait a bit to ensure no reconnection happens
+      await new Promise((r) => setTimeout(r, 1500));
+
+      // Should still be only 1 client (no reconnection)
+      expect(clients).toHaveLength(1);
+    });
+
+    it("should continue delivering transcript segments after reconnection", async () => {
+      const { client, clients } = createReconnectableMockClient();
+      const engine = new TranscriptionEngine(client);
+      const onSegment = vi.fn();
+
+      engine.startLive(onSegment);
+
+      // Deliver segments on first connection
+      const event1 = createDeepgramEvent({ transcript: "before drop", start: 0, duration: 1 });
+      clients[0].emit(LiveTranscriptionEvents.Transcript, event1);
+      expect(onSegment).toHaveBeenCalledTimes(1);
+
+      // Simulate drop + reconnect
+      clients[0].emit(LiveTranscriptionEvents.Close);
+
+      await vi.waitFor(() => {
+        expect(clients.length).toBeGreaterThanOrEqual(2);
+      }, { timeout: 3000 });
+
+      // Deliver segments on new connection
+      const event2 = createDeepgramEvent({ transcript: "after reconnect", start: 1, duration: 1 });
+      clients[1].emit(LiveTranscriptionEvents.Transcript, event2);
+
+      expect(onSegment).toHaveBeenCalledTimes(2);
+      expect(onSegment.mock.calls[1][0].text).toBe("after reconnect");
     });
   });
 });

@@ -795,6 +795,13 @@ function handleStartRecording(
       // Interim segment: replace from the current finalized count onward
       sendTranscriptUpdate(ws, [segment], connState.liveTranscriptLength);
     }
+  }, (status) => {
+    // Forward Deepgram reconnection status to the client (#139)
+    try {
+      ws.send(JSON.stringify({ type: "transcription_status", status }));
+    } catch {
+      // WebSocket may already be closed
+    }
   });
   logger.info(`Recording started for session ${connState.sessionId}`);
 
