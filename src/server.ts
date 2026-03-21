@@ -16,7 +16,6 @@ import { EvaluationStyle } from "./types.js";
 //          Session data lives in server memory only. No database, no temp files.
 
 import express, { type Express, type RequestHandler, type Router } from "express";
-import { createProxyMiddleware } from "http-proxy-middleware";
 import { createServer, type Server as HttpServer, type IncomingMessage } from "node:http";
 import path from "node:path";
 import cookieParser from "cookie-parser";
@@ -132,7 +131,7 @@ export interface CreateServerOptions {
   authMiddleware?: RequestHandler;
   /** Optional function to verify WebSocket upgrade requests. Returns true if allowed. */
   wsAuthVerify?: (req: IncomingMessage) => Promise<boolean>;
-  /** Firebase client-side config served at /api/config (no auth required). */
+  /** Auth client-side config served at /api/config (no auth required). */
   firebaseConfig?: Record<string, string>;
   /** RoleRegistry for meeting roles (Phase 9). */
   roleRegistry?: RoleRegistry;
@@ -210,29 +209,13 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
     res.json(metricsCollector.snapshot());
   });
 
-  // Firebase client config endpoint (unauthenticated — needed by login page)
+  // Auth client config endpoint (unauthenticated — needed by login page)
   if (firebaseConfig) {
     app.get("/api/config", (_req, res) => {
       res.json(firebaseConfig);
     });
   }
 
-  // Reverse proxy for Firebase auth handler (iOS Safari ITP fix, #111)
-  // When authDomain is set to the app's own domain, Firebase's JS SDK
-  // fetches /__/auth/handler from this origin. We proxy it to the
-  // actual Firebase Hosting domain so the OAuth flow completes.
-  if (firebaseConfig) {
-    const firebaseProjectDomain = "toast-stats-prod-6d64a.firebaseapp.com";
-    app.use(
-      "/__/auth",
-      createProxyMiddleware({
-        target: `https://${firebaseProjectDomain}`,
-        changeOrigin: true,
-        pathRewrite: (p) => `/__/auth${p}`,
-      }),
-    );
-    logger.info(`Firebase auth handler proxy → ${firebaseProjectDomain}`);
-  }
 
   // Mount auth middleware before static files and all other routes
   if (authMiddleware) {
