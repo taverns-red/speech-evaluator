@@ -134,12 +134,14 @@ gcloud run services logs read speech-evaluator \
 
 ### 5. Auth Not Working
 
-**Symptoms**: Login page loops, 401 errors
+**Symptoms**: Login page loops, 401 errors, "Unable to complete action" on sign-up
 
 **Triage**:
-- Verify `ALLOWED_EMAILS` env var contains the correct email
-- Verify `FIREBASE_API_KEY` is set
-- Check Firebase console for auth configuration
+- Verify `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` are set in Cloud Run env vars
+- Verify `ALLOWED_EMAILS` contains the correct email (lowercase, comma-separated)
+- Check Clerk Dashboard → Sessions → ensure `email` is included in session claims
+- For sign-up issues: check Attack Protection → Bot Protection (disable for dev instances)
+- For custom domain issues: Clerk dev instances (`pk_test_`) don't support custom domains — use raw Cloud Run URL or switch to production keys
 
 ### 6. Flaky Test Blocking Push
 
@@ -209,3 +211,43 @@ gcloud run deploy speech-evaluator \
 - Retention sweep runs every **24 hours** (configurable via `RETENTION_CHECK_INTERVAL_HOURS`)
 - First sweep runs 30 seconds after server start
 - Sweep deletes files from GCS under `results/` prefix older than the threshold
+
+---
+
+## Clerk Production Cutover
+
+The app currently uses **Clerk development keys** (`pk_test_`/`sk_test_`). To switch to production:
+
+### 1. Create Production Instance
+
+In the [Clerk Dashboard](https://dashboard.clerk.com), create a production instance and configure:
+- **Session claims**: Include `email`, `name`, `picture` in JWT template
+- **Allowed origins**: `https://eval.taverns.red`
+- **Bot protection**: Enable (Turnstile works on custom domains in production)
+
+### 2. DNS Records
+
+Add CNAME records in your DNS provider:
+
+| Record | Type | Value |
+|--------|------|-------|
+| `clerk.eval.taverns.red` | CNAME | `frontend-api.clerk.services` |
+| `accounts.eval.taverns.red` | CNAME | `accounts.clerk.services` |
+| `clkmail.eval.taverns.red` | CNAME | `mail.clerk.services` |
+| (DKIM record 1) | CNAME | (provided by Clerk Dashboard) |
+| (DKIM record 2) | CNAME | (provided by Clerk Dashboard) |
+
+### 3. Update Cloud Run Env Vars
+
+```bash
+gcloud run services update speech-evaluator \
+  --region=northamerica-northeast1 \
+  --set-env-vars="CLERK_PUBLISHABLE_KEY=pk_live_...,CLERK_SECRET_KEY=sk_live_..."
+```
+
+### 4. Verify
+
+- Test sign-in on `eval.taverns.red`
+- Test sign-up (bot protection should work with production keys)
+- Verify `/api/me` returns user info
+- Check History tab and evaluation flow
