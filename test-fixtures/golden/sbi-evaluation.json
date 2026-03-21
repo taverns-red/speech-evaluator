@@ -1,0 +1,28 @@
+{
+  "_comment": "Golden file for SBI evaluation shape. Tests verify structure, not content values.",
+  "opening": "string",
+  "items": [],
+  "closing": "string",
+  "structure_commentary": {
+    "opening_comment": "string|null",
+    "body_comment": "string|null",
+    "closing_comment": "string|null"
+  },
+  "evaluation_style": "sbi",
+  "style_items": [
+    {
+      "style": "sbi",
+      "valence": "positive",
+      "situation": "string",
+      "behavior": "string",
+      "impact": "string"
+    },
+    {
+      "style": "sbi",
+      "valence": "constructive",
+      "situation": "string",
+      "behavior": "string",
+      "impact": "string"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "_comment": "Golden file for DeliveryMetrics shape. Tests verify structure, not content values.",
+  "durationSeconds": 0,
+  "durationFormatted": "string",
+  "totalWords": 0,
+  "wordsPerMinute": 0,
+  "fillerWords": [
+    {
+      "word": "string",
+      "count": 0,
+      "timestamps": [0]
+    }
+  ],
+  "fillerWordCount": 0,
+  "fillerWordFrequency": 0,
+  "pauseCount": 0,
+  "totalPauseDurationSeconds": 0,
+  "averagePauseDurationSeconds": 0,
+  "intentionalPauseCount": 0,
+  "hesitationPauseCount": 0,
+  "classifiedPauses": [
+    {
+      "start": 0,
+      "end": 0,
+      "duration": 0,
+      "type": "intentional",
+      "reason": "string"
+    }
+  ],
+  "energyVariationCoefficient": 0,
+  "energyProfile": {
+    "windowDurationMs": 0,
+    "windows": [0],
+    "coefficientOfVariation": 0,
+    "silenceThreshold": 0
+  },
+  "classifiedFillers": [
+    {
+      "word": "string",
+      "count": 0,
+      "timestamps": [0],
+      "classification": "true_filler"
+    }
+  ],
+  "visualMetrics": null
+}

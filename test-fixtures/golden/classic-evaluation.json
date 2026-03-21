@@ -1,0 +1,27 @@
+{
+  "_comment": "Golden file for Classic evaluation shape. Tests verify structure, not content values.",
+  "opening": "string",
+  "items": [
+    {
+      "type": "commendation",
+      "summary": "string",
+      "evidence_quote": "string",
+      "evidence_timestamp": 0,
+      "explanation": "string"
+    },
+    {
+      "type": "recommendation",
+      "summary": "string",
+      "evidence_quote": "string",
+      "evidence_timestamp": 0,
+      "explanation": "string"
+    }
+  ],
+  "closing": "string",
+  "structure_commentary": {
+    "opening_comment": "string|null",
+    "body_comment": "string|null",
+    "closing_comment": "string|null"
+  },
+  "evaluation_style": "classic"
+}
