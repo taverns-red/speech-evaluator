@@ -10,7 +10,7 @@ import {
   updateConsentStatusDisplay, updateDurationEstimateDisplay,
   updateProcessingIndicator, updateDeliverButtonState, showError, dismissError,
   showSavedConfirmation, showInterruptionBanner, showNotification,
-  resetVadEnergyState,
+  resetVadEnergyState, showCoachingCue,
 } from "./ui.js";
 import { clearFormState, hideVideoConsentError, resetProjectContextForm, handleVADSpeechEnd } from "./consent.js";
 import { updateTranscript, showEvaluation, displayRoleResults, renderTranscript, clearEvidenceHighlight } from "./transcript.js";
@@ -301,6 +301,10 @@ export function handleServerMessage(message) {
       } else if (message.status === "failed") {
         showNotification("Live transcription connection lost — evaluation will use post-speech transcript", "warning");
       }
+      break;
+    case "coaching_cue":
+      // Sprint C14: Real-time coaching cues during practice mode (#155)
+      showCoachingCue(message);
       break;
     default:
       console.warn("Unknown server message type:", message.type);

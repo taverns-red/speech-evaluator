@@ -725,4 +725,5 @@ export type ServerMessage =
       report: { title: string; sections: Array<{ heading: string; content: string }>; data?: Record<string, unknown> };
       script: string;
     }>;
-  };
+  }
+  | { type: "coaching_cue"; cueType: string; message: string; timestamp: number };

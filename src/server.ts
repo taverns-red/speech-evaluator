@@ -2,6 +2,8 @@
 import { RoleRegistry } from "./role-registry.js";
 import { loadGoals, saveGoals, evaluateGoals } from "./goals.js";
 import type { SpeakerGoal } from "./goals.js";
+import { computeCues, createCueState } from "./coaching-cues.js";
+import type { CueState } from "./coaching-cues.js";
 import { createLogger } from "./logger.js";
 import type { MetricsCollector, MetricsSnapshot } from "./metrics-collector.js";
 import { requestTimeout } from "./request-timeout.js";
@@ -89,6 +91,10 @@ interface ConnectionState {
   visionFrameBuffer: string[];
   /** Session mode: live meeting or solo practice (#146) */
   sessionMode: "live" | "practice";
+  /** Coaching cue timer interval (practice mode only, #155) */
+  coachingCueInterval: ReturnType<typeof setInterval> | null;
+  /** Coaching cue cooldown state (#155) */
+  coachingCueState: CueState;
 }
 
 // ─── Logging ────────────────────────────────────────────────────────────────────
@@ -523,6 +529,8 @@ function handleConnection(
     evaluationStyle: "classic",
     visionFrameBuffer: [],
     sessionMode: "live",
+    coachingCueInterval: null,
+    coachingCueState: createCueState(),
   };
 
   logger.info(`New WebSocket connection, session ${session.id}`);
@@ -930,6 +938,11 @@ function handleStartRecording(
 
   // Start periodic video_status sender (≤1/sec during RECORDING)
   startVideoStatusSender(ws, connState, sessionManager);
+
+  // Start coaching cue timer (practice mode only, #155)
+  if (connState.sessionMode === "practice") {
+    startCoachingCueTicker(ws, connState, sessionManager, logger);
+  }
 }
 
 // ─── Stop Recording ─────────────────────────────────────────────────────────────
@@ -941,6 +954,7 @@ async function handleStopRecording(
   logger: ServerLogger,
 ): Promise<void> {
   stopElapsedTimeTicker(connState);
+  stopCoachingCueTicker(connState);
   stopVideoStatusSender(connState);
 
   // Capture video processor reference before stopRecording (which may remove it)
@@ -1367,6 +1381,7 @@ function handlePanicMute(
   logger: ServerLogger,
 ): void {
   stopElapsedTimeTicker(connState);
+  stopCoachingCueTicker(connState);
   stopVideoStatusSender(connState);
 
   sessionManager.panicMute(connState.sessionId);
@@ -1410,6 +1425,7 @@ function handleRevokeConsent(
 ): void {
   // Stop any active timers — session is being purged
   stopElapsedTimeTicker(connState);
+  stopCoachingCueTicker(connState);
   clearPurgeTimer(connState);
 
   sessionManager.revokeConsent(connState.sessionId);
@@ -1741,6 +1757,53 @@ function stopElapsedTimeTicker(connState: ConnectionState): void {
   }
 }
 
+// ─── Coaching Cue Timer (#155) ──────────────────────────────────────────────────
+
+const COACHING_CUE_INTERVAL_MS = 10_000; // Check every 10 seconds
+
+function startCoachingCueTicker(
+  ws: WebSocket,
+  connState: ConnectionState,
+  sessionManager: SessionManager,
+  logger: ServerLogger,
+): void {
+  stopCoachingCueTicker(connState);
+  connState.coachingCueState = createCueState();
+  const recordingStart = Date.now();
+
+  connState.coachingCueInterval = setInterval(() => {
+    try {
+      const session = sessionManager.getSession(connState.sessionId);
+      if (session.state !== SessionState.RECORDING) {
+        stopCoachingCueTicker(connState);
+        return;
+      }
+
+      const elapsedSeconds = (Date.now() - recordingStart) / 1000;
+      const segments = session.liveTranscript;
+      const cues = computeCues(segments, elapsedSeconds, connState.coachingCueState);
+
+      for (const cue of cues) {
+        sendMessage(ws, {
+          type: "coaching_cue",
+          cueType: cue.type,
+          message: cue.message,
+          timestamp: cue.timestamp,
+        });
+      }
+    } catch {
+      stopCoachingCueTicker(connState);
+    }
+  }, COACHING_CUE_INTERVAL_MS);
+}
+
+function stopCoachingCueTicker(connState: ConnectionState): void {
+  if (connState.coachingCueInterval !== null) {
+    clearInterval(connState.coachingCueInterval);
+    connState.coachingCueInterval = null;
+  }
+}
+
 // ─── Auto-Purge Timer ───────────────────────────────────────────────────────────
 // Privacy: After TTS delivery completes (state returns to IDLE), a 10-minute
 // auto-purge timer starts. When it fires, all transcript, metrics, evaluation,
@@ -1856,6 +1919,7 @@ export function sendMessage(ws: WebSocket, message: ServerMessage): void {
 
 function cleanupConnection(connState: ConnectionState): void {
   stopElapsedTimeTicker(connState);
+  stopCoachingCueTicker(connState);
   clearPurgeTimer(connState);
   stopVideoStatusSender(connState);
 }

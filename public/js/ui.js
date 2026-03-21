@@ -672,3 +672,40 @@ export function showElapsedTime() {
 export function hideElapsedTime() {
   dom.elapsedTime.classList.remove("visible");
 }
+
+// ─── Coaching Cue Toast (#155) ───────────────────────────────────
+
+const CUE_ICONS = {
+  pace_fast: "🏃",
+  pace_slow: "🐢",
+  filler_alert: "🔇",
+  long_pause: "⏸️",
+};
+
+/**
+ * Shows a coaching cue toast overlay during practice mode recording.
+ * Auto-dismisses after 5 seconds with a fade-out animation.
+ * @param {{ cueType: string, message: string }} cue
+ */
+export function showCoachingCue(cue) {
+  const container = document.getElementById("coaching-cue-container");
+  if (!container) return;
+
+  const toast = document.createElement("div");
+  toast.className = "coaching-cue-toast";
+  const icon = CUE_ICONS[cue.cueType] || "💡";
+  toast.textContent = `${icon} ${cue.message}`;
+
+  container.appendChild(toast);
+
+  // Trigger slide-in animation
+  requestAnimationFrame(() => toast.classList.add("visible"));
+
+  // Auto-dismiss after 5 seconds
+  setTimeout(() => {
+    toast.classList.remove("visible");
+    toast.addEventListener("transitionend", () => toast.remove(), { once: true });
+    // Fallback removal if transitionend never fires
+    setTimeout(() => { if (toast.parentNode) toast.remove(); }, 500);
+  }, 5000);
+}
