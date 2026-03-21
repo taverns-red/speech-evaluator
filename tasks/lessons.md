@@ -12,6 +12,22 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-21 — Lesson 48: Pure-Logic Modules Enable TDD for Real-time Features
+
+**The Discovery**: Coaching cues needed to analyze live transcript data (WPM, filler count, pause gaps) and fire notifications with cooldowns. By extracting `computeCues()` as a pure function (segments + elapsed → cue array), all 16 tests could be written without WebSocket mocks, timers, or DOM. The server just calls the function in a `setInterval` and forwards results — zero logic in the wiring layer.
+
+**The Resulting Rule**: When building a real-time feature that processes streaming data, extract the analysis logic into a pure function that takes snapshots of accumulated state. The integration layer (timer, WebSocket) becomes a thin adapter with no branching logic of its own.
+
+**Future Warning**: The 10-second ticker interval means cues are delayed up to 10 seconds after the triggering event. If sub-second responsiveness is needed, move to event-driven architecture (fire on each new transcript segment).
+
+## 🗓️ 2026-03-21 — Lesson 49: Setup Wizards Should Apply Settings via Existing Event Dispatch
+
+**The Discovery**: The setup wizard needed to set speaker name, feedback style, and analysis tier — all of which already had `change`/`input` event listeners wired to `onAnalysisTierChange()`, `onEvaluationStyleChange()`, etc. Rather than duplicating the persistence logic, the wizard sets `radio.checked = true` and dispatches a `change` event, letting the existing handler do all the work (state update, localStorage save, WebSocket notification).
+
+**The Resulting Rule**: When a wizard or import flow needs to configure existing form fields, dispatch DOM events against the actual form elements rather than calling state-setting functions directly. This ensures all side effects (validation, persistence, server notification) fire exactly as if the user clicked manually.
+
+**Future Warning**: `dispatchEvent(new Event("change", { bubbles: true }))` doesn't trigger `input` events. If a form field relies on `input` events for live validation (like the speaker name field), dispatch both event types.
+
 ## 🗓️ 2026-03-21 — Lesson 44: Golden File Shape Testing Catches Frontend Contract Drift
 
 **The Discovery**: After 8 sprints, the backend test suite had 1849 tests but none verified the JSON shape consumed by the frontend. A change to `StructuredEvaluation` (e.g., renaming `evidence_quote` → `quote`) would pass all backend tests because they only check interface compliance. The frontend would break silently because it reads `data.evidence_quote` directly. A recursive "shape verifier" that walks golden JSON files catches this: it checks that every key in the golden file exists in the actual output, and that arrays contain elements matching the golden element shape.
