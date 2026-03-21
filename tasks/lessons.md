@@ -606,3 +606,13 @@
 **Future Warning**: The `STYLE_FIELD_CONFIG` renderer handles scalar strings and arrays (`isArray: true`) but not nested objects. If a future style needs nested structured data (e.g., a rubric with sub-dimensions), the renderer will need a new field type.
 
 **rules.md**: none
+
+## 🗓️ 2026-03-21 — Lesson 47: Pure-Frontend Features Are Free Wins for Sprint Velocity
+
+**The Discovery**: The Comparative Analytics feature (#154) required zero new API endpoints, zero backend changes, and zero new dependencies. The comparison panel (select 2 evaluations → side-by-side metric diff table) was a pure frontend addition using metadata already loaded from the existing `historyResults` array. Total: 3 files, ~200 lines.
+
+**The Resulting Rule**: When grooming sprint candidates, prioritize features that can be built entirely in the existing frontend data model. They have zero blast radius on the backend, require no new tests for server code, and ship faster. Flag them with a "frontend-only" label during planning.
+
+**Future Warning**: The comparison currently only uses metadata (WPM, duration, passRate). To compare category scores or feedback items, the evaluation detail must be fetched — this would require lazy-loading both evaluations' data, which adds complexity.
+
+**rules.md**: none
