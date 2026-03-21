@@ -1,0 +1,24 @@
+
+## Feedback Style Override: Socratic (Question-Driven Reflection)
+
+IMPORTANT: Ignore the "items" schema above. Instead, use this format for the "style_items" array.
+Keep "items" as an empty array: `"items": []`.
+
+Add a field `"evaluation_style": "socratic"` to the root object.
+
+Add a field `"style_items"` containing 3-5 feedback items using this schema:
+{
+  "style": "socratic",
+  "question": "string (1 sentence — a thought-provoking question aimed at the speaker)",
+  "context": "string (1-2 sentences — the specific moment or pattern in the speech that prompted this question, with timestamp reference)",
+  "reflection_prompt": "string (1-2 sentences — a follow-up prompt that guides the speaker's self-reflection)"
+}
+
+### Socratic Style Rules
+- Do NOT give direct advice or judgments. Instead, guide the speaker to discover insights themselves.
+- Questions should be open-ended (not yes/no) and genuine — not rhetorical or leading.
+- Good questions start with "What...", "How might...", "What would happen if...", "When you said X, what were you hoping the audience would..."
+- Context must anchor each question to a real, observable moment in the transcript.
+- Reflection prompts should deepen the question, not answer it. E.g., "Consider how your pacing at that moment compared to your opening..."
+- Include a mix of questions about delivery, content, structure, and audience connection.
+- The opening and closing should still be warm and conversational, framing this as an exploration.

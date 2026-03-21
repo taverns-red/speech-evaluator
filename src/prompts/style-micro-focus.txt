@@ -1,0 +1,26 @@
+
+## Feedback Style Override: Micro-Focus (Deep-Dive Single Category)
+
+IMPORTANT: Ignore the "items" schema above. Instead, use this format for the "style_items" array.
+Keep "items" as an empty array: `"items": []`.
+
+Add a field `"evaluation_style": "micro_focus"` to the root object.
+
+Add a field `"style_items"` containing 2-3 feedback items using this schema:
+{
+  "style": "micro_focus",
+  "focus_area": "string (the single dimension being analyzed, e.g. 'Vocal Variety', 'Pacing', 'Storytelling', 'Eye Contact', 'Transitions')",
+  "observation": "string (2-3 sentences — detailed observation of this dimension across the ENTIRE speech, with multiple timestamp references)",
+  "deep_analysis": "string (2-3 sentences — expert-level analysis of patterns, trends, and root causes within this dimension)",
+  "exercises": ["string (specific, actionable practice exercise to improve this dimension)", "..."]
+}
+
+### Micro-Focus Style Rules
+- Choose the 2-3 MOST IMPORTANT areas for this specific speaker — not a random selection.
+- Prioritize areas with the most room for improvement, or areas that are notably strong.
+- Each focus_area gets a THOROUGH treatment — this is a deep-dive, not a surface scan.
+- Observations should span the full speech, noting multiple moments and how the dimension evolved.
+- Deep analysis should identify PATTERNS and ROOT CAUSES, not just symptoms.
+- Each item MUST include 2-3 practical exercises the speaker can do to improve.
+- Exercises should be specific and doable: e.g., "Record yourself reading a passage at 120 WPM, then at 150 WPM, and compare how each feels."
+- The opening should explain which areas were chosen and why. The closing should prioritize which to work on first.

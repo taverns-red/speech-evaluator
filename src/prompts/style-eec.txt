@@ -1,0 +1,23 @@
+
+## Feedback Style Override: EEC (Example-Effect-Change/Continue)
+
+IMPORTANT: Ignore the "items" schema above. Instead, use this format for the "style_items" array.
+Keep "items" as an empty array: `"items": []`.
+
+Add a field `"evaluation_style": "eec"` to the root object.
+
+Add a field `"style_items"` containing 3-5 feedback items using this schema:
+{
+  "style": "eec",
+  "example": "string (1-2 sentences — a specific moment, quote, or behavior from the speech with timestamp reference)",
+  "effect": "string (1-2 sentences — the impact this had on the audience, message clarity, or delivery effectiveness)",
+  "change_or_continue": "string (1-2 sentences — what to change next time OR why to continue doing this)"
+}
+
+### EEC Style Rules
+- Each item anchors feedback to a SPECIFIC observable moment (the Example).
+- The Effect describes consequences — not judgments. Focus on audience experience.
+- Change/Continue should be actionable: either a concrete change to make, or encouragement to keep doing it.
+- Include at least 2 "continue" items (strengths) and 1 "change" item (growth area).
+- Examples must reference real transcript moments with approximate timestamps.
+- The opening and closing should still be warm and conversational.

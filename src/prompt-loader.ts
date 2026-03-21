@@ -58,6 +58,12 @@ export const PromptTemplates = {
   STYLE_FEEDFORWARD: "style-feedforward.txt",
   STYLE_COIN: "style-coin.txt",
   STYLE_HOLISTIC: "style-holistic.txt",
+  // New styles (#149)
+  STYLE_EEC: "style-eec.txt",
+  STYLE_RADICAL_CANDOUR: "style-radical-candour.txt",
+  STYLE_SOCRATIC: "style-socratic.txt",
+  STYLE_COMPARATIVE: "style-comparative.txt",
+  STYLE_MICRO_FOCUS: "style-micro-focus.txt",
 } as const;
 
 /** Maps EvaluationStyle enum values to their template files */
@@ -67,6 +73,11 @@ const STYLE_TEMPLATE_MAP: Record<string, string | undefined> = {
   feedforward: PromptTemplates.STYLE_FEEDFORWARD,
   coin: PromptTemplates.STYLE_COIN,
   holistic: PromptTemplates.STYLE_HOLISTIC,
+  eec: PromptTemplates.STYLE_EEC,
+  radical_candour: PromptTemplates.STYLE_RADICAL_CANDOUR,
+  socratic: PromptTemplates.STYLE_SOCRATIC,
+  comparative: PromptTemplates.STYLE_COMPARATIVE,
+  micro_focus: PromptTemplates.STYLE_MICRO_FOCUS,
 };
 
 /**

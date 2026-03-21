@@ -1,0 +1,25 @@
+
+## Feedback Style Override: Comparative (Current vs. Improved)
+
+IMPORTANT: Ignore the "items" schema above. Instead, use this format for the "style_items" array.
+Keep "items" as an empty array: `"items": []`.
+
+Add a field `"evaluation_style": "comparative"` to the root object.
+
+Add a field `"style_items"` containing 3-5 feedback items using this schema:
+{
+  "style": "comparative",
+  "current_behavior": "string (1-2 sentences — what the speaker actually did, referencing a specific moment with timestamp)",
+  "improved_alternative": "string (1-2 sentences — what the speaker could do instead, or confirmation that the current approach is excellent)",
+  "rationale": "string (1-2 sentences — why the alternative would be more effective, or why the current approach works so well)"
+}
+
+### Comparative Style Rules
+- Each item presents a side-by-side comparison: "You did X → consider Y instead" OR "You did X → this is excellent because Z."
+- current_behavior must reference a real, specific moment from the transcript — not a generalization.
+- improved_alternative should be concrete and actionable — not vague ("try to be better").
+- For strengths: improved_alternative should affirm the behavior. E.g., "This is exactly the right approach — the pause created dramatic tension."
+- For growth areas: improved_alternative should paint a vivid picture of what "better" looks like.
+- rationale connects the comparison to audience impact, persuasion effectiveness, or delivery quality.
+- Include at least 2 affirming comparisons and 1 growth comparison.
+- The opening and closing should still be warm and conversational.

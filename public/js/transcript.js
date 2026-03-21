@@ -206,6 +206,52 @@ const STYLE_FIELD_CONFIG = {
       { key: "detail", label: "Detail" },
     ],
   },
+  eec: {
+    label: "EEC",
+    icon: () => "🎯",
+    fields: [
+      { key: "example", label: "Example" },
+      { key: "effect", label: "Effect" },
+      { key: "change_or_continue", label: "Change / Continue" },
+    ],
+  },
+  radical_candour: {
+    label: "Radical Candour",
+    icon: (item) => item.candour_type === "praise" ? "💪" : "🔥",
+    fields: [
+      { key: "observation", label: "Observation" },
+      { key: "impact", label: "Impact" },
+      { key: "suggestion", label: "Suggestion" },
+    ],
+  },
+  socratic: {
+    label: "Socratic",
+    icon: () => "🤔",
+    fields: [
+      { key: "question", label: "Question" },
+      { key: "context", label: "Context" },
+      { key: "reflection_prompt", label: "Reflect" },
+    ],
+  },
+  comparative: {
+    label: "Comparative",
+    icon: () => "⚖️",
+    fields: [
+      { key: "current_behavior", label: "What You Did" },
+      { key: "improved_alternative", label: "Alternative" },
+      { key: "rationale", label: "Why" },
+    ],
+  },
+  micro_focus: {
+    label: "Micro-Focus",
+    icon: () => "🔬",
+    fields: [
+      { key: "focus_area", label: "Focus Area" },
+      { key: "observation", label: "Observation" },
+      { key: "deep_analysis", label: "Analysis" },
+      { key: "exercises", label: "Exercises", isArray: true },
+    ],
+  },
 };
 
 /**
@@ -253,13 +299,25 @@ export function renderStyledItems(styleItems, evaluationStyle) {
       const label = document.createElement("span");
       label.className = "style-field-label";
       label.textContent = fieldDef.label;
-
-      const text = document.createElement("span");
-      text.className = "style-field-value";
-      text.textContent = value;
-
       field.appendChild(label);
-      field.appendChild(text);
+
+      if (fieldDef.isArray && Array.isArray(value)) {
+        // Render array values as a numbered list
+        const list = document.createElement("ol");
+        list.className = "style-field-list";
+        for (const entry of value) {
+          const li = document.createElement("li");
+          li.textContent = entry;
+          list.appendChild(li);
+        }
+        field.appendChild(list);
+      } else {
+        const text = document.createElement("span");
+        text.className = "style-field-value";
+        text.textContent = value;
+        field.appendChild(text);
+      }
+
       card.appendChild(field);
     }
 

@@ -258,6 +258,11 @@ export enum EvaluationStyle {
   Feedforward = "feedforward",
   COIN = "coin",
   Holistic = "holistic",
+  EEC = "eec",
+  RadicalCandour = "radical_candour",
+  Socratic = "socratic",
+  Comparative = "comparative",
+  MicroFocus = "micro_focus",
 }
 
 // ─── Style-Specific Item Types (#133) ───────────────────────────────────────────
@@ -305,12 +310,59 @@ export interface HolisticEvaluationItem {
   detail: string;
 }
 
+/** EEC: Example → Effect → Change/Continue (#149) */
+export interface EECEvaluationItem {
+  style: "eec";
+  example: string;
+  effect: string;
+  change_or_continue: string;
+}
+
+/** Radical Candour: Care Personally + Challenge Directly (#149) */
+export interface RadicalCandourEvaluationItem {
+  style: "radical_candour";
+  candour_type: "praise" | "criticism";
+  observation: string;
+  impact: string;
+  suggestion: string;
+}
+
+/** Socratic: Reflective questions for self-discovery (#149) */
+export interface SocraticEvaluationItem {
+  style: "socratic";
+  question: string;
+  context: string;
+  reflection_prompt: string;
+}
+
+/** Comparative: Current behavior vs. improved alternative (#149) */
+export interface ComparativeEvaluationItem {
+  style: "comparative";
+  current_behavior: string;
+  improved_alternative: string;
+  rationale: string;
+}
+
+/** Micro-Focus: Deep-dive into one focus area (#149) */
+export interface MicroFocusEvaluationItem {
+  style: "micro_focus";
+  focus_area: string;
+  observation: string;
+  deep_analysis: string;
+  exercises: string[];
+}
+
 export type StyledEvaluationItem =
   | ClassicEvaluationItem
   | SBIEvaluationItem
   | FeedforwardEvaluationItem
   | COINEvaluationItem
-  | HolisticEvaluationItem;
+  | HolisticEvaluationItem
+  | EECEvaluationItem
+  | RadicalCandourEvaluationItem
+  | SocraticEvaluationItem
+  | ComparativeEvaluationItem
+  | MicroFocusEvaluationItem;
 
 // ─── Structured Evaluation ──────────────────────────────────────────────────────
 
