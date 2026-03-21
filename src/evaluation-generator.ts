@@ -761,8 +761,16 @@ ${config.objectives.map((o, i) => `${i + 1}. ${o}`).join("\n")}`;
     if (config?.evaluationFormText) {
       prompt += `
 
-## Evaluation Form (provided by user — fill out all fields)
-${config.evaluationFormText}`;
+## Evaluation Form
+The following evaluation form was provided. It contains the project's purpose, objectives, and grading criteria.
+
+${config.evaluationFormText}
+
+### Form Instructions
+1. **Extract objectives**: Identify the project purpose and objectives stated in the form above.
+2. **Evaluate against objectives**: Include at least one commendation or recommendation that directly addresses how well the speaker met (or could better meet) the project objectives.
+3. **Fill out all fields**: In the \`completed_form\` response field, fill in every section of this form with specific, evidence-based observations from the speech.
+4. **Integrate, don't isolate**: Weave objective-related feedback naturally into your opening, closing, and evaluation items — don't treat it as a separate section.`;
     }
 
     prompt += `
