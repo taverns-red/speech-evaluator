@@ -169,6 +169,80 @@ function renderProgressPanel(progressData) {
   panel.style.display = "block";
 }
 
+// ── Improvement Plan (#145) ──────────────────────────────────────────────────
+
+async function fetchImprovementPlan(speaker) {
+  const res = await fetch(`/api/improvement-plan/${encodeURIComponent(speaker)}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function renderImprovementPlan(data) {
+  const panel = document.getElementById("improvement-plan-panel");
+  if (!panel) return;
+
+  if (!data.plan) {
+    panel.style.display = "none";
+    return;
+  }
+
+  const { plan } = data;
+  const focusLabel = plan.focusCategory.charAt(0).toUpperCase() + plan.focusCategory.slice(1);
+
+  let html = `<div class="improvement-plan-content">`;
+  html += `<div class="improvement-plan-header">`;
+  html += `<span class="improvement-plan-icon">🎯</span>`;
+  html += `<div class="improvement-plan-title">Your Focus Area: <strong>${escapeHtml(focusLabel)}</strong></div>`;
+  html += `<span class="improvement-plan-score">${plan.focusCategoryAvg}/10</span>`;
+  html += `</div>`;
+
+  // Category averages bar chart
+  if (plan.categoryAverages && plan.categoryAverages.length > 0) {
+    html += '<div class="improvement-scores">';
+    for (const ca of plan.categoryAverages) {
+      const pct = Math.round((ca.averageScore / 10) * 100);
+      const colorClass = ca.averageScore >= 7 ? "score-good" : ca.averageScore >= 4 ? "score-fair" : "score-poor";
+      const isFocus = ca.category === plan.focusCategory ? " focus-category" : "";
+      const label = ca.category.charAt(0).toUpperCase() + ca.category.slice(1);
+      const trendIcon = ca.trend === "improving" ? "↑" : ca.trend === "declining" ? "↓" : "→";
+      html += `
+        <div class="category-score-row${isFocus}">
+          <span class="category-score-name">${escapeHtml(label)}</span>
+          <div class="category-score-track">
+            <div class="category-score-fill ${colorClass}" style="width:${pct}%"></div>
+          </div>
+          <span class="category-score-value">${ca.averageScore} ${trendIcon}</span>
+        </div>
+      `;
+    }
+    html += '</div>';
+  }
+
+  // Practice exercises
+  if (plan.exercises && plan.exercises.length > 0) {
+    html += '<div class="improvement-exercises">';
+    html += '<div class="improvement-exercises-label">Practice Exercises</div>';
+    for (const ex of plan.exercises) {
+      html += `
+        <div class="improvement-exercise">
+          <div class="exercise-header">
+            <span class="exercise-title">${escapeHtml(ex.title)}</span>
+            <span class="exercise-duration">${escapeHtml(ex.duration)}</span>
+          </div>
+          <div class="exercise-description">${escapeHtml(ex.description)}</div>
+        </div>
+      `;
+    }
+    html += '</div>';
+  }
+
+  html += `<div class="improvement-plan-meta">Based on ${plan.evaluationCount} evaluations</div>`;
+  html += `</div>`;
+
+  panel.innerHTML = html;
+  panel.style.display = "block";
+}
+
 // ─── Rendering ──────────────────────────────────────────────────────
 
 function formatDate(isoString) {
@@ -498,6 +572,11 @@ export async function loadHistory(speaker) {
       } catch (progressErr) {
         console.warn("[History] Progress chart unavailable:", progressErr);
       }
+
+      // Improvement plan (#145) — fire-and-forget
+      fetchImprovementPlan(speaker)
+        .then(renderImprovementPlan)
+        .catch((e) => console.warn("[History] Improvement plan unavailable:", e));
     }
 
     if (data.results.length === 0 && historyResults.length === 0) {

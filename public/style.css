@@ -2019,6 +2019,111 @@ body::before {
   border-left: 2px solid var(--border-subtle);
 }
 
+/* ── Improvement Plan (#145) ─────────────────────────────────────────────── */
+
+#improvement-plan-panel {
+  margin-bottom: 16px;
+}
+
+.improvement-plan-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+
+.improvement-plan-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.improvement-plan-icon {
+  font-size: 1.4rem;
+}
+
+.improvement-plan-title {
+  flex: 1;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.improvement-plan-score {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--red-primary);
+}
+
+.improvement-scores {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.category-score-row.focus-category {
+  background: rgba(193, 59, 59, 0.06);
+  border-radius: 4px;
+  padding: 4px 6px;
+  margin: -4px -6px;
+}
+
+.improvement-exercises {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 12px;
+}
+
+.improvement-exercises-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.improvement-exercise {
+  padding: 10px 12px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+}
+
+.exercise-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.exercise-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.exercise-duration {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.exercise-description {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.improvement-plan-meta {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-align: right;
+  margin-top: 10px;
+}
+
 .history-links {
   display: flex;
   gap: 12px;

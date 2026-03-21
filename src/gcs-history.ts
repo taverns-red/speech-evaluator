@@ -182,10 +182,15 @@ export function buildEvaluationPrefix(
 // ─── GCS History Service ─────────────────────────────────────────────────────────
 
 export class GcsHistoryService {
-  private readonly client: GcsHistoryClient;
+  private readonly _client: GcsHistoryClient;
 
   constructor(client: GcsHistoryClient) {
-    this.client = client;
+    this._client = client;
+  }
+
+  /** Public accessor for the underlying GCS client (#145). */
+  get client(): GcsHistoryClient {
+    return this._client;
   }
 
   /**
@@ -215,22 +220,22 @@ export class GcsHistoryService {
 
       // Save all files in parallel
       const saves: Promise<void>[] = [
-        this.client.saveFile(
+        this._client.saveFile(
           `${prefix}metadata.json`,
           JSON.stringify(metadata, null, 2),
           "application/json",
         ),
-        this.client.saveFile(
+        this._client.saveFile(
           `${prefix}transcript.json`,
           JSON.stringify(input.transcript, null, 2),
           "application/json",
         ),
-        this.client.saveFile(
+        this._client.saveFile(
           `${prefix}metrics.json`,
           JSON.stringify(input.metrics, null, 2),
           "application/json",
         ),
-        this.client.saveFile(
+        this._client.saveFile(
           `${prefix}evaluation.json`,
           JSON.stringify({
             evaluation: input.evaluation,
@@ -242,7 +247,7 @@ export class GcsHistoryService {
 
       if (input.ttsAudio && input.ttsAudio.length > 0) {
         saves.push(
-          this.client.saveFile(
+          this._client.saveFile(
             `${prefix}evaluation_audio.mp3`,
             input.ttsAudio,
             "audio/mpeg",
@@ -283,7 +288,7 @@ export class GcsHistoryService {
     log.info("Listing evaluations", { speaker: sanitizedSpeaker, limit, cursor });
 
     // Get all evaluation prefixes for this speaker
-    const prefixes = await this.client.listPrefixes(speakerPrefix, "/");
+    const prefixes = await this._client.listPrefixes(speakerPrefix, "/");
 
     // Sort newest-first (prefixes are timestamped, so reverse alpha sort works)
     const sorted = prefixes.sort().reverse();
@@ -297,7 +302,7 @@ export class GcsHistoryService {
     const results: EvaluationListItem[] = [];
     for (const evalPrefix of page) {
       try {
-        const metadataContent = await this.client.readFile(`${evalPrefix}metadata.json`);
+        const metadataContent = await this._client.readFile(`${evalPrefix}metadata.json`);
         const metadata = JSON.parse(metadataContent) as EvaluationMetadata;
 
         // Generate signed read URLs for each file
@@ -345,9 +350,9 @@ export class GcsHistoryService {
     // Check existence and sign in parallel
     const checks = files.map(async ({ key, path }) => {
       try {
-        const exists = await this.client.fileExists(path);
+        const exists = await this._client.fileExists(path);
         if (exists) {
-          urls[key] = await this.client.getSignedReadUrl(path, SIGNED_URL_EXPIRY_MINUTES);
+          urls[key] = await this._client.getSignedReadUrl(path, SIGNED_URL_EXPIRY_MINUTES);
         }
       } catch {
         // Skip files that can't be signed
@@ -367,7 +372,7 @@ export class GcsHistoryService {
     if (!prefix.startsWith(RESULTS_PREFIX)) {
       throw new Error(`Invalid evaluation prefix: ${prefix}`);
     }
-    const count = await this.client.deletePrefix(prefix);
+    const count = await this._client.deletePrefix(prefix);
     log.info("Deleted evaluation", { prefix, filesDeleted: count });
     return count;
   }
@@ -380,7 +385,7 @@ export class GcsHistoryService {
   async deleteSpeakerHistory(speakerName: string): Promise<number> {
     const sanitized = sanitizeForPath(speakerName);
     const prefix = `${RESULTS_PREFIX}${sanitized}/`;
-    const count = await this.client.deletePrefix(prefix);
+    const count = await this._client.deletePrefix(prefix);
     log.info("Deleted speaker history", { speaker: speakerName, prefix, filesDeleted: count });
     return count;
   }
@@ -396,7 +401,7 @@ export class GcsHistoryService {
 
     log.info("Fetching progress data", { speaker: sanitized });
 
-    const prefixes = await this.client.listPrefixes(speakerPrefix, "/");
+    const prefixes = await this._client.listPrefixes(speakerPrefix, "/");
 
     // Sort chronologically and cap
     const sorted = prefixes.sort();
@@ -406,13 +411,13 @@ export class GcsHistoryService {
 
     for (const evalPrefix of capped) {
       try {
-        const metadataContent = await this.client.readFile(`${evalPrefix}metadata.json`);
+        const metadataContent = await this._client.readFile(`${evalPrefix}metadata.json`);
         const metadata = JSON.parse(metadataContent) as EvaluationMetadata;
 
         // Try to read fillerWordFrequency from metrics.json
         let fillerWordFrequency: number | undefined;
         try {
-          const metricsContent = await this.client.readFile(`${evalPrefix}metrics.json`);
+          const metricsContent = await this._client.readFile(`${evalPrefix}metrics.json`);
           const metrics = JSON.parse(metricsContent);
           fillerWordFrequency = metrics.fillerWordFrequency;
         } catch {

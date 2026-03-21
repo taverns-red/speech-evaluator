@@ -36,6 +36,7 @@ import {
 } from "./video-frame-codec.js";
 import { serializeOutputs } from "./file-persistence.js";
 import type { GcsHistoryService } from "./gcs-history.js";
+import { generateImprovementPlan } from "./improvement-plan.js";
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -128,6 +129,8 @@ export interface CreateServerOptions {
   metricsCollector?: MetricsCollector;
   /** GCS history service for browsable evaluation history (#123). */
   gcsHistoryService?: GcsHistoryService;
+  /** OpenAI client for improvement plan generation (#145). */
+  openaiClient?: { chat: { completions: { create: (...args: unknown[]) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } };
 }
 
 export interface AppServer {
@@ -329,6 +332,31 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
       }
     });
     logger.info("Progress endpoint mounted at /api/progress/:speaker (#140)");
+
+    // GET /api/improvement-plan/:speaker — personalized practice plan (#145)
+    if (options.openaiClient) {
+      const openaiClient = options.openaiClient;
+      app.get("/api/improvement-plan/:speaker", async (req, res) => {
+        try {
+          const speaker = decodeURIComponent(req.params.speaker);
+          const plan = await generateImprovementPlan(
+            gcsHistoryService.client,
+            openaiClient,
+            speaker,
+          );
+          if (!plan) {
+            res.json({ plan: null, reason: "Not enough evaluations with category scores (minimum 2 required)" });
+            return;
+          }
+          res.json({ plan });
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          logger.error(`Improvement plan API error: ${errMsg}`);
+          res.status(500).json({ error: "Failed to generate improvement plan" });
+        }
+      });
+      logger.info("Improvement plan endpoint mounted at /api/improvement-plan/:speaker (#145)");
+    }
   }
 
   // WebSocket server — noServer mode when auth is enabled for manual upgrade
