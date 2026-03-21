@@ -10,7 +10,15 @@
 <!--                                                                                      -->
 <!-- **The Resulting Rule**: [The new rule or constraint going forward]                    -->
 <!--                                                                                      -->
-<!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->## 🗓️ 2026-03-21 — Lesson 53: Clerk Development Instances Cannot Use Custom Domains
+<!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->## 🗓️ 2026-03-21 — Lesson 54: Pure Modules Enable Parallel Feature Development
+
+**The Discovery**: Sprint C20 shipped 3 features (operator notes, Markdown export, shareable links) in rapid succession with 29 new tests and 0 regressions. The key enabler was extracting logic into pure function modules (`markdown-export.ts`, `share-token.ts`) that are tested independently of the server, then wiring them into `server.ts` via dynamic `import()`. This pattern avoids circular deps and keeps blast radius minimal.
+
+**The Resulting Rule**: For new output formats or token generators, create pure `.ts` modules with no server dependencies. Test them with unit tests first, then wire them into server.ts as a separate commit.
+
+**Future Warning**: The share index (`shares/<token>.json` in GCS) grows indefinitely. If share links ever need expiry, add a `expiresAt` field to the index JSON and a scheduled cleanup job.
+
+## 🗓️ 2026-03-21 — Lesson 53: Clerk Development Instances Cannot Use Custom Domains
 
 **The Discovery**: Clerk's development instances (`pk_test_` keys) do not support Allowed Subdomains, Satellites, or proxy configuration — all require a production instance. Bot protection (Turnstile) also fails on custom domains in dev mode because the Turnstile widget can't initialize outside Clerk's `accounts.dev` domain. Sign-in works, but sign-up triggers bot protection and fails with "Unable to complete action."
 
