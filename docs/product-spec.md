@@ -114,6 +114,52 @@ After a speech ends, the system delivers a spoken and written evaluation in unde
 | **Golden File Snapshots** | Shape verification for Classic, SBI evaluations and DeliveryMetrics against golden JSON | `golden-shape.snapshot.test.ts`, `test-fixtures/golden/` |
 | **Browser E2E Tests** | Automated page load, history tab, and responsive layout verification | Browser subagent recordings |
 
+### Score Breakdowns & Improvement Plans (Sprint C10)
+
+| Feature | Description | Key Files |
+|---------|-------------|-----------|
+| **Category Scores** | Per-category 0–10 scores (delivery, content, structure, engagement) via GPT-4o | `evaluation-generator.ts`, `types.ts` |
+| **Score Bar Chart** | Visual bar chart for category scores in live + history views | `transcript.js`, `history.js`, `style.css` |
+| **Improvement Plans** | LLM-generated practice exercises targeting weakest category | `improvement-plan.ts`, `server.ts` |
+| **Habit Detection** | Pattern analysis across speeches — recurring habits + breakthroughs | `habit-detector.ts`, `history.js` |
+
+### Practice & Coaching (Sprint C11)
+
+| Feature | Description | Key Files |
+|---------|-------------|-----------|
+| **Practice Mode** | Solo speech rehearsal with 5-minute auto-stop timer | `app.js`, `server.ts` |
+| **Coaching Cues** | Real-time toast notifications for pacing/filler issues during recording | `coaching-cues.ts`, `websocket.js` |
+
+### Advanced Evaluation Styles (Sprint C12)
+
+| Feature | Description | Key Files |
+|---------|-------------|-----------|
+| **5 New Styles** | EEC, Radical Candour, Socratic, Comparative, Micro-Focus | `prompts/style-*.txt`, `evaluation-generator.ts` |
+| **Radar Chart** | SVG radar chart for category scores visualization | `transcript.js`, `history.js` |
+
+### CI/CD & Deployment (Sprint C13)
+
+| Feature | Description | Key Files |
+|---------|-------------|-----------|
+| **Docker Multi-stage** | Optimized Docker build with build + runtime stages | `Dockerfile` |
+| **GitHub Actions CI** | Build + test + deploy pipeline on push to `main` | `.github/workflows/ci.yml` |
+
+### Clerk Authentication (Sprint C14-C17)
+
+| Feature | Description | Key Files |
+|---------|-------------|-----------|
+| **Clerk Auth Middleware** | JWT verification + email allowlist via `@clerk/express` | `auth-middleware.ts` |
+| **Login Page** | Clerk sign-in/sign-up components with taverns-red dark theme | `login.html`, `login.js` |
+| **User Profile** | Avatar/initials + name + sign-out in main app header | `app.js`, `index.html` |
+| **Speaker Diarization** | Multi-speaker labels in live transcript via Deepgram | `transcription-engine.ts`, `transcript.js` |
+| **Acoustic Analysis** | Pitch profile, pace variation, prosodic indicators | `metrics-extractor.ts` |
+
+### UX Polish (Sprint C18)
+
+| Feature | Description | Key Files |
+|---------|-------------|-----------|
+| **Auto-populate Speaker** | Pre-fill speaker name from signed-in Clerk user | `app.js` |
+
 ---
 
 ## Business Rules
@@ -163,7 +209,8 @@ After a speech ends, the system delivers a spoken and written evaluation in unde
 
 ### Phase 8 (remaining): Advanced Coaching & Analytics
 - Speech-over-speech progress tracking ✅ (Sprint C8 — MVP)
-- Personalized improvement plans
+- Personalized improvement plans ✅ (Sprint C10 — #145)
+- Habit detection & breakthroughs ✅ (Sprint C10 — #147)
 - Score breakdowns by category ✅ (Sprint C12 — #144)
 
 ---
