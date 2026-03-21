@@ -71,6 +71,13 @@ function loadUserInfo() {
       }
 
       userInfoEl.style.display = "flex";
+
+      // Auto-populate speaker name from signed-in user (#163)
+      // Only fill if the field is still empty (respect localStorage restore or manual input)
+      if (data.name && dom.speakerNameInput && !dom.speakerNameInput.value.trim()) {
+        dom.speakerNameInput.value = data.name;
+        onConsentChange(); // trigger consent state update
+      }
     })
     .catch(function () { /* silently ignore — user info is non-critical */ });
 }
