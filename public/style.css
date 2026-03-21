@@ -1940,6 +1940,45 @@ body::before {
   margin-bottom: 10px;
 }
 
+/* Radar chart (#151) */
+.category-radar-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.category-radar-svg {
+  width: 220px;
+  height: 220px;
+}
+
+.radar-ring {
+  fill: none;
+  stroke: var(--border-subtle, rgba(255, 255, 255, 0.08));
+  stroke-width: 0.5;
+}
+
+.radar-axis {
+  stroke: var(--border-subtle, rgba(255, 255, 255, 0.08));
+  stroke-width: 0.5;
+}
+
+.radar-data {
+  fill: rgba(200, 80, 80, 0.2);
+  stroke: var(--red-primary, #c85050);
+  stroke-width: 1.5;
+}
+
+.radar-dot {
+  fill: var(--red-primary, #c85050);
+}
+
+.radar-label {
+  font-size: 9px;
+  fill: var(--text-secondary, #aaa);
+  font-weight: 500;
+}
+
 .category-scores-bars {
   display: flex;
   flex-direction: column;

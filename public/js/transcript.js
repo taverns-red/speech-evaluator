@@ -332,6 +332,84 @@ export function renderStyledItems(styleItems, evaluationStyle) {
  * Shared between live evaluation and history views.
  * Phase 8 — #144
  */
+/**
+ * Builds an SVG-based radar (spider) chart for category scores.
+ * Pure SVG — no external dependencies.
+ * @param {Array<{category: string, score: number}>} scores
+ * @returns {SVGElement}
+ */
+function renderCategoryRadar(scores) {
+  const size = 200;
+  const cx = size / 2;
+  const cy = size / 2;
+  const maxR = 75;
+  const levels = 5; // concentric rings (2, 4, 6, 8, 10)
+  const n = scores.length;
+
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+  svg.setAttribute("class", "category-radar-svg");
+
+  // Helper: angle for axis i (start from top, go clockwise)
+  const angle = (i) => (Math.PI * 2 * i) / n - Math.PI / 2;
+  const px = (i, r) => cx + r * Math.cos(angle(i));
+  const py = (i, r) => cy + r * Math.sin(angle(i));
+
+  // Grid rings
+  for (let lv = 1; lv <= levels; lv++) {
+    const r = (lv / levels) * maxR;
+    const pts = Array.from({ length: n }, (_, i) => `${px(i, r)},${py(i, r)}`).join(" ");
+    const ring = document.createElementNS(ns, "polygon");
+    ring.setAttribute("points", pts);
+    ring.setAttribute("class", "radar-ring");
+    svg.appendChild(ring);
+  }
+
+  // Axis lines
+  for (let i = 0; i < n; i++) {
+    const line = document.createElementNS(ns, "line");
+    line.setAttribute("x1", String(cx));
+    line.setAttribute("y1", String(cy));
+    line.setAttribute("x2", String(px(i, maxR)));
+    line.setAttribute("y2", String(py(i, maxR)));
+    line.setAttribute("class", "radar-axis");
+    svg.appendChild(line);
+  }
+
+  // Data polygon
+  const dataR = scores.map((s) => (s.score / 10) * maxR);
+  const dataPts = scores.map((_, i) => `${px(i, dataR[i])},${py(i, dataR[i])}`).join(" ");
+  const dataPoly = document.createElementNS(ns, "polygon");
+  dataPoly.setAttribute("points", dataPts);
+  dataPoly.setAttribute("class", "radar-data");
+  svg.appendChild(dataPoly);
+
+  // Data dots + labels
+  for (let i = 0; i < n; i++) {
+    const dot = document.createElementNS(ns, "circle");
+    dot.setAttribute("cx", String(px(i, dataR[i])));
+    dot.setAttribute("cy", String(py(i, dataR[i])));
+    dot.setAttribute("r", "3");
+    dot.setAttribute("class", "radar-dot");
+    svg.appendChild(dot);
+
+    // Category label
+    const labelR = maxR + 16;
+    const lbl = document.createElementNS(ns, "text");
+    lbl.setAttribute("x", String(px(i, labelR)));
+    lbl.setAttribute("y", String(py(i, labelR)));
+    lbl.setAttribute("class", "radar-label");
+    lbl.setAttribute("text-anchor", "middle");
+    lbl.setAttribute("dominant-baseline", "central");
+    const catName = scores[i].category.charAt(0).toUpperCase() + scores[i].category.slice(1);
+    lbl.textContent = `${catName} (${scores[i].score})`;
+    svg.appendChild(lbl);
+  }
+
+  return svg;
+}
+
 export function renderCategoryScoresBar(categoryScores) {
   if (!categoryScores || !Array.isArray(categoryScores) || categoryScores.length === 0) return null;
 
@@ -342,6 +420,14 @@ export function renderCategoryScoresBar(categoryScores) {
   label.className = "category-scores-label";
   label.textContent = "Category Scores";
   wrapper.appendChild(label);
+
+  // Radar chart (#151)
+  if (categoryScores.length >= 3) {
+    const radarContainer = document.createElement("div");
+    radarContainer.className = "category-radar-container";
+    radarContainer.appendChild(renderCategoryRadar(categoryScores));
+    wrapper.appendChild(radarContainer);
+  }
 
   const bars = document.createElement("div");
   bars.className = "category-scores-bars";
