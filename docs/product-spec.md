@@ -91,7 +91,7 @@ After a speech ends, the system delivers a spoken and written evaluation in unde
 
 | Rule | Rationale | Implementation |
 |------|-----------|----------------|
-| Evaluation must have ≥1 commendation AND ≥1 recommendation | Toastmasters sandwich method | Schema validation in `evaluation-generator.ts` |
+| Evaluation must have ≥1 commendation AND ≥1 recommendation | Balanced feedback with evidence | Schema validation in `evaluation-generator.ts` |
 | Project objectives are injected into the LLM prompt when provided | Evaluate against what the speaker was trying to achieve | `evaluation-generator.ts` lines 739-752 |
 | Evaluation form objectives are extracted and used as criteria | Uploaded forms contain project objectives that should drive feedback | `evaluation-generator.ts` lines 761-776 |
 | `completed_form` response field is returned when form uploaded | Users need their specific form filled out | LLM response schema |
@@ -109,6 +109,12 @@ After a speech ends, the system delivers a spoken and written evaluation in unde
 ---
 
 ## Decided for Next
+
+### Evaluation Feedback Styles (#133)
+- Configurable evaluation style selector (radio buttons in consent form)
+- 5 styles: **SBI** (Situation-Behavior-Impact), **Feedforward** (future-focused), **COIN** (Context-Observation-Impact-Next Steps), **Holistic Narrative** (What I Heard/Saw/Felt), **Classic** (current commendation/recommendation)
+- Style-specific LLM prompts and output schemas
+- Default: Classic (backward compatible)
 
 ### Phase 5: Real-Time Conversational AI Evaluator
 - Not yet scoped — aspirational goal of real-time feedback during speech
