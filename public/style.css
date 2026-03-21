@@ -2208,6 +2208,136 @@ body::before {
   margin-top: 8px;
 }
 
+/* ─── Responsive: Tablet (≤768px) (#139) ────────────────────────── */
+@media (max-width: 768px) {
+  .app {
+    padding: var(--space-md) var(--space-sm);
+    gap: var(--space-md);
+    padding-bottom: 90px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .header h1 {
+    font-size: 1.4rem;
+  }
+
+  .panel {
+    padding: 14px;
+  }
+
+  .config-header {
+    padding: 12px 14px;
+    min-height: 44px;
+  }
+
+  .config-body {
+    padding: 0 14px 12px;
+  }
+
+  .controls-sticky {
+    padding: 12px 14px;
+  }
+
+  /* Ensure 44px touch targets on all buttons */
+  .btn, button, .mode-tab {
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 0.85rem;
+  }
+
+  /* Touch-friendly checkbox/radio targets */
+  .consent-option, .analysis-tier-option, .feedback-style-option {
+    min-height: 44px;
+    padding: 10px 12px;
+  }
+
+  /* Evaluation style cards */
+  .style-item-card {
+    padding: 12px 14px;
+  }
+}
+
+/* ─── Responsive: Phone (≤480px) (#139) ─────────────────────────── */
+@media (max-width: 480px) {
+  .app {
+    padding: var(--space-sm) 8px;
+    gap: var(--space-sm);
+    padding-bottom: 100px;
+  }
+
+  .header h1 {
+    font-size: 1.2rem;
+  }
+
+  .panel {
+    padding: 10px;
+    border-radius: 8px;
+  }
+
+  .panel-title {
+    font-size: 0.85rem;
+  }
+
+  .config-section {
+    border-radius: 8px;
+    margin-bottom: 6px;
+  }
+
+  .config-header {
+    padding: 10px 12px;
+    font-size: 0.75rem;
+  }
+
+  .config-body {
+    padding: 0 12px 10px;
+  }
+
+  .controls-sticky {
+    padding: 10px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .controls-sticky .btn {
+    flex: 1 1 auto;
+    min-width: 120px;
+    justify-content: center;
+  }
+
+  /* Smaller text in evaluation content on phone */
+  .evaluation-content, .transcript-content {
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  /* History cards */
+  .history-entry {
+    padding: 10px;
+  }
+
+  /* Mode tabs: full width on phone */
+  .mode-tabs {
+    flex-wrap: wrap;
+  }
+
+  .mode-tab {
+    flex: 1 1 auto;
+    text-align: center;
+    justify-content: center;
+  }
+
+  /* Footer */
+  .footer {
+    font-size: 0.7rem;
+    padding: 8px;
+  }
+}
+
 /* ─── Print Styles (PDF Export #71) ──────────────────────────────── */
 @media print {
   body { background: #fff; color: #222; }
