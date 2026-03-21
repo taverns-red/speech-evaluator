@@ -51,6 +51,124 @@ async function deleteEvaluationApi(speaker, prefix) {
   return res.json();
 }
 
+async function fetchProgress(speaker) {
+  const encoded = encodeURIComponent(speaker);
+  const res = await fetch(`/api/progress/${encoded}`);
+  if (!res.ok) throw new Error(`Progress API error: ${res.status}`);
+  return res.json();
+}
+
+// ─── Progress Trend Chart (#140) ────────────────────────────────────
+
+/**
+ * Build an SVG sparkline from data points.
+ * @param {number[]} values - Data values to plot
+ * @param {string} color - Stroke color
+ * @param {number} width - SVG width
+ * @param {number} height - SVG height
+ * @returns {string} SVG markup
+ */
+function buildSparkline(values, color, width = 200, height = 40) {
+  if (!values || values.length < 2) return "";
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const padding = 4;
+  const plotH = height - padding * 2;
+  const plotW = width - padding * 2;
+  const step = plotW / (values.length - 1);
+
+  const points = values.map((v, i) => {
+    const x = padding + i * step;
+    const y = padding + plotH - ((v - min) / range) * plotH;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+
+  // Dot on last point
+  const lastX = padding + (values.length - 1) * step;
+  const lastY = padding + plotH - ((values[values.length - 1] - min) / range) * plotH;
+
+  return `<svg class="sparkline" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
+    <polyline fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="${points}" />
+    <circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="3" fill="${color}" />
+  </svg>`;
+}
+
+/**
+ * Compute the percentage change between first and last value.
+ * Returns { arrow, text, className }.
+ */
+function trendDelta(values, lowerIsBetter = false) {
+  if (!values || values.length < 2) return null;
+  const first = values[0];
+  const last = values[values.length - 1];
+  if (first === 0) return null;
+  const pct = ((last - first) / first) * 100;
+  const improved = lowerIsBetter ? pct < 0 : pct > 0;
+  const arrow = improved ? "↑" : "↓";
+  const text = `${arrow} ${Math.abs(pct).toFixed(0)}%`;
+  const className = improved ? "trend-positive" : "trend-negative";
+  return { text, className };
+}
+
+function renderProgressPanel(progressData) {
+  const panel = document.getElementById("progress-panel");
+  if (!panel) return;
+
+  const speeches = progressData.speeches;
+  if (!speeches || speeches.length < 2) {
+    panel.style.display = "none";
+    return;
+  }
+
+  const wpmValues = speeches.map(s => s.wordsPerMinute);
+  const passValues = speeches.map(s => Math.round(s.passRate * 100));
+  const fillerValues = speeches.filter(s => s.fillerWordFrequency != null).map(s => s.fillerWordFrequency);
+
+  const wpmTrend = trendDelta(wpmValues);
+  const passTrend = trendDelta(passValues);
+  const fillerTrend = trendDelta(fillerValues, true);
+
+  let html = `<div class="progress-chart-panel">
+    <div class="progress-header">
+      <span class="progress-title">📈 Progress (${speeches.length} speeches)</span>
+    </div>
+    <div class="progress-metrics">`;
+
+  // WPM sparkline
+  html += `<div class="progress-metric">
+    <div class="progress-metric-label">Words/Min</div>
+    ${buildSparkline(wpmValues, "#4fc3f7")}
+    <div class="progress-metric-value">${Math.round(wpmValues[wpmValues.length - 1])} WPM
+      ${wpmTrend ? `<span class="${wpmTrend.className}">${escapeHtml(wpmTrend.text)}</span>` : ""}
+    </div>
+  </div>`;
+
+  // Pass Rate sparkline
+  html += `<div class="progress-metric">
+    <div class="progress-metric-label">Pass Rate</div>
+    ${buildSparkline(passValues, "#81c784")}
+    <div class="progress-metric-value">${passValues[passValues.length - 1]}%
+      ${passTrend ? `<span class="${passTrend.className}">${escapeHtml(passTrend.text)}</span>` : ""}
+    </div>
+  </div>`;
+
+  // Filler Rate sparkline (only if data exists)
+  if (fillerValues.length >= 2) {
+    html += `<div class="progress-metric">
+      <div class="progress-metric-label">Fillers/Min</div>
+      ${buildSparkline(fillerValues, "#ffb74d")}
+      <div class="progress-metric-value">${fillerValues[fillerValues.length - 1].toFixed(1)}/min
+        ${fillerTrend ? `<span class="${fillerTrend.className}">${escapeHtml(fillerTrend.text)}</span>` : ""}
+      </div>
+    </div>`;
+  }
+
+  html += `</div></div>`;
+  panel.innerHTML = html;
+  panel.style.display = "block";
+}
+
 // ─── Rendering ──────────────────────────────────────────────────────
 
 function formatDate(isoString) {
@@ -339,6 +457,16 @@ export async function loadHistory(speaker) {
     historyNextCursor = data.nextCursor || null;
     historyLoaded = true;
 
+    // Fetch progress data on first load (#140)
+    if (!historyNextCursor || historyResults.length === 0) {
+      try {
+        const progress = await fetchProgress(speaker);
+        renderProgressPanel(progress);
+      } catch (progressErr) {
+        console.warn("[History] Progress chart unavailable:", progressErr);
+      }
+    }
+
     if (data.results.length === 0 && historyResults.length === 0) {
       // Empty state
       if (emptyEl) emptyEl.style.display = "block";
@@ -383,6 +511,9 @@ export function resetHistory() {
 
   const emptyEl = getHistoryEmpty();
   if (emptyEl) emptyEl.style.display = "none";
+
+  const progressPanel = document.getElementById("progress-panel");
+  if (progressPanel) { progressPanel.style.display = "none"; progressPanel.innerHTML = ""; }
 }
 
 export function isHistoryLoaded() {

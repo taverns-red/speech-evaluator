@@ -2208,6 +2208,80 @@ body::before {
   margin-top: 8px;
 }
 
+/* ─── Progress Chart Panel (#140) ───────────────────────────────── */
+
+.progress-chart-panel {
+  background: var(--bg-card, #1e1e1e);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.progress-header {
+  margin-bottom: 12px;
+}
+
+.progress-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary, #aaa);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.progress-metrics {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.progress-metric {
+  flex: 1 1 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+}
+
+.progress-metric-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #666);
+}
+
+.sparkline {
+  display: block;
+  width: 100%;
+  max-width: 200px;
+  height: 40px;
+}
+
+.progress-metric-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary, #e0e0e0);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trend-positive {
+  color: #81c784;
+  font-size: 0.8rem;
+}
+
+.trend-negative {
+  color: #e57373;
+  font-size: 0.8rem;
+}
+
 /* ─── Responsive: Tablet (≤768px) (#139) ────────────────────────── */
 @media (max-width: 768px) {
   .app {
