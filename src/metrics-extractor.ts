@@ -12,6 +12,7 @@ import type {
   PitchProfile,
   PaceVariation,
   ProsodicIndicators,
+  SpeakerMetrics,
 } from "./types.js";
 
 // ─── Known Filler Words ─────────────────────────────────────────────────────────
@@ -134,6 +135,7 @@ export class MetricsExtractor {
       },
       classifiedFillers,
       visualMetrics: null,
+      ...(this.computeSpeakerMetrics(segments)),
     };
   }
 
@@ -316,6 +318,61 @@ export class MetricsExtractor {
       classifiedFillers: [],
       visualMetrics: null,
     };
+  }
+
+  /**
+   * Compute per-speaker metrics from diarized transcript segments (#157).
+   * Returns empty object (no speakerMetrics key) if no speaker IDs are present.
+   */
+  private computeSpeakerMetrics(
+    segments: TranscriptSegment[]
+  ): { speakerMetrics?: SpeakerMetrics[] } {
+    // Collect all word-level speaker data
+    const speakerData = new Map<number, { totalWords: number; talkTimeSeconds: number }>();
+
+    for (const seg of segments) {
+      if (seg.words.length > 0) {
+        for (const w of seg.words) {
+          if (w.speakerId === undefined) continue;
+          const existing = speakerData.get(w.speakerId);
+          const wordDuration = Math.max(0, w.endTime - w.startTime);
+          if (existing) {
+            existing.totalWords++;
+            existing.talkTimeSeconds += wordDuration;
+          } else {
+            speakerData.set(w.speakerId, { totalWords: 1, talkTimeSeconds: wordDuration });
+          }
+        }
+      } else if (seg.speakerId !== undefined) {
+        // Segment-level fallback: count words from text
+        const wordCount = seg.text.trim().split(/\s+/).filter((w) => w.length > 0).length;
+        const duration = Math.max(0, seg.endTime - seg.startTime);
+        const existing = speakerData.get(seg.speakerId);
+        if (existing) {
+          existing.totalWords += wordCount;
+          existing.talkTimeSeconds += duration;
+        } else {
+          speakerData.set(seg.speakerId, { totalWords: wordCount, talkTimeSeconds: duration });
+        }
+      }
+    }
+
+    if (speakerData.size === 0) return {};
+
+    const speakerMetrics: SpeakerMetrics[] = [];
+    for (const [speakerId, data] of speakerData.entries()) {
+      const minutes = data.talkTimeSeconds / 60;
+      speakerMetrics.push({
+        speakerId,
+        totalWords: data.totalWords,
+        talkTimeSeconds: Math.round(data.talkTimeSeconds * 100) / 100,
+        wordsPerMinute: minutes > 0 ? Math.round(data.totalWords / minutes) : 0,
+      });
+    }
+
+    // Sort by speakerId for consistent ordering
+    speakerMetrics.sort((a, b) => a.speakerId - b.speakerId);
+    return { speakerMetrics };
   }
 
   private formatDuration(seconds: number): string {

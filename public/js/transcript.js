@@ -44,8 +44,13 @@ export function renderTranscript() {
     const words = seg.text.trim().split(/\s+/).filter(Boolean);
     totalWords += words.length;
 
-    html += '<div class="segment' + cssClass + '" data-segment-index="' + idx + '">';
+    html += '<div class="segment' + cssClass + '"' +
+      (seg.speakerId !== undefined ? ' data-speaker="' + seg.speakerId + '"' : '') +
+      ' data-segment-index="' + idx + '">';
     html += '<span class="segment-time">[' + timeStr + ']</span>';
+    if (seg.speakerId !== undefined) {
+      html += '<span class="speaker-label speaker-' + (seg.speakerId % 6) + '">Speaker ' + (seg.speakerId + 1) + ':</span> ';
+    }
     html += escapeHtml(seg.text);
     html += "</div>";
   }

@@ -47,7 +47,7 @@ function createDeepgramEvent(options: {
   start: number;
   duration: number;
   is_final?: boolean;
-  words?: Array<{ word: string; start: number; end: number; confidence: number; punctuated_word?: string }>;
+  words?: Array<{ word: string; start: number; end: number; confidence: number; punctuated_word?: string; speaker?: number }>;
 }) {
   return {
     type: "Results",
@@ -363,6 +363,91 @@ describe("TranscriptionEngine", () => {
       mock.emit(LiveTranscriptionEvents.Transcript, event);
 
       expect(onSegment).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("speaker diarization (#157)", () => {
+    it("should propagate speakerId from Deepgram words to TranscriptWord", () => {
+      const onSegment = vi.fn();
+      engine.startLive(onSegment);
+
+      const event = createDeepgramEvent({
+        transcript: "hello from speaker zero",
+        start: 0,
+        duration: 2.0,
+        is_final: true,
+        words: [
+          { word: "hello", start: 0, end: 0.4, confidence: 0.99, punctuated_word: "Hello", speaker: 0 },
+          { word: "from", start: 0.5, end: 0.7, confidence: 0.98, punctuated_word: "from", speaker: 0 },
+          { word: "speaker", start: 0.8, end: 1.2, confidence: 0.97, punctuated_word: "speaker", speaker: 0 },
+          { word: "zero", start: 1.3, end: 1.8, confidence: 0.96, punctuated_word: "zero", speaker: 0 },
+        ],
+      });
+
+      mock.emit(LiveTranscriptionEvents.Transcript, event);
+
+      const segment: TranscriptSegment = onSegment.mock.calls[0][0];
+      expect(segment.words[0].speakerId).toBe(0);
+      expect(segment.words[1].speakerId).toBe(0);
+      expect(segment.words[2].speakerId).toBe(0);
+      expect(segment.words[3].speakerId).toBe(0);
+    });
+
+    it("should set segment-level speakerId from mode of word speakers", () => {
+      const onSegment = vi.fn();
+      engine.startLive(onSegment);
+
+      // 3 words from speaker 1, 1 word from speaker 0 → segment speaker = 1
+      const event = createDeepgramEvent({
+        transcript: "a mixed speaker segment",
+        start: 5.0,
+        duration: 3.0,
+        is_final: true,
+        words: [
+          { word: "a", start: 5.0, end: 5.2, confidence: 0.9, speaker: 1 },
+          { word: "mixed", start: 5.3, end: 5.6, confidence: 0.9, speaker: 0 },
+          { word: "speaker", start: 5.7, end: 6.1, confidence: 0.9, speaker: 1 },
+          { word: "segment", start: 6.2, end: 6.8, confidence: 0.9, speaker: 1 },
+        ],
+      });
+
+      mock.emit(LiveTranscriptionEvents.Transcript, event);
+
+      const segment: TranscriptSegment = onSegment.mock.calls[0][0];
+      expect(segment.speakerId).toBe(1); // mode of [1, 0, 1, 1] = 1
+    });
+
+    it("should omit speakerId when Deepgram words have no speaker field", () => {
+      const onSegment = vi.fn();
+      engine.startLive(onSegment);
+
+      const event = createDeepgramEvent({
+        transcript: "no speaker info",
+        start: 0,
+        duration: 1.0,
+        is_final: true,
+        words: [
+          { word: "no", start: 0, end: 0.3, confidence: 0.9 },
+          { word: "speaker", start: 0.4, end: 0.7, confidence: 0.9 },
+          { word: "info", start: 0.8, end: 1.0, confidence: 0.9 },
+        ],
+      });
+
+      mock.emit(LiveTranscriptionEvents.Transcript, event);
+
+      const segment: TranscriptSegment = onSegment.mock.calls[0][0];
+      expect(segment.speakerId).toBeUndefined();
+      expect(segment.words[0].speakerId).toBeUndefined();
+    });
+
+    it("should enable diarize in default live config", () => {
+      engine.startLive(vi.fn());
+
+      expect(mock.client.listen.live).toHaveBeenCalledWith(
+        expect.objectContaining({
+          diarize: true,
+        })
+      );
     });
   });
 

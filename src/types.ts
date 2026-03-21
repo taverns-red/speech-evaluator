@@ -116,6 +116,7 @@ export interface TranscriptSegment {
   endTime: number; // seconds from speech start
   words: TranscriptWord[];
   isFinal: boolean; // true for finalized segments, false for interim
+  speakerId?: number; // Deepgram diarization speaker label (#157)
 }
 
 export interface TranscriptWord {
@@ -123,6 +124,7 @@ export interface TranscriptWord {
   startTime: number;
   endTime: number;
   confidence: number;
+  speakerId?: number; // Deepgram diarization speaker label (#157)
 }
 
 // ─── Delivery Metrics ───────────────────────────────────────────────────────────
@@ -150,6 +152,18 @@ export interface DeliveryMetrics {
   pitchProfile?: PitchProfile;
   paceVariation?: PaceVariation;
   prosodicIndicators?: ProsodicIndicators;
+  // #157 — Per-speaker diarization metrics (optional, present when diarization is available)
+  speakerMetrics?: SpeakerMetrics[];
+}
+
+/**
+ * Per-speaker metrics computed from diarized transcript segments (#157).
+ */
+export interface SpeakerMetrics {
+  speakerId: number;
+  totalWords: number;
+  talkTimeSeconds: number;
+  wordsPerMinute: number;
 }
 
 export interface FillerWordEntry {

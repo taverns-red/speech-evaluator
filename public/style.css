@@ -608,6 +608,22 @@ body::before {
   font-style: italic;
 }
 
+/* ─── Speaker Diarization Labels (#157) ─────────────────────────── */
+.speaker-label {
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-right: 4px;
+}
+.speaker-0 { color: #4fc3f7; background: rgba(79, 195, 247, 0.12); }
+.speaker-1 { color: #aed581; background: rgba(174, 213, 129, 0.12); }
+.speaker-2 { color: #ffb74d; background: rgba(255, 183, 77, 0.12); }
+.speaker-3 { color: #f06292; background: rgba(240, 98, 146, 0.12); }
+.speaker-4 { color: #ba68c8; background: rgba(186, 104, 200, 0.12); }
+.speaker-5 { color: #4dd0e1; background: rgba(77, 208, 225, 0.12); }
+
 .transcript-empty {
   color: var(--text-muted);
   font-style: italic;

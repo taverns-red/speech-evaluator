@@ -80,6 +80,7 @@ const DEFAULT_LIVE_CONFIG: LiveSchema = {
   interim_results: true,
   punctuate: true,
   smart_format: true,
+  diarize: true, // #157 — speaker diarization
 };
 
 /**
@@ -596,11 +597,16 @@ export class TranscriptionEngine {
       startTime: w.start,
       endTime: w.end,
       confidence: w.confidence,
+      ...(w.speaker !== undefined ? { speakerId: w.speaker } : {}),
     }));
 
     // Compute segment time range from Deepgram's event-level timing
     const startTime = event.start;
     const endTime = event.start + event.duration;
+
+    // Determine segment-level speaker from mode of word speakers (#157)
+    const speakerIds = words.map((w) => w.speakerId).filter((s): s is number => s !== undefined);
+    const segmentSpeaker = speakerIds.length > 0 ? mode(speakerIds) : undefined;
 
     const segment: TranscriptSegment = {
       text: alternative.transcript,
@@ -608,6 +614,7 @@ export class TranscriptionEngine {
       endTime,
       words,
       isFinal,
+      ...(segmentSpeaker !== undefined ? { speakerId: segmentSpeaker } : {}),
     };
 
     this.onSegmentCallback(segment);
@@ -636,7 +643,27 @@ interface DeepgramTranscriptEvent {
         end: number;
         confidence: number;
         punctuated_word?: string;
+        speaker?: number; // #157 — diarization speaker label
       }>;
     }>;
   };
+}
+
+/**
+ * Returns the mode (most frequent value) from an array of numbers.
+ * Used to determine the dominant speaker in a segment.
+ */
+function mode(values: number[]): number {
+  const counts = new Map<number, number>();
+  let maxCount = 0;
+  let maxVal = values[0];
+  for (const v of values) {
+    const c = (counts.get(v) ?? 0) + 1;
+    counts.set(v, c);
+    if (c > maxCount) {
+      maxCount = c;
+      maxVal = v;
+    }
+  }
+  return maxVal;
 }
