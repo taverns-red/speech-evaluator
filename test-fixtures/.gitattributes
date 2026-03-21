@@ -1,0 +1,7 @@
+# Test fixtures — binary audio/video files
+test-fixtures/*.mp3 binary
+test-fixtures/*.mp4 binary
+test-fixtures/*.wav binary
+
+# Golden files — JSON snapshot tests
+test-fixtures/golden/*.json linguist-language=JSON
