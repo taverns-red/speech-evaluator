@@ -774,6 +774,16 @@ ${config.evaluationFormText}
 4. **Integrate, don't isolate**: Weave objective-related feedback naturally into your opening, closing, and evaluation items — don't treat it as a separate section.`;
     }
 
+    // Operator notes (#164) — live observations from the meeting operator
+    if (config?.operatorNotes) {
+      prompt += `
+
+## Operator Notes
+The meeting operator provided the following observations during the speech. Use these as additional context when generating your evaluation:
+
+${config.operatorNotes}`;
+    }
+
     prompt += `
 
 Please evaluate this speech following the instructions and output format specified above. Respond with ONLY the JSON object.`;

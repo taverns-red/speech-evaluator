@@ -798,6 +798,19 @@ function handleClientMessage(
       logger.info(`Evaluation style set: ${connState.evaluationStyle} for session ${connState.sessionId}`);
       break;
     }
+    case "set_notes": {
+      // Operator notes — mutable during IDLE + RECORDING (#164)
+      try {
+        sessionManager.setNotes(connState.sessionId, message.notes ?? "");
+      } catch (err) {
+        sendMessage(ws, {
+          type: "error",
+          message: `Failed to set notes: ${err instanceof Error ? err.message : String(err)}`,
+          recoverable: true,
+        });
+      }
+      break;
+    }
     case "vision_frame": {
       // Buffer base64 frame data for GPT-4o Vision analysis (#128)
       const tierConfig = getTierConfig(

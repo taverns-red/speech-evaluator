@@ -106,6 +106,8 @@ export interface Session {
   eagerRunId: number | null; // runId captured at eager pipeline start; null when idle
   eagerPromise: Promise<void> | null; // reference to in-flight eager pipeline for await coordination
   evaluationCache: EvaluationCache | null; // single immutable cache object containing all delivery artifacts
+  // ─── Operator Notes (#164) ────────────────────────────────────────────────
+  operatorNotes: string; // mutable during IDLE + RECORDING, injected into evaluation prompt
 }
 
 // ─── Transcript ─────────────────────────────────────────────────────────────────
@@ -455,6 +457,7 @@ export interface EvaluationConfig {
   projectType?: string;    // Phase 3: speech project type from ProjectContext
   evaluationFormText?: string; // Phase 5 (#64): extracted text from uploaded evaluation form
   evaluationStyle?: EvaluationStyle; // #133: configurable feedback style
+  operatorNotes?: string; // #164: operator observations during recording
 }
 
 export interface TTSConfig {
@@ -686,6 +689,7 @@ export type ClientMessage =
   | { type: "set_analysis_tier"; tier: string }
   | { type: "set_evaluation_style"; style: string }
   | { type: "set_session_mode"; mode: string }
+  | { type: "set_notes"; notes: string } // #164 — operator notes
   | { type: "vision_frame"; data: string; seq: number };
 
 // Server → Client messages

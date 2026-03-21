@@ -151,6 +151,8 @@ export class SessionManager {
         videoStreamReady: false,
         visualObservations: null,
         videoConfig: { frameRate: 5 },
+        // Operator notes (#164)
+        operatorNotes: "",
       };
 
       this.sessions.set(session.id, session);
@@ -258,6 +260,33 @@ export class SessionManager {
     session.vadConfig = config;
 
     this.log("INFO", `VAD config set for session ${sessionId}: threshold=${config.silenceThresholdSeconds}s, enabled=${config.enabled}`);
+  }
+
+  /**
+   * Set operator notes on the session. Mutable during IDLE and RECORDING states.
+   *
+   * Notes are free-form text the operator can type during a speech to provide
+   * additional context for the evaluation (e.g., "used whiteboard", "audience laughed").
+   * Notes are injected into the evaluation prompt for richer feedback (#164).
+   *
+   * @param sessionId - The session to set notes on
+   * @param notes - Free-form notes text (max 2000 chars, silently truncated)
+   * @throws Error if the session does not exist
+   * @throws Error if the session is not in IDLE or RECORDING state
+   */
+  setNotes(sessionId: string, notes: string): void {
+    const session = this.getSession(sessionId);
+
+    if (session.state !== SessionState.IDLE && session.state !== SessionState.RECORDING) {
+      throw new Error(
+        `Cannot set notes: session is in "${session.state}" state. ` +
+        `Notes can only be set while the session is in "idle" or "recording" state.`
+      );
+    }
+
+    session.operatorNotes = notes.slice(0, 2000);
+
+    this.log("INFO", `Notes set for session ${sessionId}: ${session.operatorNotes.length} chars`);
   }
 
   /**
@@ -887,8 +916,11 @@ export class SessionManager {
           speechTitle: session.projectContext.speechTitle ?? undefined,
           projectType: session.projectContext.projectType ?? undefined,
           evaluationStyle: (session.projectContext.evaluationStyle as EvaluationStyle) ?? undefined,
+          ...(session.operatorNotes ? { operatorNotes: session.operatorNotes } : {}),
         }
-      : undefined;
+      : session.operatorNotes
+        ? { operatorNotes: session.operatorNotes }
+        : undefined;
 
     // Phase 4: Determine visual observations to pass to EvaluationGenerator (Req 17.3)
     // Suppress visual feedback entirely when videoQualityGrade === "poor"
@@ -1177,8 +1209,11 @@ export class SessionManager {
               speechTitle: session.projectContext.speechTitle ?? undefined,
               projectType: session.projectContext.projectType ?? undefined,
               evaluationStyle: (session.projectContext.evaluationStyle as EvaluationStyle) ?? undefined,
+              ...(session.operatorNotes ? { operatorNotes: session.operatorNotes } : {}),
             }
-          : undefined;
+          : session.operatorNotes
+            ? { operatorNotes: session.operatorNotes }
+            : undefined;
 
         // Delegate stages 1-8 to shared pipeline
         this.log("INFO", `[eager] Running shared pipeline for session ${sessionId}`);

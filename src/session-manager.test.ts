@@ -764,6 +764,77 @@ describe("revokeConsent()", () => {
   });
 });
 
+// ─── Operator Notes (#164) ────────────────────────────────────────────────────
+
+describe("setNotes()", () => {
+  let manager: SessionManager;
+
+  beforeEach(() => {
+    manager = new SessionManager();
+  });
+
+  it("sets operator notes in IDLE state", () => {
+    const session = manager.createSession();
+    manager.setNotes(session.id, "Speaker used whiteboard");
+    expect(session.operatorNotes).toBe("Speaker used whiteboard");
+  });
+
+  it("sets operator notes in RECORDING state", () => {
+    const session = manager.createSession();
+    manager.startRecording(session.id);
+    manager.setNotes(session.id, "Audience laughed at intro");
+    expect(session.operatorNotes).toBe("Audience laughed at intro");
+  });
+
+  it("allows updating notes multiple times", () => {
+    const session = manager.createSession();
+    manager.setNotes(session.id, "First note");
+    manager.setNotes(session.id, "Updated note");
+    expect(session.operatorNotes).toBe("Updated note");
+  });
+
+  it("throws when setting notes in PROCESSING state", async () => {
+    const session = manager.createSession();
+    manager.startRecording(session.id);
+    await manager.stopRecording(session.id);
+    expect(() => manager.setNotes(session.id, "Late note")).toThrow(/Cannot set notes/);
+    expect(() => manager.setNotes(session.id, "Late note")).toThrow(/processing/);
+  });
+
+  it("throws when setting notes in DELIVERING state", async () => {
+    const session = manager.createSession();
+    manager.startRecording(session.id);
+    await manager.stopRecording(session.id);
+    await manager.generateEvaluation(session.id);
+    expect(() => manager.setNotes(session.id, "Late note")).toThrow(/Cannot set notes/);
+    expect(() => manager.setNotes(session.id, "Late note")).toThrow(/delivering/);
+  });
+
+  it("truncates notes at 2000 characters", () => {
+    const session = manager.createSession();
+    const longNote = "x".repeat(3000);
+    manager.setNotes(session.id, longNote);
+    expect(session.operatorNotes).toHaveLength(2000);
+  });
+
+  it("initializes operatorNotes as empty string", () => {
+    const session = manager.createSession();
+    expect(session.operatorNotes).toBe("");
+  });
+
+  it("allows setting notes after panicMute returns to IDLE", () => {
+    const session = manager.createSession();
+    manager.startRecording(session.id);
+    manager.panicMute(session.id);
+    manager.setNotes(session.id, "Post-mute note");
+    expect(session.operatorNotes).toBe("Post-mute note");
+  });
+
+  it("throws for non-existent session", () => {
+    expect(() => manager.setNotes("non-existent", "note")).toThrow(/Session not found/);
+  });
+});
+
 describe("createSession() Phase 2 fields", () => {
   let manager: SessionManager;
 

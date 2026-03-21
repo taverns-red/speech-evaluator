@@ -19,6 +19,7 @@ import {
   onTimeLimitChange, handleVADSpeechEnd, onVADConfirmStop, onVADDismiss,
   onVADConfigChange, onVADThresholdInput, onSpeechTitleChange, onProjectTypeChange,
   onObjectivesChange, resetProjectContextForm, onAnalysisTierChange, onEvaluationStyleChange,
+  onNotesChange,
 } from "./consent.js";
 import { updateTranscript, showEvaluation, displayRoleResults, clearEvidenceHighlight } from "./transcript.js";
 import { checkMicPermission, startAudioCapture, stopAudioCapture, hardStopMic, startCooldown, clearCooldown } from "./audio.js";
@@ -497,6 +498,12 @@ document.querySelectorAll('input[name="evaluation-style"]').forEach(radio => {
 
 // Initialize tier cost labels
 updateTierCostLabels();
+
+// Operator Notes: listen for input events (#164)
+const operatorNotesTextarea = document.getElementById("operator-notes");
+if (operatorNotesTextarea) {
+  operatorNotesTextarea.addEventListener("input", onNotesChange);
+}
 
 // Phase 4: Listen for video consent and FPS config changes
 dom.videoConsentCheckbox.addEventListener("change", onVideoConsentChange);

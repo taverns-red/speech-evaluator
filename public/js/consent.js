@@ -473,3 +473,37 @@ export function onEvaluationStyleChange() {
   });
 }
 
+// ─── Operator Notes Event Handlers (#164) ─────────────────────────
+
+let notesDebounceTimer = null;
+
+/**
+ * Called when the operator notes textarea changes.
+ * Debounces WS send to avoid per-keystroke messages.
+ * Updates character counter and summary label.
+ */
+export function onNotesChange() {
+  const textarea = document.getElementById("operator-notes");
+  if (!textarea) return;
+
+  const notes = textarea.value;
+  const charCount = document.getElementById("notes-char-count");
+  if (charCount) charCount.textContent = notes.length;
+
+  // Update collapsed summary label
+  const notesSummary = document.getElementById("notes-summary");
+  if (notesSummary) {
+    notesSummary.textContent = notes.trim().length > 0
+      ? `${notes.trim().length} chars`
+      : "None";
+  }
+
+  // Debounce WS message (500ms)
+  clearTimeout(notesDebounceTimer);
+  notesDebounceTimer = setTimeout(() => {
+    wsSend({
+      type: "set_notes",
+      notes: notes,
+    });
+  }, 500);
+}
