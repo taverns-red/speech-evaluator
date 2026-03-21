@@ -168,6 +168,8 @@ async function runEvaluationPipeline(
     evaluation: ReturnType<EvaluationGenerator["generate"]> extends Promise<infer R> ? R : never;
     script: string;
     ttsAudioBase64?: string;
+    analysisTier: string;
+    visionFrameCount: number;
 }> {
     let audioPath: string | undefined;
     let frameResult: FrameExtractionResult | undefined;
@@ -272,6 +274,8 @@ async function runEvaluationPipeline(
             evaluation: { evaluation: pipelineResult.evaluation, passRate: pipelineResult.passRate },
             script: pipelineResult.scriptForTTS,
             ttsAudioBase64,
+            analysisTier: tier,
+            visionFrameCount: frameResult?.frameCount ?? 0,
         };
     } finally {
         if (audioPath) await cleanupFile(audioPath);
@@ -406,6 +410,8 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
                         ttsAudio: result.ttsAudioBase64
                             ? Buffer.from(result.ttsAudioBase64, "base64")
                             : undefined,
+                        analysisTier: result.analysisTier,
+                        visionFrameCount: result.visionFrameCount,
                     }).catch(() => { /* logged inside service */ });
                 }
 
@@ -529,6 +535,8 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
                     ttsAudio: result.ttsAudioBase64
                         ? Buffer.from(result.ttsAudioBase64, "base64")
                         : undefined,
+                    analysisTier: result.analysisTier,
+                    visionFrameCount: result.visionFrameCount,
                 }).catch(() => { /* logged inside service */ });
             }
 
