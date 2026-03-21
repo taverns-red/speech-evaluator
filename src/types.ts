@@ -237,8 +237,71 @@ export interface ProsodicIndicators {
   onsetCount: number;
 }
 
+// ─── Evaluation Styles (#133) ───────────────────────────────────────────────────
+
+export enum EvaluationStyle {
+  Classic = "classic",
+  SBI = "sbi",
+  Feedforward = "feedforward",
+  COIN = "coin",
+  Holistic = "holistic",
+}
+
+// ─── Style-Specific Item Types (#133) ───────────────────────────────────────────
+
+/** Classic: commendation/recommendation with evidence quotes (default, backward-compatible) */
+export interface ClassicEvaluationItem {
+  style: "classic";
+  type: "commendation" | "recommendation";
+  summary: string;
+  evidence_quote: string;
+  evidence_timestamp: number;
+  explanation: string;
+}
+
+/** SBI: Situation → Behavior → Impact */
+export interface SBIEvaluationItem {
+  style: "sbi";
+  valence: "positive" | "constructive";
+  situation: string;
+  behavior: string;
+  impact: string;
+}
+
+/** Feedforward: observation + future-focused suggestion */
+export interface FeedforwardEvaluationItem {
+  style: "feedforward";
+  observation: string;
+  nextTime: string;
+}
+
+/** COIN: Context → Observation → Impact → Next Steps */
+export interface COINEvaluationItem {
+  style: "coin";
+  context: string;
+  observation: string;
+  impact: string;
+  nextSteps: string;
+}
+
+/** Holistic: What I Heard / Saw / Felt */
+export interface HolisticEvaluationItem {
+  style: "holistic";
+  category: "heard" | "saw" | "felt";
+  observation: string;
+  detail: string;
+}
+
+export type StyledEvaluationItem =
+  | ClassicEvaluationItem
+  | SBIEvaluationItem
+  | FeedforwardEvaluationItem
+  | COINEvaluationItem
+  | HolisticEvaluationItem;
+
 // ─── Structured Evaluation ──────────────────────────────────────────────────────
 
+/** Legacy evaluation item — kept for backward compatibility with classic style */
 export interface EvaluationItem {
   type: "commendation" | "recommendation";
   summary: string;
@@ -257,11 +320,13 @@ export interface StructureCommentary {
 
 export interface StructuredEvaluation {
   opening: string; // 1-2 sentences
-  items: EvaluationItem[]; // 2-3 commendations + 1-2 recommendations
+  items: EvaluationItem[]; // classic items (backward-compatible)
   closing: string; // 1-2 sentences
   structure_commentary: StructureCommentary; // Phase 2 (Req 4.9)
   visual_feedback?: VisualFeedbackItem[]; // Phase 4 (Req 8) — optional visual observation items
   completed_form?: string; // Phase 5 (#64) — completed evaluation form text
+  evaluation_style?: EvaluationStyle; // #133 — which feedback style was used
+  style_items?: StyledEvaluationItem[]; // #133 — style-specific items (non-classic styles)
 }
 
 // ─── Public Evaluation Types (Phase 2 — Req 8.1) ───────────────────────────────
@@ -308,6 +373,7 @@ export interface EvaluationConfig {
   speechTitle?: string;    // Phase 3: speech title from ProjectContext
   projectType?: string;    // Phase 3: speech project type from ProjectContext
   evaluationFormText?: string; // Phase 5 (#64): extracted text from uploaded evaluation form
+  evaluationStyle?: EvaluationStyle; // #133: configurable feedback style
 }
 
 export interface TTSConfig {
