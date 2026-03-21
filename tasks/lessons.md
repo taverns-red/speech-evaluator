@@ -12,6 +12,14 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-21 — Lesson 43: Inline SVG Sparklines Beat Chart Libraries for Simple Trends
+
+**The Discovery**: The progress chart needed to show WPM, pass rate, and filler rate trends across speeches. Instead of pulling in Chart.js (250KB+ min) or D3 (280KB+), a simple `<svg>` with `<polyline>` and `<circle>` generates the same sparkline in ~15 lines of JS. The trick: normalize values to the SVG viewBox, compute x from step width and y from `(value - min) / range * plotHeight`. A dot on the last point completes the effect.
+
+**The Resulting Rule**: For trend lines and sparklines (up to ~50 points, single metric), inline SVG is always preferable to a chart library. Reserve libraries for interactive charts (zoom, tooltip, brushing) or multi-axis composite views. The breakpoint is roughly: sparkline = SVG, dashboard = library.
+
+**Future Warning**: When all values are identical (flat line), `range = 0` which produces NaN coordinates. Guard with `range = max - min || 1` to default to a centered flat line.
+
 ## 🗓️ 2026-03-21 — Lesson 42: WebSocket Reconnect Requires Guard Flags to Prevent Cascading Drops
 
 **The Discovery**: When adding auto-reconnect to the Deepgram WS, the existing single-mock test pattern (same `mockLiveClient` for all `listen.live()` calls) caused cascading Close events — each reconnection's new handlers were attached to the same object as the old ones. The reconnection loop appeared to succeed but then immediately re-dropped. The fix required two flags: `_reconnecting` (prevents re-entrant `handleUnexpectedDrop`) and `_stopped` (prevents reconnection after intentional `stopLive()`). Tests that need reconnection to *fail* must override `listen.live` to throw after the first call.

@@ -98,6 +98,14 @@ After a speech ends, the system delivers a spoken and written evaluation in unde
 | **Reconnection Status** | `transcription_status` WS message notifies client of reconnecting/reconnected/failed | `server.ts`, `session-manager.ts`, `websocket.js` |
 | **Mobile Viewport Polish** | Responsive breakpoints (768px tablet, 480px phone) with 44px touch targets, stacking layout | `style.css` |
 
+### Measure the Miles (Sprint C8)
+
+| Feature | Description | Key Files |
+|---------|-------------|-----------|
+| **Speaker Progress API** | `GET /api/progress/:speaker` aggregates WPM, passRate, fillerWordFrequency across evaluations | `gcs-history.ts`, `server.ts` |
+| **Progress Trend Chart** | SVG sparklines for WPM, pass rate, and filler rate in History tab | `history.js`, `style.css` |
+| **Empty State Polish** | Motivational empty state with progress tracking prompt | `index.html` |
+
 ---
 
 ## Business Rules
@@ -145,8 +153,8 @@ After a speech ends, the system delivers a spoken and written evaluation in unde
 - Mobile-responsive UI for tablet operation
 - Setup wizard for new clubs
 
-### Phase 8: Advanced Coaching & Analytics
-- Speech-over-speech progress tracking
+### Phase 8 (remaining): Advanced Coaching & Analytics
+- Speech-over-speech progress tracking ✅ (Sprint C8 — MVP)
 - Personalized improvement plans
 - Score breakdowns by category
 
