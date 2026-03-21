@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.19](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.18...ai-speech-evaluator-v0.6.19) (2026-03-21)
+
+
+### Features
+
+* add evaluation style prompts and threading ([#133](https://github.com/taverns-red/speech-evaluator/issues/133)) ([5a7e0d1](https://github.com/taverns-red/speech-evaluator/commit/5a7e0d1a0546c7c91bad50997238d57ba3bce688))
+* add EvaluationStyle enum and style-specific item types ([#133](https://github.com/taverns-red/speech-evaluator/issues/133)) ([370528e](https://github.com/taverns-red/speech-evaluator/commit/370528ee2dc0ad5afe0d1dcd806bd5df4b06ff2b))
+* add product spec and PM skill reference ([#130](https://github.com/taverns-red/speech-evaluator/issues/130)) ([59565a3](https://github.com/taverns-red/speech-evaluator/commit/59565a3006e86dac91cd7c049415e258f7dd66de))
+* wire evaluation style selector through full stack ([#133](https://github.com/taverns-red/speech-evaluator/issues/133)) ([c2b0fc2](https://github.com/taverns-red/speech-evaluator/commit/c2b0fc2bb1f646089b4f4ada3af534b0b64d284a))
+
+
+### Bug Fixes
+
+* add missing capabilities field to VisualObservations test fixtures ([113f6f5](https://github.com/taverns-red/speech-evaluator/commit/113f6f5ff4b7099b4c72e58e97ac6bbcfd21c419))
+
 ## [0.6.18](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.17...ai-speech-evaluator-v0.6.18) (2026-03-21)
 
 
