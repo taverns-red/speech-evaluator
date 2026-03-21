@@ -30,6 +30,7 @@ import {
 import { onFileSelected, onFormFileSelected } from "./upload.js";
 import { loadHistory, resetHistory, isHistoryLoaded } from "./history.js";
 import { updateTierCostLabels } from "./tier-costs.js";
+import { initSetupWizard } from "./setup-wizard.js";
 import {
   connectWebSocket, connectWebSocketAndWait, manualReconnect,
   wsSend, sendAudioFormatHandshake, forceStopTtsAndCancelDeferral,
@@ -417,6 +418,9 @@ updateUI(SessionState.IDLE);
 
 // Restore form state from localStorage (#58)
 restoreFormState();
+
+// Show setup wizard for first-time users (#156)
+initSetupWizard();
 
 // ─── Theme Toggle (#56) ──────────────────────────────────────────
 const themeToggleBtn = document.getElementById("theme-toggle");
