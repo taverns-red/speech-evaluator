@@ -315,6 +315,20 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
       }
     });
     logger.info("History DELETE endpoints mounted (#128)");
+
+    // GET /api/progress/:speaker — progress data for trend chart (#140)
+    app.get("/api/progress/:speaker", async (req, res) => {
+      try {
+        const speaker = decodeURIComponent(req.params.speaker);
+        const progress = await gcsHistoryService.getProgressData(speaker);
+        res.json({ speeches: progress });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error(`Progress API error: ${errMsg}`);
+        res.status(500).json({ error: "Failed to load progress data" });
+      }
+    });
+    logger.info("Progress endpoint mounted at /api/progress/:speaker (#140)");
   }
 
   // WebSocket server — noServer mode when auth is enabled for manual upgrade

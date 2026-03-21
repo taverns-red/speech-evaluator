@@ -461,3 +461,169 @@ describe("GcsHistoryService - deleteSpeakerHistory", () => {
     expect(count).toBe(0);
   });
 });
+
+// ─── GcsHistoryService.getProgressData (#140) ───────────────────────────────────
+
+describe("GcsHistoryService - getProgressData", () => {
+  let client: ReturnType<typeof createMockClient>;
+  let service: GcsHistoryService;
+
+  beforeEach(() => {
+    client = createMockClient();
+    service = new GcsHistoryService(client);
+  });
+
+  it("returns empty array for speaker with no evaluations", async () => {
+    client.listPrefixes.mockResolvedValue([]);
+
+    const progress = await service.getProgressData("Unknown Speaker");
+
+    expect(progress).toEqual([]);
+  });
+
+  it("returns entries sorted oldest-first (chronological)", async () => {
+    const prefixes = [
+      "results/jane/2026-03-15-1400-third/",
+      "results/jane/2026-01-01-0900-first/",
+      "results/jane/2026-02-10-1000-second/",
+    ];
+    client.listPrefixes.mockResolvedValue(prefixes);
+
+    client.readFile.mockImplementation((path: string) => {
+      if (path.includes("first") && path.endsWith("metadata.json")) {
+        return JSON.stringify({
+          date: "2026-01-01T09:00:00Z", speechTitle: "First",
+          wordsPerMinute: 100, passRate: 0.6, durationSeconds: 60, speakerName: "Jane", mode: "live", prefix: prefixes[1],
+        });
+      }
+      if (path.includes("second") && path.endsWith("metadata.json")) {
+        return JSON.stringify({
+          date: "2026-02-10T10:00:00Z", speechTitle: "Second",
+          wordsPerMinute: 120, passRate: 0.75, durationSeconds: 90, speakerName: "Jane", mode: "live", prefix: prefixes[2],
+        });
+      }
+      if (path.includes("third") && path.endsWith("metadata.json")) {
+        return JSON.stringify({
+          date: "2026-03-15T14:00:00Z", speechTitle: "Third",
+          wordsPerMinute: 130, passRate: 0.85, durationSeconds: 120, speakerName: "Jane", mode: "live", prefix: prefixes[0],
+        });
+      }
+      // metrics.json not found
+      throw new Error("Not found");
+    });
+
+    const progress = await service.getProgressData("Jane");
+
+    expect(progress.length).toBe(3);
+    // Oldest first
+    expect(progress[0].speechTitle).toBe("First");
+    expect(progress[0].wordsPerMinute).toBe(100);
+    expect(progress[1].speechTitle).toBe("Second");
+    expect(progress[2].speechTitle).toBe("Third");
+    expect(progress[2].wordsPerMinute).toBe(130);
+  });
+
+  it("includes fillerWordFrequency from metrics.json when available", async () => {
+    client.listPrefixes.mockResolvedValue(["results/jane/2026-01-01-0900-test/"]);
+
+    client.readFile.mockImplementation((path: string) => {
+      if (path.endsWith("metadata.json")) {
+        return JSON.stringify({
+          date: "2026-01-01T09:00:00Z", speechTitle: "Test",
+          wordsPerMinute: 110, passRate: 0.7, durationSeconds: 60, speakerName: "Jane", mode: "live",
+          prefix: "results/jane/2026-01-01-0900-test/",
+        });
+      }
+      if (path.endsWith("metrics.json")) {
+        return JSON.stringify({ fillerWordFrequency: 3.5 });
+      }
+      throw new Error("Not found");
+    });
+
+    const progress = await service.getProgressData("Jane");
+
+    expect(progress.length).toBe(1);
+    expect(progress[0].fillerWordFrequency).toBe(3.5);
+  });
+
+  it("sets fillerWordFrequency to undefined when metrics.json is missing", async () => {
+    client.listPrefixes.mockResolvedValue(["results/jane/2026-01-01-0900-test/"]);
+
+    client.readFile.mockImplementation((path: string) => {
+      if (path.endsWith("metadata.json")) {
+        return JSON.stringify({
+          date: "2026-01-01T09:00:00Z", speechTitle: "Test",
+          wordsPerMinute: 110, passRate: 0.7, durationSeconds: 60, speakerName: "Jane", mode: "live",
+          prefix: "results/jane/2026-01-01-0900-test/",
+        });
+      }
+      throw new Error("Not found");
+    });
+
+    const progress = await service.getProgressData("Jane");
+
+    expect(progress.length).toBe(1);
+    expect(progress[0].fillerWordFrequency).toBeUndefined();
+  });
+
+  it("skips evaluations with corrupted metadata", async () => {
+    client.listPrefixes.mockResolvedValue([
+      "results/jane/2026-01-01-0900-good/",
+      "results/jane/2026-02-01-0900-bad/",
+    ]);
+
+    client.readFile.mockImplementation((path: string) => {
+      if (path.includes("bad")) throw new Error("Corrupted");
+      if (path.endsWith("metadata.json")) {
+        return JSON.stringify({
+          date: "2026-01-01T09:00:00Z", speechTitle: "Good",
+          wordsPerMinute: 110, passRate: 0.8, durationSeconds: 60, speakerName: "Jane", mode: "live",
+          prefix: "results/jane/2026-01-01-0900-good/",
+        });
+      }
+      throw new Error("Not found");
+    });
+
+    const progress = await service.getProgressData("Jane");
+
+    expect(progress.length).toBe(1);
+    expect(progress[0].speechTitle).toBe("Good");
+  });
+
+  it("caps at maxEntries most recent evaluations", async () => {
+    const prefixes = Array.from({ length: 10 }, (_, i) =>
+      `results/jane/2026-01-${String(i + 1).padStart(2, "0")}-0900-speech-${i}/`,
+    );
+    client.listPrefixes.mockResolvedValue(prefixes);
+
+    client.readFile.mockImplementation((path: string) => {
+      if (path.endsWith("metadata.json")) {
+        const match = path.match(/speech-(\d+)/);
+        const idx = match ? parseInt(match[1]) : 0;
+        return JSON.stringify({
+          date: `2026-01-${String(idx + 1).padStart(2, "0")}T09:00:00Z`,
+          speechTitle: `Speech ${idx}`, wordsPerMinute: 100 + idx * 5,
+          passRate: 0.5 + idx * 0.05, durationSeconds: 60 + idx * 10,
+          speakerName: "Jane", mode: "live",
+          prefix: `results/jane/2026-01-${String(idx + 1).padStart(2, "0")}-0900-speech-${idx}/`,
+        });
+      }
+      throw new Error("Not found");
+    });
+
+    const progress = await service.getProgressData("Jane", 3);
+
+    // Should return only the 3 most recent (speeches 7, 8, 9)
+    expect(progress.length).toBe(3);
+    expect(progress[0].speechTitle).toBe("Speech 7");
+    expect(progress[2].speechTitle).toBe("Speech 9");
+  });
+
+  it("sanitizes speaker name", async () => {
+    client.listPrefixes.mockResolvedValue([]);
+
+    await service.getProgressData("Jane O'Brien");
+
+    expect(client.listPrefixes).toHaveBeenCalledWith("results/jane-obrien/", "/");
+  });
+});

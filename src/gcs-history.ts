@@ -384,4 +384,69 @@ export class GcsHistoryService {
     log.info("Deleted speaker history", { speaker: speakerName, prefix, filesDeleted: count });
     return count;
   }
+
+  /**
+   * Get progress data for a speaker — aggregated metrics across evaluations (#140).
+   * Returns chronologically sorted array, oldest-first, capped at 50 most recent.
+   * Reads metadata.json for WPM/passRate, and metrics.json for fillerWordFrequency.
+   */
+  async getProgressData(speakerName: string, maxEntries: number = 50): Promise<SpeakerProgressEntry[]> {
+    const sanitized = sanitizeForPath(speakerName);
+    const speakerPrefix = `${RESULTS_PREFIX}${sanitized}/`;
+
+    log.info("Fetching progress data", { speaker: sanitized });
+
+    const prefixes = await this.client.listPrefixes(speakerPrefix, "/");
+
+    // Sort chronologically and cap
+    const sorted = prefixes.sort();
+    const capped = sorted.slice(-maxEntries);
+
+    const entries: SpeakerProgressEntry[] = [];
+
+    for (const evalPrefix of capped) {
+      try {
+        const metadataContent = await this.client.readFile(`${evalPrefix}metadata.json`);
+        const metadata = JSON.parse(metadataContent) as EvaluationMetadata;
+
+        // Try to read fillerWordFrequency from metrics.json
+        let fillerWordFrequency: number | undefined;
+        try {
+          const metricsContent = await this.client.readFile(`${evalPrefix}metrics.json`);
+          const metrics = JSON.parse(metricsContent);
+          fillerWordFrequency = metrics.fillerWordFrequency;
+        } catch {
+          // metrics.json may not exist — skip
+        }
+
+        entries.push({
+          date: metadata.date,
+          speechTitle: metadata.speechTitle,
+          wordsPerMinute: metadata.wordsPerMinute,
+          passRate: metadata.passRate,
+          durationSeconds: metadata.durationSeconds,
+          fillerWordFrequency,
+        });
+      } catch (err) {
+        log.warn("Skipping evaluation in progress data", {
+          prefix: evalPrefix,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    log.info("Progress data fetched", { speaker: sanitized, entries: entries.length });
+    return entries;
+  }
+}
+
+// ─── Progress Types (#140) ──────────────────────────────────────────────────────
+
+export interface SpeakerProgressEntry {
+  date: string;
+  speechTitle: string;
+  wordsPerMinute: number;
+  passRate: number;
+  durationSeconds: number;
+  fillerWordFrequency?: number;
 }
