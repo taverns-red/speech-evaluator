@@ -12,6 +12,14 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-20 — Lesson 39: Retention Sweep as a Lightweight Alternative to GCS Lifecycle
+
+**The Discovery**: GCS lifecycle policies require bucket-level admin access and operate on object age (creation time), not on metadata fields. Since evaluation age should be based on the `date` field in `metadata.json` (when the speech was evaluated), a lightweight application-level sweep is more accurate and doesn't require IAM changes.
+
+**The Resulting Rule**: For metadata-aware retention policies, prefer an application-level sweep over cloud-provider lifecycle rules. Schedule it with `setInterval` (daily), run initial sweep 30s post-startup (non-blocking), and make TTL configurable via env vars. The sweep iterates `results/{speaker}/{eval}/metadata.json`, parses dates, and calls `deletePrefix()` for expired entries.
+
+**Future Warning**: If the number of evaluations grows large (>10K), the sweep's `listPrefixes` + `readFile` pattern will become expensive. At that scale, consider adding a `createdAt` custom metadata header to GCS objects and using native lifecycle policies instead.
+
 ## 🗓️ 2026-03-20 — Lesson 38: Parallel Frame Capture for Different Consumers
 
 **The Discovery**: The system already had a 5fps binary frame capture (TM-prefixed wire format) for Phase 4 ML processing (face/gaze/gesture detection). Vision tiers (GPT-4o) need much lower-frequency captures (1-10s intervals) sent as JSON data URIs. These are fundamentally different consumers: ML wants high-frequency raw frames, LLM wants low-frequency base64 for prompt content parts.
