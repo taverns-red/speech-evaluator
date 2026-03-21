@@ -596,3 +596,13 @@
 **The Resulting Rule**: Before adding a new "mode" to a backend pipeline, audit whether the existing pipeline already covers the use case. Often, new modes differ only in **UI gating** (what's shown/hidden) and **metadata tagging** (GCS labels). A frontend-only mode toggle paired with a thin backend metadata tag is dramatically cheaper and safer than a full pipeline variant.
 
 **Future Warning**: If a future feature like "Classroom Mode" or "Interview Prep Mode" is proposed, first check if it's just a different preset of the existing consent + configuration + evaluation pipeline with different UI visibility.
+
+## 🗓️ 2026-03-21 — Lesson 46: Well-Paved Extensibility Patterns Pay Compound Dividends
+
+**The Discovery**: Adding 5 new evaluation feedback styles (EEC, Radical Candour, Socratic, Comparative, Micro-Focus) took ~30 minutes because Sprint C4 (#133) established a clean extensibility pattern: enum value + TypeScript interface + prompt `.txt` file + `STYLE_TEMPLATE_MAP` entry + radio button + `STYLE_FIELD_CONFIG` render config. No changes to the evaluation pipeline, parsing logic, or API contracts were needed — each new style was a pure data/config addition.
+
+**The Resulting Rule**: When building a framework's first extension point (like "evaluation styles"), invest extra time in making the extension pattern discoverable and mechanical: a config map, a registry, and a template directory. The first 5 styles cost significant design effort; the next 5 cost almost nothing because the pattern was well-paved.
+
+**Future Warning**: The `STYLE_FIELD_CONFIG` renderer handles scalar strings and arrays (`isArray: true`) but not nested objects. If a future style needs nested structured data (e.g., a rubric with sub-dimensions), the renderer will need a new field type.
+
+**rules.md**: none
