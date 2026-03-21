@@ -74,6 +74,14 @@ After a speech ends, the system delivers a spoken and written evaluation in unde
 | **Privacy Notice** | 90-day retention notice in consent form | `index.html` |
 | **Cost Metadata** | `analysisTier` + `visionFrameCount` in GCS metadata | `gcs-history.ts` |
 
+### Evaluation Styles (Sprint C4)
+
+| Feature | Description | Key Files |
+|---------|-------------|-----------|
+| **Style Selector** | 5 feedback styles: Classic, SBI, Feedforward, COIN, Holistic | `index.html`, `consent.js` |
+| **Style Prompts** | Style-specific LLM prompt partials with output schemas | `prompts/style-*.txt`, `prompt-loader.ts` |
+| **Style Rendering** | Card layouts for each style in live + history views | `transcript.js`, `history.js` |
+
 ---
 
 ## Business Rules
@@ -97,6 +105,8 @@ After a speech ends, the system delivers a spoken and written evaluation in unde
 | `completed_form` response field is returned when form uploaded | Users need their specific form filled out | LLM response schema |
 | Standard tier = text-only, Enhanced+ = Vision frames | Cost-quality tradeoff | `analysis-tiers.ts` |
 | Vision frames capped at tier's `maxFrames` | Prevent runaway costs | `server.ts` (live), `frame-extractor.ts` (upload) |
+| Evaluation style defaults to Classic | Backward compatibility — existing behavior unchanged | `server.ts` default, `EvaluationStyle.Classic` |
+| Invalid evaluation style rejected with recoverable error | Prevent silent misrouting to wrong prompt | `server.ts` `set_evaluation_style` handler |
 
 ### Data Retention
 
@@ -109,12 +119,6 @@ After a speech ends, the system delivers a spoken and written evaluation in unde
 ---
 
 ## Decided for Next
-
-### Evaluation Feedback Styles (#133)
-- Configurable evaluation style selector (radio buttons in consent form)
-- 5 styles: **SBI** (Situation-Behavior-Impact), **Feedforward** (future-focused), **COIN** (Context-Observation-Impact-Next Steps), **Holistic Narrative** (What I Heard/Saw/Felt), **Classic** (current commendation/recommendation)
-- Style-specific LLM prompts and output schemas
-- Default: Classic (backward compatible)
 
 ### Phase 5: Real-Time Conversational AI Evaluator
 - Not yet scoped — aspirational goal of real-time feedback during speech

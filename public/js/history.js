@@ -162,16 +162,27 @@ async function toggleHistoryDetail(div, item) {
 
       if (evaluation.items && evaluation.items.length > 0) {
         html += '<div class="history-eval-items">';
-        for (const ei of evaluation.items) {
-          const typeIcon = ei.type === "commendation" ? "✅" : "💡";
-          html += `
-            <div class="history-eval-item ${ei.type}">
-              <div class="history-eval-item-header">${typeIcon} <strong>${escapeHtml(ei.summary)}</strong></div>
-              <div class="history-eval-item-body">${escapeHtml(ei.explanation)}</div>
-              ${ei.evidence_quote ? `<div class="history-eval-evidence">"${escapeHtml(ei.evidence_quote)}"</div>` : ""}
-            </div>
-          `;
+
+        // Non-classic styles: render style_items if present (#135)
+        if (evaluation.evaluation_style && evaluation.evaluation_style !== "classic"
+            && evaluation.style_items && evaluation.style_items.length > 0) {
+          for (const si of evaluation.style_items) {
+            html += renderHistoryStyleItem(si, evaluation.evaluation_style);
+          }
+        } else {
+          // Classic: commendation/recommendation cards
+          for (const ei of evaluation.items) {
+            const typeIcon = ei.type === "commendation" ? "✅" : "💡";
+            html += `
+              <div class="history-eval-item ${ei.type}">
+                <div class="history-eval-item-header">${typeIcon} <strong>${escapeHtml(ei.summary)}</strong></div>
+                <div class="history-eval-item-body">${escapeHtml(ei.explanation)}</div>
+                ${ei.evidence_quote ? `<div class="history-eval-evidence">"${escapeHtml(ei.evidence_quote)}"</div>` : ""}
+              </div>
+            `;
+          }
         }
+
         html += "</div>";
       }
 
@@ -239,6 +250,59 @@ async function toggleHistoryDetail(div, item) {
   } catch (err) {
     detail.innerHTML = `<div class="history-error">Failed to load evaluation: ${escapeHtml(err.message)}</div>`;
   }
+}
+
+// ─── Style Item Rendering for History (#135) ───────────────────────
+
+/** Style field configuration (mirrors transcript.js STYLE_FIELD_CONFIG) */
+const HISTORY_STYLE_CONFIG = {
+  sbi: {
+    icon: (item) => item.valence === "positive" ? "✅" : "💡",
+    fields: [
+      { key: "situation", label: "Situation" },
+      { key: "behavior", label: "Behavior" },
+      { key: "impact", label: "Impact" },
+    ],
+  },
+  feedforward: {
+    icon: () => "🔮",
+    fields: [
+      { key: "observation", label: "Observation" },
+      { key: "nextTime", label: "Next Time" },
+    ],
+  },
+  coin: {
+    icon: () => "🪙",
+    fields: [
+      { key: "context", label: "Context" },
+      { key: "observation", label: "Observation" },
+      { key: "impact", label: "Impact" },
+      { key: "nextSteps", label: "Next Steps" },
+    ],
+  },
+  holistic: {
+    icon: (item) => ({ heard: "👂", saw: "👁️", felt: "💭" }[item.category] || "📝"),
+    fields: [
+      { key: "category", label: "Category" },
+      { key: "observation", label: "Observation" },
+      { key: "detail", label: "Detail" },
+    ],
+  },
+};
+
+function renderHistoryStyleItem(item, evaluationStyle) {
+  const config = HISTORY_STYLE_CONFIG[evaluationStyle];
+  if (!config) return `<div class="history-eval-item"><pre>${escapeHtml(JSON.stringify(item, null, 2))}</pre></div>`;
+
+  const icon = config.icon(item);
+  let fieldsHtml = "";
+  for (const f of config.fields) {
+    const val = item[f.key];
+    if (!val) continue;
+    fieldsHtml += `<div class="style-item-field"><span class="style-field-label">${escapeHtml(f.label)}</span><span class="style-field-value">${escapeHtml(val)}</span></div>`;
+  }
+
+  return `<div class="style-item-card"><div class="style-item-header">${icon}</div>${fieldsHtml}</div>`;
 }
 
 function escapeHtml(str) {

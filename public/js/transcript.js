@@ -163,6 +163,126 @@ export function clearEvidenceHighlight() {
  * @param {string} text - The evaluation script text
  * @param {Object|null} evaluationData - The StructuredEvaluationPublic object
  */
+// ─── Style-Specific Rendering (#135) ─────────────────────────────
+
+/** Field configuration for each evaluation style */
+const STYLE_FIELD_CONFIG = {
+  sbi: {
+    label: "SBI",
+    icon: (item) => item.valence === "positive" ? "✅" : "💡",
+    fields: [
+      { key: "situation", label: "Situation" },
+      { key: "behavior", label: "Behavior" },
+      { key: "impact", label: "Impact" },
+    ],
+  },
+  feedforward: {
+    label: "Feedforward",
+    icon: () => "🔮",
+    fields: [
+      { key: "observation", label: "Observation" },
+      { key: "nextTime", label: "Next Time" },
+    ],
+  },
+  coin: {
+    label: "COIN",
+    icon: () => "🪙",
+    fields: [
+      { key: "context", label: "Context" },
+      { key: "observation", label: "Observation" },
+      { key: "impact", label: "Impact" },
+      { key: "nextSteps", label: "Next Steps" },
+    ],
+  },
+  holistic: {
+    label: "Holistic",
+    icon: (item) => {
+      const icons = { heard: "👂", saw: "👁️", felt: "💭" };
+      return icons[item.category] || "📝";
+    },
+    fields: [
+      { key: "category", label: "Category" },
+      { key: "observation", label: "Observation" },
+      { key: "detail", label: "Detail" },
+    ],
+  },
+};
+
+/**
+ * Renders style-specific evaluation items into a container element.
+ * Each style has a distinct card layout with labeled fields.
+ * Exported for reuse in history.js.
+ *
+ * @param {Array} styleItems - The style_items array from StructuredEvaluation
+ * @param {string} evaluationStyle - The evaluation_style identifier
+ * @returns {HTMLElement} A container div with rendered style items
+ */
+export function renderStyledItems(styleItems, evaluationStyle) {
+  const container = document.createElement("div");
+  container.className = "style-items-container";
+
+  const config = STYLE_FIELD_CONFIG[evaluationStyle];
+  if (!config || !Array.isArray(styleItems)) {
+    // Unknown style — render raw JSON as fallback
+    const fallback = document.createElement("pre");
+    fallback.className = "style-items-fallback";
+    fallback.textContent = JSON.stringify(styleItems, null, 2);
+    container.appendChild(fallback);
+    return container;
+  }
+
+  for (const item of styleItems) {
+    const card = document.createElement("div");
+    card.className = "style-item-card";
+
+    // Header with icon
+    const header = document.createElement("div");
+    header.className = "style-item-header";
+    const icon = config.icon(item);
+    header.textContent = icon;
+    card.appendChild(header);
+
+    // Fields
+    for (const fieldDef of config.fields) {
+      const value = item[fieldDef.key];
+      if (!value) continue;
+
+      const field = document.createElement("div");
+      field.className = "style-item-field";
+
+      const label = document.createElement("span");
+      label.className = "style-field-label";
+      label.textContent = fieldDef.label;
+
+      const text = document.createElement("span");
+      text.className = "style-field-value";
+      text.textContent = value;
+
+      field.appendChild(label);
+      field.appendChild(text);
+      card.appendChild(field);
+    }
+
+    container.appendChild(card);
+  }
+
+  return container;
+}
+
+/**
+ * Renders the evaluation text with evidence quotes as clickable links.
+ * Evidence quotes from evaluation items are matched against the text
+ * and wrapped in clickable <span> elements (Req 7.1).
+ *
+ * For non-classic evaluation styles, renders style_items with
+ * style-specific card layouts below the evaluation script (Req #135).
+ *
+ * Redacted quotes (containing "[a fellow member]") will not match
+ * transcript text and are displayed without clickable navigation (Req 7.4).
+ *
+ * @param {string} text - The evaluation script text
+ * @param {Object|null} evaluationData - The StructuredEvaluationPublic object
+ */
 export function renderEvaluationWithEvidence(text, evaluationData) {
   if (!text || text.trim().length === 0) {
     var emptyDiv = document.createElement("div");
@@ -170,6 +290,33 @@ export function renderEvaluationWithEvidence(text, evaluationData) {
     emptyDiv.textContent = "Evaluation will appear here after delivery...";
     dom.evaluationContent.textContent = "";
     dom.evaluationContent.appendChild(emptyDiv);
+    return;
+  }
+
+  // Non-classic styles: render script text + styled cards
+  if (evaluationData && evaluationData.evaluation_style && evaluationData.evaluation_style !== "classic"
+      && evaluationData.style_items && evaluationData.style_items.length > 0) {
+    dom.evaluationContent.textContent = "";
+
+    // Render opening
+    if (evaluationData.opening) {
+      const openingDiv = document.createElement("div");
+      openingDiv.className = "eval-section eval-opening";
+      openingDiv.textContent = evaluationData.opening;
+      dom.evaluationContent.appendChild(openingDiv);
+    }
+
+    // Render style items
+    const styledContainer = renderStyledItems(evaluationData.style_items, evaluationData.evaluation_style);
+    dom.evaluationContent.appendChild(styledContainer);
+
+    // Render closing
+    if (evaluationData.closing) {
+      const closingDiv = document.createElement("div");
+      closingDiv.className = "eval-section eval-closing";
+      closingDiv.textContent = evaluationData.closing;
+      dom.evaluationContent.appendChild(closingDiv);
+    }
     return;
   }
 

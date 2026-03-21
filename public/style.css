@@ -2027,6 +2027,79 @@ body::before {
   }
 }
 
+/* ─── Evaluation Style Items (#135) ─────────────────────────────── */
+
+.style-items-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.style-item-card {
+  background: var(--bg-card, #1e1e1e);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-left: 3px solid var(--red-primary, #e53935);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.style-item-header {
+  font-size: 1.1em;
+  margin-bottom: 8px;
+}
+
+.style-item-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.style-item-field:last-child {
+  margin-bottom: 0;
+}
+
+.style-field-label {
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #aaa);
+}
+
+.style-field-value {
+  color: var(--text-primary, #e0e0e0);
+  line-height: 1.5;
+}
+
+.style-items-fallback {
+  background: var(--bg-card, #1e1e1e);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 0.85em;
+  color: var(--text-secondary, #aaa);
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.eval-section {
+  margin: 12px 0;
+  line-height: 1.6;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.eval-opening {
+  font-style: italic;
+  margin-bottom: 8px;
+}
+
+.eval-closing {
+  font-style: italic;
+  margin-top: 8px;
+}
+
 /* ─── Print Styles (PDF Export #71) ──────────────────────────────── */
 @media print {
   body { background: #fff; color: #222; }

@@ -1913,6 +1913,35 @@ describe("Phase 3 VAD and project context message handling", () => {
     });
   });
 
+  // ─── set_evaluation_style (Req #135) ──────────────────────────────────────────
+
+  describe("set_evaluation_style", () => {
+    it("should accept valid evaluation style", async () => {
+      const c = track(await createClient(server));
+
+      c.sendJson({ type: "set_evaluation_style", style: "sbi" });
+
+      // Give time for message to be processed
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // No error should be sent — verify by sending another message
+      c.sendJson({ type: "set_consent", speakerName: "Test", consentConfirmed: true });
+      const msg = await c.nextMessageOfType("consent_status");
+      expect(msg.type).toBe("consent_status");
+    });
+
+    it("should reject invalid evaluation style with recoverable error", async () => {
+      const c = track(await createClient(server));
+
+      c.sendJson({ type: "set_evaluation_style", style: "nonexistent_style" });
+
+      const errorMsg = await c.nextMessageOfType("error");
+      expect((errorMsg as { message: string }).message).toContain("Invalid evaluation style");
+      expect((errorMsg as { message: string }).message).toContain("nonexistent_style");
+      expect((errorMsg as { recoverable: boolean }).recoverable).toBe(true);
+    });
+  });
+
   // ─── vad_speech_end message (Req 2.1) ─────────────────────────────────────────
 
   describe("vad_speech_end via VAD callback", () => {

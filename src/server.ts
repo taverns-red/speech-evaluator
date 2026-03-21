@@ -4,6 +4,7 @@ import { createLogger } from "./logger.js";
 import type { MetricsCollector, MetricsSnapshot } from "./metrics-collector.js";
 import { requestTimeout } from "./request-timeout.js";
 import { AnalysisTier, getTierConfig } from "./analysis-tiers.js";
+import { EvaluationStyle } from "./types.js";
 // Requirements: 1.2 (start recording), 1.3 (elapsed time), 1.4 (stop recording),
 //               1.6 (deliver evaluation), 1.7 (panic mute), 2.5 (echo prevention)
 //
@@ -665,11 +666,21 @@ function handleClientMessage(
       logger.info(`Analysis tier set: ${connState.analysisTier} for session ${connState.sessionId}`);
       break;
 
-    case "set_evaluation_style":
-      connState.evaluationStyle = message.style ?? "classic";
+    case "set_evaluation_style": {
+      const requestedStyle = message.style ?? "classic";
+      const validStyles = Object.values(EvaluationStyle) as string[];
+      if (!validStyles.includes(requestedStyle)) {
+        sendMessage(ws, {
+          type: "error",
+          message: `Invalid evaluation style: "${requestedStyle}". Valid styles: ${validStyles.join(", ")}`,
+          recoverable: true,
+        });
+        break;
+      }
+      connState.evaluationStyle = requestedStyle;
       logger.info(`Evaluation style set: ${connState.evaluationStyle} for session ${connState.sessionId}`);
       break;
-
+    }
     case "vision_frame": {
       // Buffer base64 frame data for GPT-4o Vision analysis (#128)
       const tierConfig = getTierConfig(
