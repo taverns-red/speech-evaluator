@@ -151,10 +151,13 @@ try {
 }
 
 // GCS History Service (#123) — persists evaluation results for browsable history
+import { runRetentionSweep, type RetentionConfig } from "./retention.js";
 let gcsHistoryService: GcsHistoryService | undefined;
+let gcsHistoryClient: ReturnType<typeof createGcsHistoryClient> | undefined;
 const GCS_HISTORY_BUCKET = process.env.GCS_UPLOAD_BUCKET || "speech-evaluator-uploads-ca";
 try {
-  gcsHistoryService = new GcsHistoryService(createGcsHistoryClient(GCS_HISTORY_BUCKET));
+  gcsHistoryClient = createGcsHistoryClient(GCS_HISTORY_BUCKET);
+  gcsHistoryService = new GcsHistoryService(gcsHistoryClient);
   log.info("GCS history service initialized", { bucket: GCS_HISTORY_BUCKET });
 } catch (err) {
   log.warn("GCS history service unavailable, evaluation history disabled", { error: err instanceof Error ? err : new Error(String(err)) });
@@ -249,6 +252,29 @@ server.listen(port).then(() => {
     port,
     pipeline: "Deepgram → OpenAI Transcribe → MetricsExtractor → GPT-4o → TTS",
   });
+
+  // ── Retention Sweep (#130) — enforce data retention policy ──
+  if (gcsHistoryClient) {
+    const retentionDays = parseInt(process.env.DATA_RETENTION_DAYS || "90", 10) || 90;
+    const retentionConfig: RetentionConfig = { maxAgeDays: retentionDays };
+    const sweepIntervalMs = (parseInt(process.env.RETENTION_CHECK_INTERVAL_HOURS || "24", 10) || 24) * 60 * 60 * 1000;
+
+    // Run initial sweep after a short delay (don't block startup)
+    setTimeout(() => {
+      runRetentionSweep(gcsHistoryClient!, retentionConfig).catch((err) => {
+        log.error("Retention sweep failed", { error: err instanceof Error ? err : new Error(String(err)) });
+      });
+    }, 30_000); // 30s after startup
+
+    // Schedule periodic sweeps
+    setInterval(() => {
+      runRetentionSweep(gcsHistoryClient!, retentionConfig).catch((err) => {
+        log.error("Retention sweep failed", { error: err instanceof Error ? err : new Error(String(err)) });
+      });
+    }, sweepIntervalMs);
+
+    log.info("Retention sweep scheduled", { maxAgeDays: retentionDays, intervalHours: sweepIntervalMs / 3600000 });
+  }
 });
 
 // ─── Graceful Shutdown ──────────────────────────────────────────────────────────
