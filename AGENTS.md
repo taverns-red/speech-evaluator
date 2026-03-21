@@ -10,7 +10,7 @@ This file contains **project-specific** context only.
 When beginning a new session or task in this project:
 
 1. **Read lessons**: Review the last 5 entries in `tasks/lessons.md`
-2. **Establish baseline**: Run `npx vitest run` and record the pass count (currently 1788)
+2. **Establish baseline**: Run `npx vitest run` and record the pass count (currently 1849)
 3. **Identify or create an issue**: Use `gh issue list` or `gh issue create` before writing code
 4. **If root cause is unknown**: Use `tasks/experiment_template.md` before implementing
 
@@ -42,7 +42,13 @@ speech-evaluator/
 ├── public/
 │   ├── index.html        # Single-file frontend (inline JS, no build system)
 │   └── style.css         # External CSS (taverns-red design system)
-├── docs/                 # PRD and specs
+├── docs/                 # Project documentation
+│   ├── product-spec.md   # Shipped features + business rules
+│   ├── architecture.md   # System diagram, component inventory, data flows
+│   ├── test-strategy.md  # Test pyramid, quality gates, conventions
+│   ├── runbook.md        # Ops runbook: health checks, rollback, scenarios
+│   ├── design-system.md  # taverns-red token ref, component patterns
+│   └── architecture-decisions/  # ADRs
 ├── tasks/                # Lessons learned, experiment logs
 └── dist/                 # Compiled JS output (gitignored)
 ```
