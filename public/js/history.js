@@ -304,6 +304,39 @@ async function toggleHistoryDetail(div, item) {
         html += "</div>";
       }
 
+      // Category scores bar chart (#144)
+      if (evaluation.category_scores && evaluation.category_scores.length > 0) {
+        html += '<div class="history-category-scores">';
+        html += '<div class="category-scores-label">Category Scores</div>';
+        html += '<div class="category-scores-bars">';
+        for (const cs of evaluation.category_scores) {
+          const pct = Math.round((cs.score / 10) * 100);
+          const colorClass = cs.score >= 7 ? "score-good" : cs.score >= 4 ? "score-fair" : "score-poor";
+          const categoryLabel = cs.category.charAt(0).toUpperCase() + cs.category.slice(1);
+          html += `
+            <div class="category-score-row">
+              <span class="category-score-name">${escapeHtml(categoryLabel)}</span>
+              <div class="category-score-track">
+                <div class="category-score-fill ${colorClass}" style="width:${pct}%"></div>
+              </div>
+              <span class="category-score-value">${cs.score}</span>
+            </div>
+          `;
+        }
+        html += '</div>';
+        if (evaluation.category_scores.some(cs => cs.rationale && cs.rationale !== "No rationale provided")) {
+          html += '<details class="category-scores-rationale"><summary>View rationales</summary>';
+          for (const cs of evaluation.category_scores) {
+            if (cs.rationale && cs.rationale !== "No rationale provided") {
+              const categoryLabel = cs.category.charAt(0).toUpperCase() + cs.category.slice(1);
+              html += `<div class="rationale-item"><strong>${escapeHtml(categoryLabel)}:</strong> ${escapeHtml(cs.rationale)}</div>`;
+            }
+          }
+          html += '</details>';
+        }
+        html += '</div>';
+      }
+
       if (evaluation.closing) {
         html += `<div class="history-eval-closing">${escapeHtml(evaluation.closing)}</div>`;
       }

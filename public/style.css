@@ -1921,6 +1921,104 @@ body::before {
   border-left: 2px solid var(--border-subtle);
 }
 
+/* ── Category Scores (#144) ──────────────────────────────────────────────── */
+
+.history-category-scores {
+  margin: 12px 0 8px;
+  padding: 12px 14px;
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
+.category-scores-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.category-scores-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.category-score-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.category-score-name {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  min-width: 85px;
+  flex-shrink: 0;
+}
+
+.category-score-track {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-surface);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.category-score-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.category-score-fill.score-good {
+  background: linear-gradient(90deg, #34d399, #10b981);
+}
+
+.category-score-fill.score-fair {
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+}
+
+.category-score-fill.score-poor {
+  background: linear-gradient(90deg, #f87171, #ef4444);
+}
+
+.category-score-value {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 24px;
+  text-align: right;
+}
+
+.category-scores-rationale {
+  margin-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 8px;
+}
+
+.category-scores-rationale summary {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.category-scores-rationale summary:hover {
+  color: var(--red-primary);
+}
+
+.rationale-item {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-top: 6px;
+  padding-left: 8px;
+  border-left: 2px solid var(--border-subtle);
+}
+
 .history-links {
   display: flex;
   gap: 12px;

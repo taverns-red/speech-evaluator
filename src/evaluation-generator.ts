@@ -1364,6 +1364,7 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
       items: publicItems,
       closing: evaluation.closing,
       structure_commentary: evaluation.structure_commentary,
+      ...(evaluation.category_scores ? { category_scores: evaluation.category_scores } : {}),
     };
 
     return { scriptRedacted: script, evaluationPublic };

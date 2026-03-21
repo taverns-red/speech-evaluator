@@ -270,6 +270,67 @@ export function renderStyledItems(styleItems, evaluationStyle) {
 }
 
 /**
+ * Renders category score bars as a DOM element.
+ * Shared between live evaluation and history views.
+ * Phase 8 — #144
+ */
+export function renderCategoryScoresBar(categoryScores) {
+  if (!categoryScores || !Array.isArray(categoryScores) || categoryScores.length === 0) return null;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "history-category-scores";
+
+  const label = document.createElement("div");
+  label.className = "category-scores-label";
+  label.textContent = "Category Scores";
+  wrapper.appendChild(label);
+
+  const bars = document.createElement("div");
+  bars.className = "category-scores-bars";
+
+  for (const cs of categoryScores) {
+    const pct = Math.round((cs.score / 10) * 100);
+    const colorClass = cs.score >= 7 ? "score-good" : cs.score >= 4 ? "score-fair" : "score-poor";
+    const categoryLabel = cs.category.charAt(0).toUpperCase() + cs.category.slice(1);
+
+    const row = document.createElement("div");
+    row.className = "category-score-row";
+    row.innerHTML = `
+      <span class="category-score-name">${escapeHtml(categoryLabel)}</span>
+      <div class="category-score-track">
+        <div class="category-score-fill ${colorClass}" style="width:${pct}%"></div>
+      </div>
+      <span class="category-score-value">${cs.score}</span>
+    `;
+    bars.appendChild(row);
+  }
+  wrapper.appendChild(bars);
+
+  // Collapsible rationales
+  const hasRationale = categoryScores.some(cs => cs.rationale && cs.rationale !== "No rationale provided");
+  if (hasRationale) {
+    const details = document.createElement("details");
+    details.className = "category-scores-rationale";
+    const summary = document.createElement("summary");
+    summary.textContent = "View rationales";
+    details.appendChild(summary);
+
+    for (const cs of categoryScores) {
+      if (cs.rationale && cs.rationale !== "No rationale provided") {
+        const item = document.createElement("div");
+        item.className = "rationale-item";
+        const catLabel = cs.category.charAt(0).toUpperCase() + cs.category.slice(1);
+        item.innerHTML = `<strong>${escapeHtml(catLabel)}:</strong> ${escapeHtml(cs.rationale)}`;
+        details.appendChild(item);
+      }
+    }
+    wrapper.appendChild(details);
+  }
+
+  return wrapper;
+}
+
+/**
  * Renders the evaluation text with evidence quotes as clickable links.
  * Evidence quotes from evaluation items are matched against the text
  * and wrapped in clickable <span> elements (Req 7.1).
@@ -316,6 +377,12 @@ export function renderEvaluationWithEvidence(text, evaluationData) {
       closingDiv.className = "eval-section eval-closing";
       closingDiv.textContent = evaluationData.closing;
       dom.evaluationContent.appendChild(closingDiv);
+    }
+
+    // Category scores bar chart (#144)
+    if (evaluationData.category_scores) {
+      const scoresEl = renderCategoryScoresBar(evaluationData.category_scores);
+      if (scoresEl) dom.evaluationContent.appendChild(scoresEl);
     }
     return;
   }
@@ -431,6 +498,12 @@ export function renderEvaluationWithEvidence(text, evaluationData) {
 
   dom.evaluationContent.textContent = "";
   dom.evaluationContent.appendChild(container);
+
+  // Category scores bar chart (#144)
+  if (evaluationData && evaluationData.category_scores) {
+    const scoresEl = renderCategoryScoresBar(evaluationData.category_scores);
+    if (scoresEl) dom.evaluationContent.appendChild(scoresEl);
+  }
 }
 
 // ─── UI Update: Evaluation ────────────────────────────────────────

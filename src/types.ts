@@ -360,6 +360,7 @@ export interface StructuredEvaluationPublic {
   closing: string;
   structure_commentary: StructureCommentary;
   completed_form?: string; // Phase 5 (#64) — completed evaluation form text
+  category_scores?: CategoryScore[]; // #144 — per-category 0-10 scores
 }
 
 // ─── Redaction Types (Phase 2 — Req 8.1) ────────────────────────────────────────
