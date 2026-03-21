@@ -2247,6 +2247,130 @@ body::before {
   margin-top: 10px;
 }
 
+/* -- Goals (#153) --------------------------------------------------------- */
+
+.goals-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.goals-header {
+  margin-bottom: 12px;
+}
+
+.goals-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.goal-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+}
+
+.goal-item.goal-met {
+  background: rgba(129, 199, 132, 0.08);
+  border-left: 3px solid #81c784;
+}
+
+.goal-item.goal-not-met {
+  background: rgba(255, 183, 77, 0.08);
+  border-left: 3px solid #ffb74d;
+}
+
+.goal-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.goal-detail {
+  flex: 1;
+  min-width: 0;
+}
+
+.goal-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.goal-bar-track {
+  height: 6px;
+  background: var(--border-subtle);
+  border-radius: 3px;
+  margin: 6px 0 4px;
+  overflow: hidden;
+}
+
+.goal-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.goal-bar-fill.goal-met { background: #81c784; }
+.goal-bar-fill.goal-not-met { background: #ffb74d; }
+
+.goal-current {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.goal-delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+
+.goal-delete-btn:hover { color: var(--red-primary); }
+
+.goal-add-form { margin-top: 12px; }
+
+.goal-add-form summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.goal-form-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+.goal-form-fields select,
+.goal-form-fields input {
+  background: var(--bg-body);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm, 4px);
+  padding: 6px 10px;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+}
+
+.goal-submit-btn {
+  padding: 6px 14px;
+  font-size: 0.8rem;
+}
+
 /* ── Practice Mode (#146) ────────────────────────────────────────────────── */
 
 .practice-mode-label {

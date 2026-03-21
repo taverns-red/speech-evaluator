@@ -1,5 +1,7 @@
 // AI Speech Evaluator — Express + WebSocket server
 import { RoleRegistry } from "./role-registry.js";
+import { loadGoals, saveGoals, evaluateGoals } from "./goals.js";
+import type { SpeakerGoal } from "./goals.js";
 import { createLogger } from "./logger.js";
 import type { MetricsCollector, MetricsSnapshot } from "./metrics-collector.js";
 import { requestTimeout } from "./request-timeout.js";
@@ -378,6 +380,48 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
       }
     });
     logger.info("Habits endpoint mounted at /api/habits/:speaker (#147)");
+
+    // GET /api/goals/:speaker — retrieve goals + evaluation status (#153)
+    app.get("/api/goals/:speaker", async (req, res) => {
+      try {
+        const speaker = decodeURIComponent(req.params.speaker);
+        const goals = await loadGoals(gcsHistoryService.client, speaker);
+        if (goals.length === 0) {
+          res.json({ goals: [], evaluations: [] });
+          return;
+        }
+        // Evaluate against latest progress
+        const progress = await gcsHistoryService.getProgressData(speaker, 50);
+        const evaluations = evaluateGoals(goals, progress);
+        res.json({ goals, evaluations });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error(`Goals GET API error: ${errMsg}`);
+        res.status(500).json({ error: "Failed to load goals" });
+      }
+    });
+
+    // POST /api/goals/:speaker — create/update goals (#153)
+    app.post("/api/goals/:speaker", express.json(), async (req, res) => {
+      try {
+        const speaker = decodeURIComponent(req.params.speaker);
+        const { goals } = req.body as { goals: SpeakerGoal[] };
+        if (!Array.isArray(goals)) {
+          res.status(400).json({ error: "goals must be an array" });
+          return;
+        }
+        await saveGoals(gcsHistoryService.client, speaker, goals);
+        // Return evaluations for immediate display
+        const progress = await gcsHistoryService.getProgressData(speaker, 50);
+        const evaluations = evaluateGoals(goals, progress);
+        res.json({ goals, evaluations });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error(`Goals POST API error: ${errMsg}`);
+        res.status(500).json({ error: "Failed to save goals" });
+      }
+    });
+    logger.info("Goals endpoints mounted at /api/goals/:speaker (#153)");
   }
 
   // WebSocket server — noServer mode when auth is enabled for manual upgrade

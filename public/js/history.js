@@ -303,7 +303,155 @@ function renderHabitReport(data) {
   panel.style.display = "block";
 }
 
-// ─── Rendering ──────────────────────────────────────────────────────
+// --- Goals (#153) --------------------------------------------------------
+
+let currentGoalsSpeaker = null;
+
+async function fetchGoals(speaker) {
+  const res = await fetch(`/api/goals/${encodeURIComponent(speaker)}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function saveGoalsToServer(speaker, goals) {
+  const res = await fetch(`/api/goals/${encodeURIComponent(speaker)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ goals }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function renderGoalsPanel(data) {
+  const panel = document.getElementById("goals-panel");
+  if (!panel) return;
+
+  const { goals, evaluations } = data;
+
+  let html = '<div class="goals-content">';
+  html += '<div class="goals-header">';
+  html += '<span class="goals-title">🎯 Goals</span>';
+  html += '</div>';
+
+  if (evaluations && evaluations.length > 0) {
+    for (const ev of evaluations) {
+      const g = ev.goal;
+      const metClass = ev.met ? "goal-met" : "goal-not-met";
+      const icon = ev.met ? "🎉" : "⚠️";
+      const metricLabel = g.metric === "wpm" ? "WPM"
+        : g.metric === "filler_frequency" ? "Fillers/min"
+        : `${(g.category || "").charAt(0).toUpperCase() + (g.category || "").slice(1)} Score`;
+      const targetLabel = g.direction === "between"
+        ? `${g.target}–${g.targetHigh}`
+        : `${g.direction === "above" ? "≥" : "≤"} ${g.target}`;
+      const currentLabel = ev.currentValue !== null ? String(Math.round(ev.currentValue * 10) / 10) : "—";
+      const pct = ev.currentValue !== null
+        ? Math.min(100, Math.round((ev.currentValue / (g.targetHigh || g.target)) * 100))
+        : 0;
+
+      html += `
+        <div class="goal-item ${metClass}">
+          <span class="goal-icon">${icon}</span>
+          <div class="goal-detail">
+            <div class="goal-label">${escapeHtml(metricLabel)}: ${escapeHtml(targetLabel)}</div>
+            <div class="goal-bar-track">
+              <div class="goal-bar-fill ${metClass}" style="width:${pct}%"></div>
+            </div>
+            <div class="goal-current">Current: ${escapeHtml(currentLabel)}</div>
+          </div>
+          <button class="goal-delete-btn" data-goal-id="${escapeHtml(g.id)}" title="Remove goal">✕</button>
+        </div>`;
+    }
+  }
+
+  // Add goal form
+  html += `
+    <details class="goal-add-form">
+      <summary>+ Add Goal</summary>
+      <div class="goal-form-fields">
+        <select id="goal-metric">
+          <option value="wpm">Words Per Minute</option>
+          <option value="filler_frequency">Filler Frequency</option>
+          <option value="category_score">Category Score</option>
+        </select>
+        <select id="goal-category" style="display:none;">
+          <option value="delivery">Delivery</option>
+          <option value="content">Content</option>
+          <option value="structure">Structure</option>
+          <option value="engagement">Engagement</option>
+        </select>
+        <select id="goal-direction">
+          <option value="above">Above</option>
+          <option value="below">Below</option>
+          <option value="between">Between</option>
+        </select>
+        <input id="goal-target" type="number" placeholder="Target" step="0.1" />
+        <input id="goal-target-high" type="number" placeholder="Upper" step="0.1" style="display:none;" />
+        <button id="goal-add-btn" class="btn goal-submit-btn">Add</button>
+      </div>
+    </details>`;
+
+  html += '</div>';
+  panel.innerHTML = html;
+  panel.style.display = "block";
+
+  // Wire up metric change → show/hide category
+  const metricSel = panel.querySelector("#goal-metric");
+  const catSel = panel.querySelector("#goal-category");
+  const dirSel = panel.querySelector("#goal-direction");
+  const highInput = panel.querySelector("#goal-target-high");
+  if (metricSel) metricSel.addEventListener("change", () => {
+    catSel.style.display = metricSel.value === "category_score" ? "" : "none";
+  });
+  if (dirSel) dirSel.addEventListener("change", () => {
+    highInput.style.display = dirSel.value === "between" ? "" : "none";
+  });
+
+  // Wire add button
+  const addBtn = panel.querySelector("#goal-add-btn");
+  if (addBtn) addBtn.addEventListener("click", async () => {
+    const metric = metricSel.value;
+    const direction = dirSel.value;
+    const target = parseFloat(panel.querySelector("#goal-target").value);
+    if (isNaN(target)) return;
+    const newGoal = {
+      id: crypto.randomUUID(),
+      metric,
+      direction,
+      target,
+      created: new Date().toISOString(),
+    };
+    if (metric === "category_score") newGoal.category = catSel.value;
+    if (direction === "between") {
+      const high = parseFloat(highInput.value);
+      if (!isNaN(high)) newGoal.targetHigh = high;
+    }
+    const allGoals = [...(goals || []), newGoal];
+    try {
+      const result = await saveGoalsToServer(currentGoalsSpeaker, allGoals);
+      renderGoalsPanel(result);
+    } catch (e) {
+      console.warn("[Goals] Failed to save:", e);
+    }
+  });
+
+  // Wire delete buttons
+  panel.querySelectorAll(".goal-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const goalId = btn.dataset.goalId;
+      const remaining = (goals || []).filter((g) => g.id !== goalId);
+      try {
+        const result = await saveGoalsToServer(currentGoalsSpeaker, remaining);
+        renderGoalsPanel(result);
+      } catch (e) {
+        console.warn("[Goals] Failed to delete:", e);
+      }
+    });
+  });
+}
+
+// --- Rendering ------------------------------------------------------------
 
 function formatDate(isoString) {
   const d = new Date(isoString);
@@ -642,6 +790,12 @@ export async function loadHistory(speaker) {
       fetchHabits(speaker)
         .then(renderHabitReport)
         .catch((e) => console.warn("[History] Habit report unavailable:", e));
+
+      // Goals (#153) — fire-and-forget
+      currentGoalsSpeaker = speaker;
+      fetchGoals(speaker)
+        .then(renderGoalsPanel)
+        .catch((e) => console.warn("[History] Goals unavailable:", e));
     }
 
     if (data.results.length === 0 && historyResults.length === 0) {
@@ -691,6 +845,8 @@ export function resetHistory() {
 
   const progressPanel = document.getElementById("progress-panel");
   if (progressPanel) { progressPanel.style.display = "none"; progressPanel.innerHTML = ""; }
+  const goalsPanel = document.getElementById("goals-panel");
+  if (goalsPanel) { goalsPanel.style.display = "none"; goalsPanel.innerHTML = ""; }
 }
 
 export function isHistoryLoaded() {
