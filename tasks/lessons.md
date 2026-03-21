@@ -10,7 +10,15 @@
 <!--                                                                                      -->
 <!-- **The Resulting Rule**: [The new rule or constraint going forward]                    -->
 <!--                                                                                      -->
-<!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->## 🗓️ 2026-03-21 — Lesson 52: Pin GitHub Actions by SHA or Verified Tag — Supply Chain Attacks Are Real
+<!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->## 🗓️ 2026-03-21 — Lesson 53: Clerk Development Instances Cannot Use Custom Domains
+
+**The Discovery**: Clerk's development instances (`pk_test_` keys) do not support Allowed Subdomains, Satellites, or proxy configuration — all require a production instance. Bot protection (Turnstile) also fails on custom domains in dev mode because the Turnstile widget can't initialize outside Clerk's `accounts.dev` domain. Sign-in works, but sign-up triggers bot protection and fails with "Unable to complete action."
+
+**The Resulting Rule**: For Clerk dev mode, either disable bot protection in the Clerk Dashboard (Attack Protection → None) or test on the raw Cloud Run URL. For production, switch to `pk_live_`/`sk_live_` keys and set up the 5 CNAME records for the custom domain.
+
+**Future Warning**: When switching to production Clerk keys, you'll need DNS records (clerk.eval, accounts.eval, clkmail.eval, + 2 DKIM records) pointing to `*.clerk.services`. The proxy configuration is only available on production instances.
+
+## 🗓️ 2026-03-21 — Lesson 52: Pin GitHub Actions by SHA or Verified Tag — Supply Chain Attacks Are Real
 
 **The Discovery**: While updating `aquasecurity/trivy-action` from `@master` to a tagged version, research revealed that tags `0.0.1`–`0.34.2` were compromised in a supply chain attack (Feb-Mar 2026). Attackers force-pushed malicious info-stealer code to 75 of 76 version tags. Only `0.35.0` was clean.
 
