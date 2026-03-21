@@ -11,6 +11,21 @@
 <!-- **The Resulting Rule**: [The new rule or constraint going forward]                    -->
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
+## 🗓️ 2026-03-21 — Lesson 50: Deepgram Diarization — Use Mode for Segment-Level Speaker
+
+**The Discovery**: Deepgram's `diarize: true` adds a `speaker` integer to each word, but segments span multiple words that may have different speaker labels (e.g., at speaker transitions). Computing the segment-level speaker as the statistical mode of its word speakers produces the most intuitive result, gracefully handling boundary segments.
+
+**The Resulting Rule**: When aggregating per-word labels to a segment level, use mode (most frequent value) rather than first-word or last-word. This handles edge cases like mid-segment speaker switches while maintaining a clean API for the frontend.
+
+**Future Warning**: The `speaker` field is `undefined` on all words when diarization isn't supported (e.g., mono audio with a single speaker). Always use conditional spreading (`...(w.speaker !== undefined ? { speakerId: w.speaker } : {})`) to keep the field absent rather than setting it to `null`.
+
+## 🗓️ 2026-03-21 — Lesson 51: Auth SDK Migration — Keep the Interface, Replace the Engine
+
+**The Discovery**: Migrating from Firebase Auth to Clerk was clean because the middleware surface area was already well-defined: `createAuthMiddleware(options)` and `verifyAndAuthorize(token, ...)`. Only the engine internals changed (Firebase `verifyIdToken` → Clerk `clerkMiddleware` + `getAuth`). The `req.user` shape, public paths, allowlist logic, and access-denied HTML were all reused verbatim.
+
+**The Resulting Rule**: When swapping authentication providers, design the auth middleware with a provider-agnostic interface. Keep the public contract (`req.user`, `verifyAndAuthorize` return type) stable and only change the internal verification call. This enabled a 1-file migration with 0 changes to consumers.
+
+**Future Warning**: Clerk session claims require custom configuration in the Clerk dashboard to include `email`, `name`, and `picture`. Without this, `sessionClaims.email` will be `undefined` and the allowlist will reject all users.
 
 ## 🗓️ 2026-03-21 — Lesson 48: Pure-Logic Modules Enable TDD for Real-time Features
 
