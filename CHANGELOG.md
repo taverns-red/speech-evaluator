@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.18](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.17...ai-speech-evaluator-v0.6.18) (2026-03-21)
+
+
+### Features
+
+* add GCS data retention sweep and lesson 39 ([#130](https://github.com/taverns-red/speech-evaluator/issues/130)) ([10eb122](https://github.com/taverns-red/speech-evaluator/commit/10eb12254ae944386bd4c704f9563a72a387121a))
+* extract objectives from evaluation form in LLM prompt ([#131](https://github.com/taverns-red/speech-evaluator/issues/131)) ([7e80cec](https://github.com/taverns-red/speech-evaluator/commit/7e80cec123eb8916e42a2130e323aad998b5be54))
+* thread analysisTier/visionFrameCount through upload handler to GCS ([#130](https://github.com/taverns-red/speech-evaluator/issues/130)) ([9c14b0d](https://github.com/taverns-red/speech-evaluator/commit/9c14b0d76503ddcc56b07a3992a1fe399368efd6))
+
 ## [0.6.17](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.16...ai-speech-evaluator-v0.6.17) (2026-03-21)
 
 
