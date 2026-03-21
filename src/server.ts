@@ -340,6 +340,52 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
     });
     logger.info("Progress endpoint mounted at /api/progress/:speaker (#140)");
 
+    // GET /api/export/:speaker/* — Markdown evaluation export (#164)
+    app.get("/api/export/:speaker/*", async (req, res) => {
+      try {
+        const speaker = decodeURIComponent(req.params.speaker);
+        const evalPrefix = (req.params as unknown as Record<string, string>)[0]; // Everything after /speaker/
+
+        if (!evalPrefix) {
+          res.status(400).json({ error: "Missing evaluation prefix" });
+          return;
+        }
+
+        const prefix = `results/${evalPrefix}`;
+
+        // Read all required files from GCS
+        const [metadataRaw, evaluationRaw, metricsRaw, transcriptRaw] = await Promise.all([
+          gcsHistoryService.client.readFile(`${prefix}metadata.json`),
+          gcsHistoryService.client.readFile(`${prefix}evaluation.json`),
+          gcsHistoryService.client.readFile(`${prefix}metrics.json`),
+          gcsHistoryService.client.readFile(`${prefix}transcript.json`),
+        ]);
+
+        const metadata = JSON.parse(metadataRaw);
+        const evalData = JSON.parse(evaluationRaw);
+        const metrics = JSON.parse(metricsRaw);
+        const transcript = JSON.parse(transcriptRaw);
+
+        const { generateMarkdownReport } = await import("./markdown-export.js");
+        const report = generateMarkdownReport({
+          metadata,
+          evaluation: evalData.evaluation,
+          metrics,
+          transcript,
+        });
+
+        const filename = `${metadata.speechTitle || "evaluation"}-${metadata.date?.split("T")[0] || "report"}.md`;
+        res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        res.send(report);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error(`Export API error: ${errMsg}`);
+        res.status(500).json({ error: "Failed to generate export" });
+      }
+    });
+    logger.info("Export endpoint mounted at /api/export/:speaker/* (#164)");
+
     // GET /api/improvement-plan/:speaker — personalized practice plan (#145)
     if (options.openaiClient) {
       const openaiClient = options.openaiClient;

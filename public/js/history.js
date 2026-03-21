@@ -737,6 +737,7 @@ async function toggleHistoryDetail(div, item) {
     html += '<div class="history-links">';
     if (urls.transcript) html += `<a href="${escapeHtml(urls.transcript)}" target="_blank" class="history-link">📄 Transcript</a>`;
     if (urls.metrics) html += `<a href="${escapeHtml(urls.metrics)}" target="_blank" class="history-link">📊 Metrics</a>`;
+    html += `<button class="history-export-btn" title="Export as Markdown">📄 Export</button>`;
     html += `<button class="history-delete-btn" title="Delete this evaluation">🗑️ Delete</button>`;
     html += "</div>";
 
@@ -784,6 +785,42 @@ async function toggleHistoryDetail(div, item) {
           deleteBtn.textContent = "🗑️ Delete";
           deleteBtn.disabled = false;
           alert("Failed to delete: " + err.message);
+        }
+      });
+    }
+
+    // Wire export button (#164)
+    const exportBtn = detail.querySelector(".history-export-btn");
+    if (exportBtn) {
+      exportBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        exportBtn.disabled = true;
+        exportBtn.textContent = "Exporting...";
+        try {
+          // Extract the speaker-relative prefix from the full GCS prefix
+          // Full prefix: results/alice-speaker/2026-03-21-1700-title/
+          // We need: alice-speaker/2026-03-21-1700-title/
+          const prefix = item.metadata.prefix;
+          const relativePath = prefix.replace(/^results\//, "");
+          const speaker = encodeURIComponent(item.metadata.speakerName);
+          const res = await fetch(`/api/export/${speaker}/${relativePath}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${item.metadata.speechTitle || "evaluation"}-${(item.metadata.date || "").split("T")[0] || "report"}.md`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          exportBtn.textContent = "📄 Export";
+          exportBtn.disabled = false;
+        } catch (err) {
+          console.error("[History] Failed to export:", err);
+          exportBtn.textContent = "📄 Export";
+          exportBtn.disabled = false;
+          alert("Failed to export: " + err.message);
         }
       });
     }

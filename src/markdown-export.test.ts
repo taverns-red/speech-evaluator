@@ -1,0 +1,312 @@
+/**
+ * Tests for markdown-export.ts (#164)
+ *
+ * Tests the pure generateMarkdownReport() function with various
+ * evaluation data shapes.
+ */
+
+import { describe, it, expect } from "vitest";
+import { generateMarkdownReport, type MarkdownExportInput } from "./markdown-export.js";
+import type { StructuredEvaluation, DeliveryMetrics, TranscriptSegment } from "./types.js";
+import type { EvaluationMetadata } from "./gcs-history.js";
+
+// ─── Test Fixtures ──────────────────────────────────────────────────────────────
+
+function makeMetadata(overrides: Partial<EvaluationMetadata> = {}): EvaluationMetadata {
+  return {
+    date: "2026-03-21T17:00:00.000Z",
+    speakerName: "Alice Speaker",
+    speechTitle: "The Art of Public Speaking",
+    durationSeconds: 300,
+    wordsPerMinute: 120,
+    passRate: 0.8,
+    mode: "live",
+    prefix: "results/alice-speaker/2026-03-21-1700-the-art-of-public-speaking/",
+    ...overrides,
+  };
+}
+
+function makeMetrics(overrides: Partial<DeliveryMetrics> = {}): DeliveryMetrics {
+  return {
+    durationSeconds: 300,
+    durationFormatted: "5:00",
+    totalWords: 600,
+    wordsPerMinute: 120,
+    fillerWords: [],
+    fillerWordCount: 3,
+    fillerWordFrequency: 0.005,
+    pauseCount: 5,
+    totalPauseDurationSeconds: 8.5,
+    averagePauseDurationSeconds: 1.7,
+    intentionalPauseCount: 3,
+    hesitationPauseCount: 2,
+    classifiedPauses: [],
+    energyVariationCoefficient: 0.35,
+    energyProfile: { windowDurationMs: 250, windows: [], coefficientOfVariation: 0.35, silenceThreshold: 0 },
+    classifiedFillers: [],
+    visualMetrics: null,
+    ...overrides,
+  };
+}
+
+function makeEvaluation(overrides: Partial<StructuredEvaluation> = {}): StructuredEvaluation {
+  return {
+    opening: "Great speech today, Alice!",
+    items: [
+      {
+        type: "commendation",
+        summary: "Strong opening",
+        evidence_quote: "Good morning everyone",
+        evidence_timestamp: 0.5,
+        explanation: "Your opening immediately grabbed attention.",
+      },
+      {
+        type: "recommendation",
+        summary: "Reduce filler words",
+        evidence_quote: "um, so basically",
+        evidence_timestamp: 45.2,
+        explanation: "Try replacing filler words with deliberate pauses.",
+      },
+    ],
+    closing: "Keep up the great work!",
+    structure_commentary: {
+      opening_comment: "You had a clear thesis statement.",
+      body_comment: "The body was well-organized with three main points.",
+      closing_comment: null,
+    },
+    ...overrides,
+  };
+}
+
+function makeTranscript(): TranscriptSegment[] {
+  return [
+    {
+      text: "Good morning everyone, I am here to talk about public speaking.",
+      startTime: 0,
+      endTime: 5,
+      words: [],
+      isFinal: true,
+    },
+    {
+      text: "First, let me tell you about the importance of preparation.",
+      startTime: 5.5,
+      endTime: 10,
+      words: [],
+      isFinal: true,
+    },
+  ];
+}
+
+// ─── Tests ──────────────────────────────────────────────────────────────────────
+
+describe("generateMarkdownReport()", () => {
+  it("generates a complete report with all sections", () => {
+    const input: MarkdownExportInput = {
+      metadata: makeMetadata(),
+      evaluation: makeEvaluation(),
+      metrics: makeMetrics(),
+      transcript: makeTranscript(),
+    };
+
+    const report = generateMarkdownReport(input);
+
+    // Header
+    expect(report).toContain("# Speech Evaluation Report");
+    expect(report).toContain("**Speaker:** Alice Speaker");
+    expect(report).toContain("**Title:** The Art of Public Speaking");
+    expect(report).toContain("**Mode:** live");
+
+    // Metrics table
+    expect(report).toContain("## Delivery Metrics");
+    expect(report).toContain("| Duration | 5:00 |");
+    expect(report).toContain("| Words Per Minute | 120 |");
+    expect(report).toContain("| Total Words | 600 |");
+    expect(report).toContain("| Filler Words | 3 (0.5%) |");
+    expect(report).toContain("| Pauses | 5 (8.5s total) |");
+    expect(report).toContain("| Evidence Pass Rate | 80% |");
+
+    // Evaluation
+    expect(report).toContain("## Evaluation");
+    expect(report).toContain("> Great speech today, Alice!");
+    expect(report).toContain("### Commendations");
+    expect(report).toContain("#### ✅ Strong opening");
+    expect(report).toContain('> "Good morning everyone"');
+    expect(report).toContain("### Recommendations");
+    expect(report).toContain("#### 💡 Reduce filler words");
+
+    // Structure commentary
+    expect(report).toContain("### Structure Commentary");
+    expect(report).toContain("You had a clear thesis statement.");
+    expect(report).toContain("The body was well-organized");
+
+    // Closing
+    expect(report).toContain("> Keep up the great work!");
+
+    // Transcript
+    expect(report).toContain("## Transcript");
+    expect(report).toContain("`0:00` Good morning everyone");
+
+    // Footer
+    expect(report).toContain("*Generated by Speech Evaluator*");
+  });
+
+  it("includes category scores when present", () => {
+    const input: MarkdownExportInput = {
+      metadata: makeMetadata(),
+      evaluation: makeEvaluation({
+        category_scores: [
+          { category: "delivery", score: 7.5, rationale: "Good pacing" },
+          { category: "content", score: 8.0, rationale: "Well-organized" },
+          { category: "structure", score: 6.5, rationale: "Could use more transitions" },
+          { category: "engagement", score: 9.0, rationale: "Excellent audience connection" },
+        ],
+      }),
+      metrics: makeMetrics(),
+      transcript: makeTranscript(),
+    };
+
+    const report = generateMarkdownReport(input);
+
+    expect(report).toContain("## Category Scores");
+    expect(report).toContain("| Delivery | 7.5/10 | Good pacing |");
+    expect(report).toContain("| Content | 8/10 | Well-organized |");
+    expect(report).toContain("| Structure | 6.5/10 | Could use more transitions |");
+    expect(report).toContain("| Engagement | 9/10 | Excellent audience connection |");
+  });
+
+  it("omits category scores section when absent", () => {
+    const input: MarkdownExportInput = {
+      metadata: makeMetadata(),
+      evaluation: makeEvaluation(),
+      metrics: makeMetrics(),
+      transcript: makeTranscript(),
+    };
+
+    const report = generateMarkdownReport(input);
+    expect(report).not.toContain("## Category Scores");
+  });
+
+  it("includes project type when present", () => {
+    const input: MarkdownExportInput = {
+      metadata: makeMetadata({ projectType: "Ice Breaker" }),
+      evaluation: makeEvaluation(),
+      metrics: makeMetrics(),
+      transcript: makeTranscript(),
+    };
+
+    const report = generateMarkdownReport(input);
+    expect(report).toContain("**Project Type:** Ice Breaker");
+  });
+
+  it("omits project type when absent", () => {
+    const input: MarkdownExportInput = {
+      metadata: makeMetadata(),
+      evaluation: makeEvaluation(),
+      metrics: makeMetrics(),
+      transcript: makeTranscript(),
+    };
+
+    const report = generateMarkdownReport(input);
+    expect(report).not.toContain("**Project Type:**");
+  });
+
+  it("handles empty transcript gracefully", () => {
+    const input: MarkdownExportInput = {
+      metadata: makeMetadata(),
+      evaluation: makeEvaluation(),
+      metrics: makeMetrics(),
+      transcript: [],
+    };
+
+    const report = generateMarkdownReport(input);
+    expect(report).not.toContain("## Transcript");
+    expect(report).toContain("*Generated by Speech Evaluator*");
+  });
+
+  it("omits structure commentary when all fields are null", () => {
+    const input: MarkdownExportInput = {
+      metadata: makeMetadata(),
+      evaluation: makeEvaluation({
+        structure_commentary: {
+          opening_comment: null,
+          body_comment: null,
+          closing_comment: null,
+        },
+      }),
+      metrics: makeMetrics(),
+      transcript: makeTranscript(),
+    };
+
+    const report = generateMarkdownReport(input);
+    expect(report).not.toContain("### Structure Commentary");
+  });
+
+  it("omits pause breakdown when both counts are zero", () => {
+    const input: MarkdownExportInput = {
+      metadata: makeMetadata(),
+      evaluation: makeEvaluation(),
+      metrics: makeMetrics({
+        intentionalPauseCount: 0,
+        hesitationPauseCount: 0,
+      }),
+      transcript: makeTranscript(),
+    };
+
+    const report = generateMarkdownReport(input);
+    expect(report).not.toContain("| Intentional Pauses");
+    expect(report).not.toContain("| Hesitation Pauses");
+  });
+
+  it("includes visual feedback when present", () => {
+    const input: MarkdownExportInput = {
+      metadata: makeMetadata(),
+      evaluation: makeEvaluation({
+        visual_feedback: [
+          {
+            type: "visual_observation",
+            summary: "Good eye contact",
+            observation_data: "metric=gazeBreakdown; facing_audience=82%",
+            explanation: "You maintained strong audience eye contact throughout.",
+          },
+        ],
+      }),
+      metrics: makeMetrics(),
+      transcript: makeTranscript(),
+    };
+
+    const report = generateMarkdownReport(input);
+    expect(report).toContain("### Visual Feedback");
+    expect(report).toContain("**Good eye contact**");
+  });
+
+  it("formats time correctly for transcript timestamps", () => {
+    const input: MarkdownExportInput = {
+      metadata: makeMetadata(),
+      evaluation: makeEvaluation(),
+      metrics: makeMetrics(),
+      transcript: [
+        { text: "Hello", startTime: 0, endTime: 1, words: [], isFinal: true },
+        { text: "At one minute", startTime: 65.3, endTime: 70, words: [], isFinal: true },
+        { text: "At ten minutes", startTime: 605, endTime: 610, words: [], isFinal: true },
+      ],
+    };
+
+    const report = generateMarkdownReport(input);
+    expect(report).toContain("`0:00` Hello");
+    expect(report).toContain("`1:05` At one minute");
+    expect(report).toContain("`10:05` At ten minutes");
+  });
+
+  it("returns valid markdown (no consecutive empty lines > 2)", () => {
+    const input: MarkdownExportInput = {
+      metadata: makeMetadata(),
+      evaluation: makeEvaluation(),
+      metrics: makeMetrics(),
+      transcript: makeTranscript(),
+    };
+
+    const report = generateMarkdownReport(input);
+    // No triple+ consecutive newlines
+    expect(report).not.toMatch(/\n\n\n/);
+  });
+});
