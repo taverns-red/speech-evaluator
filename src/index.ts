@@ -203,7 +203,7 @@ if (allowedEmails.size > 0) {
 
 // ─── Clerk client config (served at /api/config for login page) ─────────────
 const clerkPublishableKey = process.env.CLERK_PUBLISHABLE_KEY?.trim();
-const firebaseConfig = clerkPublishableKey
+const clerkConfig = clerkPublishableKey
   ? { publishableKey: clerkPublishableKey }
   : undefined;
 
@@ -232,7 +232,7 @@ roleRegistry.register(new TableTopicsEvaluatorRole());
 roleRegistry.register(new GeneralEvaluatorRole());
 log.info("Meeting roles registered", { count: roleRegistry.size, roles: roleRegistry.list().map((r) => r.name) });
 
-const server = createAppServer({ sessionManager, uploadRouter, version: APP_VERSION, authMiddleware, wsAuthVerify, firebaseConfig, roleRegistry, metricsCollector, gcsHistoryService, openaiClient: openaiClient as any });
+const server = createAppServer({ sessionManager, uploadRouter, version: APP_VERSION, authMiddleware, wsAuthVerify, clerkConfig, roleRegistry, metricsCollector, gcsHistoryService, openaiClient: openaiClient as any });
 
 server.listen(port).then(() => {
   log.info("Server started", {

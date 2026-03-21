@@ -131,8 +131,8 @@ export interface CreateServerOptions {
   authMiddleware?: RequestHandler;
   /** Optional function to verify WebSocket upgrade requests. Returns true if allowed. */
   wsAuthVerify?: (req: IncomingMessage) => Promise<boolean>;
-  /** Auth client-side config served at /api/config (no auth required). */
-  firebaseConfig?: Record<string, string>;
+  /** Clerk client config served at /api/config (no auth required). */
+  clerkConfig?: Record<string, string>;
   /** RoleRegistry for meeting roles (Phase 9). */
   roleRegistry?: RoleRegistry;
   /** MetricsCollector for /api/health and /api/metrics (Phase 7). */
@@ -170,7 +170,7 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
     uploadRouter,
     authMiddleware,
     wsAuthVerify,
-    firebaseConfig,
+    clerkConfig,
   } = options;
 
   const app = express();
@@ -210,9 +210,9 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
   });
 
   // Auth client config endpoint (unauthenticated — needed by login page)
-  if (firebaseConfig) {
+  if (clerkConfig) {
     app.get("/api/config", (_req, res) => {
-      res.json(firebaseConfig);
+      res.json(clerkConfig);
     });
   }
 

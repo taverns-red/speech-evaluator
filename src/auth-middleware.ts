@@ -1,5 +1,4 @@
-// Auth Middleware — Clerk Auth JWT verification + email allowlist
-// Issue #158: Migrate from Firebase Auth to Clerk, unblocking Admin & User Management (#150).
+// Auth Middleware — Clerk JWT verification + email allowlist (#158)
 
 import type { Request, Response, NextFunction } from "express";
 import { clerkMiddleware, getAuth } from "@clerk/express";
