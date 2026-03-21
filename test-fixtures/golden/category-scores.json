@@ -1,0 +1,25 @@
+{
+  "_comment": "Golden file for CategoryScore array shape. Tests verify structure, not content values.",
+  "category_scores": [
+    {
+      "category": "delivery",
+      "score": 0,
+      "rationale": "string"
+    },
+    {
+      "category": "content",
+      "score": 0,
+      "rationale": "string"
+    },
+    {
+      "category": "structure",
+      "score": 0,
+      "rationale": "string"
+    },
+    {
+      "category": "engagement",
+      "score": 0,
+      "rationale": "string"
+    }
+  ]
+}

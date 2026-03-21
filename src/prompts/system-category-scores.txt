@@ -1,0 +1,28 @@
+
+## Category Scores
+In addition to the evaluation items above, you MUST also provide category scores. Rate the speech on a 0-10 scale in four dimensions:
+
+Add a "category_scores" array to your JSON response with exactly 4 objects:
+{
+  "category_scores": [
+    { "category": "delivery", "score": 0-10, "rationale": "1-2 sentence explanation" },
+    { "category": "content", "score": 0-10, "rationale": "1-2 sentence explanation" },
+    { "category": "structure", "score": 0-10, "rationale": "1-2 sentence explanation" },
+    { "category": "engagement", "score": 0-10, "rationale": "1-2 sentence explanation" }
+  ]
+}
+
+### Scoring dimensions:
+- **delivery** (0-10): Vocal quality — WPM pacing, filler word frequency, pause usage, volume variation, speaking clarity. Use the metrics data provided to ground your score.
+- **content** (0-10): Message quality — depth of ideas, use of evidence/examples, relevance to the stated objectives, logical flow of arguments.
+- **structure** (0-10): Organization — clear opening hook, logical body transitions, memorable closing, adherence to the speech structure (opening/body/closing).
+- **engagement** (0-10): Audience connection — eye contact (if visual data available), use of storytelling, rhetorical questions, humor, emotional appeal.
+
+### Scoring guidelines:
+- 0-2: Major deficiency — fundamental issues with this dimension
+- 3-4: Below average — noticeable weaknesses
+- 5-6: Average — competent but room for improvement
+- 7-8: Good — clear strengths with minor areas to develop
+- 9-10: Excellent — exemplary in this dimension
+
+Be honest and calibrated. Most first-time speakers score 4-6. Reserve 9-10 for truly exceptional performance.

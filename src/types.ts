@@ -239,6 +239,17 @@ export interface ProsodicIndicators {
   onsetCount: number;
 }
 
+
+// ─── Category Scores (Phase 8 — #144) ───────────────────────────────────────────
+
+export type ScoreCategory = "delivery" | "content" | "structure" | "engagement";
+
+export interface CategoryScore {
+  category: ScoreCategory;
+  score: number; // 0-10 inclusive
+  rationale: string; // 1-2 sentence explanation
+}
+
 // ─── Evaluation Styles (#133) ───────────────────────────────────────────────────
 
 export enum EvaluationStyle {
@@ -329,6 +340,7 @@ export interface StructuredEvaluation {
   completed_form?: string; // Phase 5 (#64) — completed evaluation form text
   evaluation_style?: EvaluationStyle; // #133 — which feedback style was used
   style_items?: StyledEvaluationItem[]; // #133 — style-specific items (non-classic styles)
+  category_scores?: CategoryScore[]; // #144 — per-category 0-10 scores
 }
 
 // ─── Public Evaluation Types (Phase 2 — Req 8.1) ───────────────────────────────

@@ -369,4 +369,45 @@ describe("Golden File Snapshot Tests (#142)", () => {
       expect(mismatches).toEqual([]);
     });
   });
+
+  describe("CategoryScore Shape (#144)", () => {
+    it("should match the category-scores.json golden structure", () => {
+      const golden = loadGolden("category-scores.json");
+      const actual = {
+        category_scores: [
+          { category: "delivery", score: 7.5, rationale: "Good pacing." },
+          { category: "content", score: 6, rationale: "Solid arguments." },
+          { category: "structure", score: 8, rationale: "Clear opening." },
+          { category: "engagement", score: 5, rationale: "Limited interaction." },
+        ],
+      };
+
+      const mismatches = verifyShape(golden, actual);
+      expect(mismatches).toEqual([]);
+    });
+
+    it("should detect missing rationale field", () => {
+      const golden = loadGolden("category-scores.json");
+      const actual = {
+        category_scores: [
+          { category: "delivery", score: 7 }, // missing rationale
+        ],
+      };
+
+      const mismatches = verifyShape(golden, actual);
+      expect(mismatches.length).toBeGreaterThanOrEqual(1);
+      expect(mismatches.some((m) => m.includes("rationale"))).toBe(true);
+    });
+
+    it("should validate all four categories are present in golden file", () => {
+      const golden = loadGolden("category-scores.json") as {
+        category_scores: Array<{ category: string }>;
+      };
+      const categories = golden.category_scores.map((s) => s.category);
+      expect(categories).toContain("delivery");
+      expect(categories).toContain("content");
+      expect(categories).toContain("structure");
+      expect(categories).toContain("engagement");
+    });
+  });
 });

@@ -12,6 +12,7 @@
 import type OpenAI from "openai";
 import { buildSystemPromptFromTemplates, buildItemRetrySystemPrompt } from "./prompt-loader.js";
 import type {
+  CategoryScore,
   ConsentRecord,
   DeliveryMetrics,
   EvaluationConfig,
@@ -918,6 +919,9 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
           ? obj.completed_form
           : undefined;
 
+      // Parse optional category_scores array (Phase 8 — #144)
+      const category_scores = this.parseCategoryScores(obj.category_scores);
+
       return {
         opening: obj.opening,
         items,
@@ -925,6 +929,7 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
         structure_commentary: structureCommentary,
         ...(visual_feedback ? { visual_feedback } : {}),
         ...(completed_form ? { completed_form } : {}),
+        ...(category_scores ? { category_scores } : {}),
       };
     }
 
@@ -979,6 +984,43 @@ Please provide a corrected version of this ${item.type} with a valid evidence qu
         ? obj.closing_comment
         : null,
     };
+  }
+
+  /**
+   * Parse optional category_scores array from the LLM response.
+   * Returns undefined if not present or invalid (backward compatible).
+   * Phase 8 — #144
+   */
+  private parseCategoryScores(raw: unknown): CategoryScore[] | undefined {
+    if (!Array.isArray(raw) || raw.length === 0) {
+      return undefined;
+    }
+
+    const VALID_CATEGORIES = new Set(["delivery", "content", "structure", "engagement"]);
+    const scores: CategoryScore[] = [];
+
+    for (const item of raw) {
+      if (!item || typeof item !== "object") continue;
+      const obj = item as Record<string, unknown>;
+
+      const category = obj.category;
+      if (typeof category !== "string" || !VALID_CATEGORIES.has(category)) continue;
+
+      const score = typeof obj.score === "number" ? obj.score : Number(obj.score);
+      if (!Number.isFinite(score) || score < 0 || score > 10) continue;
+
+      const rationale = typeof obj.rationale === "string" && obj.rationale.length > 0
+        ? obj.rationale
+        : "No rationale provided";
+
+      scores.push({
+        category: category as CategoryScore["category"],
+        score: Math.round(score * 10) / 10, // Round to 1 decimal
+        rationale,
+      });
+    }
+
+    return scores.length > 0 ? scores : undefined;
   }
 
   // ── Validate and retry pipeline ────────────────────────────────────────────

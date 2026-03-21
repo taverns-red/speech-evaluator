@@ -52,6 +52,7 @@ export const PromptTemplates = {
   SYSTEM_FORM: "system-form.txt",
   SYSTEM_VISUAL: "system-visual.txt",
   SYSTEM_ITEM_RETRY: "system-item-retry.txt",
+  SYSTEM_CATEGORY_SCORES: "system-category-scores.txt", // #144
   // Style-specific addenda (#133)
   STYLE_SBI: "style-sbi.txt",
   STYLE_FEEDFORWARD: "style-feedforward.txt",
@@ -82,6 +83,9 @@ export function buildSystemPromptFromTemplates(options: {
   evaluationStyle?: string;
 }): string {
   let prompt = loadTemplate(PromptTemplates.SYSTEM_BASE);
+
+  // Always include category scores (#144)
+  prompt += loadTemplate(PromptTemplates.SYSTEM_CATEGORY_SCORES);
 
   if (options.qualityWarning) {
     prompt += loadTemplate(PromptTemplates.SYSTEM_QUALITY_WARNING);
