@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.20](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.19...ai-speech-evaluator-v0.6.20) (2026-03-21)
+
+
+### Features
+
+* style-aware rendering and server validation ([#135](https://github.com/taverns-red/speech-evaluator/issues/135)) ([6e6186d](https://github.com/taverns-red/speech-evaluator/commit/6e6186d833be67f9cdd938db270361d0618531ad))
+
 ## [0.6.19](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.18...ai-speech-evaluator-v0.6.19) (2026-03-21)
 
 
