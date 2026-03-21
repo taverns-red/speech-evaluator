@@ -82,6 +82,14 @@ After a speech ends, the system delivers a spoken and written evaluation in unde
 | **Style Prompts** | Style-specific LLM prompt partials with output schemas | `prompts/style-*.txt`, `prompt-loader.ts` |
 | **Style Rendering** | Card layouts for each style in live + history views | `transcript.js`, `history.js` |
 
+### UX Streamline (Sprint C6)
+
+| Feature | Description | Key Files |
+|---------|-------------|-----------|
+| **Collapsible Config Sections** | Meeting Roles, Time Limit, VAD, Analysis Depth, Feedback Style collapse via `<details>` | `index.html`, `style.css` |
+| **Sticky Action Bar** | Start Speech / Panic Mute fixed at bottom of viewport | `style.css` |
+| **Dynamic Summary Labels** | Collapsed headers show current setting (e.g., "Standard ~$0.10") | `consent.js` |
+
 ---
 
 ## Business Rules

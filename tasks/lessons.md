@@ -12,6 +12,14 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-21 — Lesson 41: Native details/summary for Config Section Collapse
+
+**The Discovery**: The consent form grew to 7 sections over C1-C5, pushing the Start Speech button ~4 screen-heights below the fold. Rather than building a custom accordion or React component, native `<details>`/`<summary>` HTML elements provide zero-JS collapse behavior that works on all modern browsers, including mobile Safari.
+
+**The Resulting Rule**: When a form grows beyond 2-3 sections, wrap optional/advanced config in `<details>` with `<summary>` showing the current setting value. Keep essential inputs (consent, identity) always visible. Combine with a `sticky` action bar so the primary CTA is never hidden. This gives 80% of a setup wizard's benefit at 5% of the cost.
+
+**Future Warning**: `<details>` has no open/close animation by default. If the snap-open feels jarring, add a CSS `max-height` transition on the inner `.config-body`. Also, `<details>` elements can't be programmatically controlled via `display:none` on their children — you must target the `<details>` element itself for show/hide (as done for `config-roles`).
+
 ## 🗓️ 2026-03-20 — Lesson 39: Retention Sweep as a Lightweight Alternative to GCS Lifecycle
 
 **The Discovery**: GCS lifecycle policies require bucket-level admin access and operate on object age (creation time), not on metadata fields. Since evaluation age should be based on the `date` field in `metadata.json` (when the speech was evaluated), a lightweight application-level sweep is more accurate and doesn't require IAM changes.
