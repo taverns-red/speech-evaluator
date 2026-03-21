@@ -37,6 +37,7 @@ import {
 import { serializeOutputs } from "./file-persistence.js";
 import type { GcsHistoryService } from "./gcs-history.js";
 import { generateImprovementPlan } from "./improvement-plan.js";
+import { generateHabitReport } from "./habit-detector.js";
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -357,6 +358,24 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
       });
       logger.info("Improvement plan endpoint mounted at /api/improvement-plan/:speaker (#145)");
     }
+
+    // GET /api/habits/:speaker — habit/breakthrough patterns (#147)
+    app.get("/api/habits/:speaker", async (req, res) => {
+      try {
+        const speaker = decodeURIComponent(req.params.speaker);
+        const report = await generateHabitReport(gcsHistoryService.client, speaker);
+        if (!report) {
+          res.json({ report: null, reason: "Not enough evaluations with category scores (minimum 3 required)" });
+          return;
+        }
+        res.json({ report });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error(`Habits API error: ${errMsg}`);
+        res.status(500).json({ error: "Failed to generate habit report" });
+      }
+    });
+    logger.info("Habits endpoint mounted at /api/habits/:speaker (#147)");
   }
 
   // WebSocket server — noServer mode when auth is enabled for manual upgrade

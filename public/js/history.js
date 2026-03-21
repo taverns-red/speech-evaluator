@@ -243,6 +243,66 @@ function renderImprovementPlan(data) {
   panel.style.display = "block";
 }
 
+// ── Habit Report (#147) ─────────────────────────────────────────────────────────
+
+async function fetchHabits(speaker) {
+  const res = await fetch(`/api/habits/${encodeURIComponent(speaker)}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function renderHabitReport(data) {
+  const panel = document.getElementById("habits-panel");
+  if (!panel) return;
+
+  if (!data.report) {
+    panel.style.display = "none";
+    return;
+  }
+
+  const { report } = data;
+  if (report.habits.length === 0 && report.breakthroughs.length === 0) {
+    panel.style.display = "none";
+    return;
+  }
+
+  let html = '<div class="habit-report-content">';
+  html += '<div class="habit-report-title">Patterns</div>';
+
+  // Habits (⚠️ recurring weaknesses)
+  for (const h of report.habits) {
+    const label = h.category.charAt(0).toUpperCase() + h.category.slice(1);
+    html += `
+      <div class="habit-item habit-weakness">
+        <span class="habit-badge">⚠️</span>
+        <div class="habit-detail">
+          <div class="habit-label">${escapeHtml(label)} <span class="habit-avg">${h.averageScore}/10</span></div>
+          <div class="habit-desc">Below threshold for ${h.speechCount} consecutive speeches</div>
+        </div>
+      </div>`;
+  }
+
+  // Breakthroughs (🎉 sustained improvements)
+  for (const b of report.breakthroughs) {
+    const label = b.category.charAt(0).toUpperCase() + b.category.slice(1);
+    const gain = b.scores[b.scores.length - 1] - b.scores[0];
+    html += `
+      <div class="habit-item habit-breakthrough">
+        <span class="habit-badge">🎉</span>
+        <div class="habit-detail">
+          <div class="habit-label">${escapeHtml(label)} <span class="habit-gain">+${gain}</span></div>
+          <div class="habit-desc">Improved over ${b.speechCount} speeches</div>
+        </div>
+      </div>`;
+  }
+
+  html += `<div class="habit-meta">Based on ${report.evaluationCount} evaluations</div>`;
+  html += '</div>';
+
+  panel.innerHTML = html;
+  panel.style.display = "block";
+}
+
 // ─── Rendering ──────────────────────────────────────────────────────
 
 function formatDate(isoString) {
@@ -577,6 +637,11 @@ export async function loadHistory(speaker) {
       fetchImprovementPlan(speaker)
         .then(renderImprovementPlan)
         .catch((e) => console.warn("[History] Improvement plan unavailable:", e));
+
+      // Habit report (#147) — fire-and-forget
+      fetchHabits(speaker)
+        .then(renderHabitReport)
+        .catch((e) => console.warn("[History] Habit report unavailable:", e));
     }
 
     if (data.results.length === 0 && historyResults.length === 0) {
