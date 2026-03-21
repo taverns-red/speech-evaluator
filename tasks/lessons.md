@@ -10,7 +10,14 @@
 <!--                                                                                      -->
 <!-- **The Resulting Rule**: [The new rule or constraint going forward]                    -->
 <!--                                                                                      -->
-<!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
+<!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->## 🗓️ 2026-03-21 — Lesson 52: Pin GitHub Actions by SHA or Verified Tag — Supply Chain Attacks Are Real
+
+**The Discovery**: While updating `aquasecurity/trivy-action` from `@master` to a tagged version, research revealed that tags `0.0.1`–`0.34.2` were compromised in a supply chain attack (Feb-Mar 2026). Attackers force-pushed malicious info-stealer code to 75 of 76 version tags. Only `0.35.0` was clean.
+
+**The Resulting Rule**: Never float GitHub Actions on `@master` or `@main`. Pin to verified tags (`@0.35.0`) or commit SHAs. When updating an action, always check the repo's security advisories and recent release notes before choosing a version.
+
+**Future Warning**: `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` is a stopgap. Once Node.js 24 becomes the GitHub Actions default (June 2026), remove this env var to avoid confusion.
+
 ## 🗓️ 2026-03-21 — Lesson 50: Deepgram Diarization — Use Mode for Segment-Level Speaker
 
 **The Discovery**: Deepgram's `diarize: true` adds a `speaker` integer to each word, but segments span multiple words that may have different speaker labels (e.g., at speaker transitions). Computing the segment-level speaker as the statistical mode of its word speakers produces the most intuitive result, gracefully handling boundary segments.
