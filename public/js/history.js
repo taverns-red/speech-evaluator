@@ -9,6 +9,7 @@ let historyLoading = false;
 let historyNextCursor = null;
 let historySpeaker = "";
 let historyResults = [];
+let compareSelections = []; // max 2 indices for side-by-side comparison (#154)
 
 // ─── DOM References ─────────────────────────────────────────────────
 function getHistoryPanel() {
@@ -451,6 +452,95 @@ function renderGoalsPanel(data) {
   });
 }
 
+// --- Comparison (#154) ---------------------------------------------------
+
+function handleCompareToggle(index, checked) {
+  if (checked) {
+    if (compareSelections.length >= 2) {
+      // Uncheck the oldest selection
+      const oldIdx = compareSelections.shift();
+      const oldCheckbox = document.querySelector(`.compare-checkbox[data-index="${oldIdx}"]`);
+      if (oldCheckbox) oldCheckbox.checked = false;
+    }
+    compareSelections.push(index);
+  } else {
+    compareSelections = compareSelections.filter((i) => i !== index);
+  }
+
+  // Render or hide comparison panel
+  if (compareSelections.length === 2) {
+    renderComparisonPanel(compareSelections[0], compareSelections[1]);
+  } else {
+    const panel = document.getElementById("compare-panel");
+    if (panel) panel.style.display = "none";
+  }
+}
+
+function renderComparisonPanel(idxA, idxB) {
+  const panel = document.getElementById("compare-panel");
+  if (!panel) return;
+
+  const a = historyResults[idxA];
+  const b = historyResults[idxB];
+  if (!a || !b) return;
+
+  const ma = a.metadata;
+  const mb = b.metadata;
+
+  // Metric diff helper
+  const delta = (va, vb, invert) => {
+    const d = vb - va;
+    if (Math.abs(d) < 0.01) return '<span class="delta-neutral">—</span>';
+    const isGood = invert ? d < 0 : d > 0;
+    const arrow = d > 0 ? "↑" : "↓";
+    const cls = isGood ? "delta-good" : "delta-bad";
+    return `<span class="${cls}">${arrow} ${Math.abs(Math.round(d * 10) / 10)}</span>`;
+  };
+
+  let html = '<div class="compare-content">';
+  html += '<div class="compare-header">';
+  html += '<span class="compare-title">⚖️ Comparison</span>';
+  html += '<button id="compare-clear" class="btn compare-clear-btn">Clear</button>';
+  html += '</div>';
+
+  // Side-by-side metric table
+  html += '<table class="compare-table">';
+  html += '<thead><tr>';
+  html += `<th></th>`;
+  html += `<th>${escapeHtml(ma.speechTitle || "Untitled")}<br><small>${escapeHtml(formatDate(ma.date))}</small></th>`;
+  html += `<th>${escapeHtml(mb.speechTitle || "Untitled")}<br><small>${escapeHtml(formatDate(mb.date))}</small></th>`;
+  html += '<th>Delta</th>';
+  html += '</tr></thead>';
+  html += '<tbody>';
+
+  // WPM
+  html += `<tr><td>WPM</td><td>${Math.round(ma.wordsPerMinute)}</td><td>${Math.round(mb.wordsPerMinute)}</td><td>${delta(ma.wordsPerMinute, mb.wordsPerMinute)}</td></tr>`;
+
+  // Duration
+  html += `<tr><td>Duration</td><td>${formatDuration(ma.durationSeconds)}</td><td>${formatDuration(mb.durationSeconds)}</td><td>${delta(ma.durationSeconds, mb.durationSeconds)}</td></tr>`;
+
+  // Pass Rate
+  const prA = typeof ma.passRate === "number" ? Math.round(ma.passRate * 100) : "—";
+  const prB = typeof mb.passRate === "number" ? Math.round(mb.passRate * 100) : "—";
+  html += `<tr><td>Pass Rate</td><td>${prA}%</td><td>${prB}%</td><td>${typeof ma.passRate === "number" && typeof mb.passRate === "number" ? delta(ma.passRate * 100, mb.passRate * 100) : "—"}</td></tr>`;
+
+  html += '</tbody></table>';
+  html += '</div>';
+
+  panel.innerHTML = html;
+  panel.style.display = "block";
+
+  // Wire clear button
+  const clearBtn = panel.querySelector("#compare-clear");
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      compareSelections = [];
+      document.querySelectorAll(".compare-checkbox").forEach((cb) => { cb.checked = false; });
+      panel.style.display = "none";
+    });
+  }
+}
+
 // --- Rendering ------------------------------------------------------------
 
 function formatDate(isoString) {
@@ -484,6 +574,9 @@ function renderHistoryItem(item, index) {
 
   div.innerHTML = `
     <div class="history-item-header" role="button" tabindex="0" aria-expanded="false">
+      <label class="compare-checkbox-label" title="Select for comparison">
+        <input type="checkbox" class="compare-checkbox" data-index="${index}" />
+      </label>
       <div class="history-item-meta">
         <span class="history-date">${escapeHtml(formatDate(metadata.date))}</span>
         <span class="history-title">${escapeHtml(metadata.speechTitle || "Untitled")}</span>
@@ -501,13 +594,27 @@ function renderHistoryItem(item, index) {
 
   // Click to expand
   const header = div.querySelector(".history-item-header");
-  header.addEventListener("click", () => toggleHistoryDetail(div, item));
+  header.addEventListener("click", (e) => {
+    // Don't expand when clicking the compare checkbox
+    if (e.target.classList.contains("compare-checkbox") || e.target.classList.contains("compare-checkbox-label")) return;
+    toggleHistoryDetail(div, item);
+  });
   header.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       toggleHistoryDetail(div, item);
     }
   });
+
+  // Compare checkbox handler (#154)
+  const checkbox = div.querySelector(".compare-checkbox");
+  if (checkbox) {
+    checkbox.addEventListener("change", () => {
+      handleCompareToggle(index, checkbox.checked);
+    });
+    // Stop click from bubbling to header
+    checkbox.addEventListener("click", (e) => e.stopPropagation());
+  }
 
   return div;
 }
