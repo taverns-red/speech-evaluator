@@ -78,6 +78,8 @@ interface ConnectionState {
   activeRoles: string[];
   /** Configured analysis tier (#125) */
   analysisTier: string;
+  /** Configured evaluation style (#133) */
+  evaluationStyle: string;
   /** Buffer of base64 Vision frames for GPT-4o analysis (#128) */
   visionFrameBuffer: string[];
 }
@@ -410,6 +412,7 @@ function handleConnection(
     stopRecordingPromise: null,
     activeRoles: [],
     analysisTier: "standard",
+    evaluationStyle: "classic",
     visionFrameBuffer: [],
   };
 
@@ -660,6 +663,11 @@ function handleClientMessage(
       connState.analysisTier = message.tier ?? "standard";
       connState.visionFrameBuffer = []; // Reset buffer on tier change
       logger.info(`Analysis tier set: ${connState.analysisTier} for session ${connState.sessionId}`);
+      break;
+
+    case "set_evaluation_style":
+      connState.evaluationStyle = message.style ?? "classic";
+      logger.info(`Evaluation style set: ${connState.evaluationStyle} for session ${connState.sessionId}`);
       break;
 
     case "vision_frame": {
@@ -1373,8 +1381,9 @@ function handleSetProjectContext(
       speechTitle: message.speechTitle || null,
       projectType: message.projectType || null,
       objectives: message.objectives,
+      evaluationStyle: connState.evaluationStyle,
     });
-    logger.info(`Project context set for session ${connState.sessionId}: title="${message.speechTitle}", type="${message.projectType}", objectives=${message.objectives.length}`);
+    logger.info(`Project context set for session ${connState.sessionId}: title="${message.speechTitle}", type="${message.projectType}", objectives=${message.objectives.length}, style=${connState.evaluationStyle}`);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     logger.warn(`set_project_context failed for session ${connState.sessionId}: ${errorMessage}`);

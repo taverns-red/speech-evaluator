@@ -1866,6 +1866,7 @@ describe("Phase 3 VAD and project context message handling", () => {
         speechTitle: "My Journey",
         projectType: "Ice Breaker",
         objectives: ["Introduce yourself", "Speak for 4-6 minutes"],
+        evaluationStyle: "classic",
       });
     });
 

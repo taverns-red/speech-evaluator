@@ -24,7 +24,7 @@ import type { TranscriptionEngine } from "./transcription-engine.js";
 import type { MetricsExtractor } from "./metrics-extractor.js";
 import type { EvaluationGenerator } from "./evaluation-generator.js";
 import type { TTSEngine } from "./tts-engine.js";
-import type { TranscriptSegment, DeliveryMetrics } from "./types.js";
+import type { TranscriptSegment, DeliveryMetrics, EvaluationStyle } from "./types.js";
 import { type GCSUploadService } from "./gcs-upload.js";
 import { type GcsHistoryService } from "./gcs-history.js";
 import { extractFormText, isFormMimeType } from "./form-extractor.js";
@@ -159,7 +159,7 @@ function log(msg: string): void {
  */
 async function runEvaluationPipeline(
     uploadedPath: string,
-    formData: { speakerName: string; speechTitle?: string; projectType?: string; objectives?: string; evaluationFormText?: string; analysisTier?: string },
+    formData: { speakerName: string; speechTitle?: string; projectType?: string; objectives?: string; evaluationFormText?: string; analysisTier?: string; evaluationStyle?: string },
     deps: UploadPipelineDeps,
 ): Promise<{
     durationSeconds: number;
@@ -220,12 +220,13 @@ async function runEvaluationPipeline(
 
         // ── Run shared evaluation pipeline (stages 1-8) ──
         log("Running evaluation pipeline...");
-        const evalConfig = formData.speechTitle || formData.projectType || formData.evaluationFormText
+        const evalConfig = formData.speechTitle || formData.projectType || formData.evaluationFormText || formData.evaluationStyle
             ? {
                 speechTitle: formData.speechTitle,
                 projectType: formData.projectType,
                 objectives: formData.objectives ? [formData.objectives] : undefined,
                 evaluationFormText: formData.evaluationFormText,
+                evaluationStyle: (formData.evaluationStyle as EvaluationStyle) ?? undefined,
             }
             : undefined;
 
@@ -389,7 +390,7 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
                 // Run shared pipeline
                 const result = await runEvaluationPipeline(
                     downloadedPath,
-                    { speakerName, speechTitle, projectType, objectives, evaluationFormText },
+                    { speakerName, speechTitle, projectType, objectives, evaluationFormText, evaluationStyle: req.body?.evaluationStyle },
                     deps,
                 );
 
@@ -514,6 +515,7 @@ export function createUploadRouter(deps: UploadPipelineDeps): Router {
                     projectType: req.body?.projectType,
                     objectives: req.body?.objectives,
                     evaluationFormText,
+                    evaluationStyle: req.body?.evaluationStyle,
                 },
                 deps,
             );

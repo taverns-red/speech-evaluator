@@ -55,6 +55,8 @@ export interface ProjectContext {
   projectType: string | null;
   /** Project-specific evaluation objectives. Max 10 items, each max 500 characters (Req 4.8). */
   objectives: string[];
+  /** Evaluation feedback style (#133). Defaults to 'classic'. */
+  evaluationStyle?: string;
 }
 
 // ─── VAD Configuration (Phase 3 — Req 1, 2, 3) ─────────────────────────────────
@@ -603,6 +605,7 @@ export type ClientMessage =
   | { type: "set_video_config"; frameRate: number }
   | { type: "set_active_roles"; roleIds: string[] }
   | { type: "set_analysis_tier"; tier: string }
+  | { type: "set_evaluation_style"; style: string }
   | { type: "vision_frame"; data: string; seq: number };
 
 // Server → Client messages

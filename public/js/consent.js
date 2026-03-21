@@ -27,6 +27,7 @@ export function saveFormState() {
       projectType: dom.projectTypeSelect.value,
       objectives: dom.objectivesTextarea.value,
       analysisTier: S.analysisTier,
+      evaluationStyle: S.evaluationStyle,
     };
     localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(state));
   } catch (e) {
@@ -60,6 +61,13 @@ export function restoreFormState() {
     if (state.analysisTier) {
       S.analysisTier = state.analysisTier;
       const radio = document.querySelector(`input[name="analysis-tier"][value="${state.analysisTier}"]`);
+      if (radio) radio.checked = true;
+    }
+
+    // Restore evaluation style (#133)
+    if (state.evaluationStyle) {
+      S.evaluationStyle = state.evaluationStyle;
+      const radio = document.querySelector(`input[name="evaluation-style"][value="${state.evaluationStyle}"]`);
       if (radio) radio.checked = true;
     }
 
@@ -424,6 +432,25 @@ export function onAnalysisTierChange() {
   wsSend({
     type: "set_analysis_tier",
     tier: S.analysisTier,
+  });
+}
+
+// ─── Evaluation Style Event Handlers (#133) ──────────────────────
+
+/**
+ * Called when the evaluation style radio selection changes.
+ * Updates local state, persists, and sends set_evaluation_style to server.
+ */
+export function onEvaluationStyleChange() {
+  const selected = document.querySelector('input[name="evaluation-style"]:checked');
+  if (!selected) return;
+
+  S.evaluationStyle = selected.value;
+  saveFormState();
+
+  wsSend({
+    type: "set_evaluation_style",
+    style: S.evaluationStyle,
   });
 }
 

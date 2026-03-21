@@ -18,7 +18,7 @@ import {
   showVideoConsentError, hideVideoConsentError, onVideoFpsChange, onVideoFpsInput,
   onTimeLimitChange, handleVADSpeechEnd, onVADConfirmStop, onVADDismiss,
   onVADConfigChange, onVADThresholdInput, onSpeechTitleChange, onProjectTypeChange,
-  onObjectivesChange, resetProjectContextForm, onAnalysisTierChange,
+  onObjectivesChange, resetProjectContextForm, onAnalysisTierChange, onEvaluationStyleChange,
 } from "./consent.js";
 import { updateTranscript, showEvaluation, displayRoleResults, clearEvidenceHighlight } from "./transcript.js";
 import { checkMicPermission, startAudioCapture, stopAudioCapture, hardStopMic, startCooldown, clearCooldown } from "./audio.js";
@@ -441,6 +441,11 @@ document.querySelectorAll('input[name="analysis-tier"]').forEach(radio => {
     onAnalysisTierChange();
     updateTierCostLabels();
   });
+});
+
+// Evaluation Style: listen for radio button changes (#133)
+document.querySelectorAll('input[name="evaluation-style"]').forEach(radio => {
+  radio.addEventListener("change", onEvaluationStyleChange);
 });
 
 // Initialize tier cost labels

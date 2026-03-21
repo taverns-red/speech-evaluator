@@ -46,6 +46,9 @@ export const S = {
   // ─── Analysis Tier (#125) ─────────────────────────────────────
   analysisTier: "standard",
 
+  // ─── Evaluation Style (#133) ──────────────────────────────────
+  evaluationStyle: "classic",
+
   // ─── VAD Audio Level Meter ───────────────────────────────────
   lastVadStatusTime: 0,
   useVadEnergy: false,
@@ -165,6 +168,8 @@ export const dom = {
   videoFpsValue: document.getElementById("video-fps-value"),
   // Analysis Tier (#125)
   analysisTierConfig: document.getElementById("analysis-tier-config"),
+  // Evaluation Style (#133)
+  evaluationStyleConfig: document.getElementById("evaluation-style-config"),
 };
 
 // ─── Video DOM References ────────────────────────────────────────

@@ -352,6 +352,7 @@ export async function uploadLegacy(file, metadata) {
   if (metadata.projectType) formData.append("projectType", metadata.projectType);
   if (metadata.objectives) formData.append("objectives", metadata.objectives);
   if (metadata.analysisTier) formData.append("analysisTier", metadata.analysisTier);
+  if (metadata.evaluationStyle) formData.append("evaluationStyle", metadata.evaluationStyle);
 
   // Include evaluation form if attached
   if (S.pendingFormFile) {
@@ -421,6 +422,7 @@ export async function uploadVideo(file) {
       projectType: projectType || undefined,
       objectives: objectives || undefined,
       analysisTier: S.analysisTier || "standard",
+      evaluationStyle: S.evaluationStyle || "classic",
     };
 
     startUploadTimer();

@@ -18,6 +18,7 @@ import type {
   PipelineStage,
   EvaluationCache,
   EvaluationConfig,
+  EvaluationStyle,
   ProjectContext,
   SessionVADConfig,
   VideoConsent,
@@ -870,6 +871,7 @@ export class SessionManager {
           objectives: session.projectContext.objectives,
           speechTitle: session.projectContext.speechTitle ?? undefined,
           projectType: session.projectContext.projectType ?? undefined,
+          evaluationStyle: (session.projectContext.evaluationStyle as EvaluationStyle) ?? undefined,
         }
       : undefined;
 
@@ -1159,6 +1161,7 @@ export class SessionManager {
               objectives: session.projectContext.objectives,
               speechTitle: session.projectContext.speechTitle ?? undefined,
               projectType: session.projectContext.projectType ?? undefined,
+              evaluationStyle: (session.projectContext.evaluationStyle as EvaluationStyle) ?? undefined,
             }
           : undefined;
 
