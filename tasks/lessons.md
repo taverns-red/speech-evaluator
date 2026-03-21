@@ -12,6 +12,14 @@
 <!--                                                                                      -->
 <!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->
 
+## 🗓️ 2026-03-21 — Lesson 42: WebSocket Reconnect Requires Guard Flags to Prevent Cascading Drops
+
+**The Discovery**: When adding auto-reconnect to the Deepgram WS, the existing single-mock test pattern (same `mockLiveClient` for all `listen.live()` calls) caused cascading Close events — each reconnection's new handlers were attached to the same object as the old ones. The reconnection loop appeared to succeed but then immediately re-dropped. The fix required two flags: `_reconnecting` (prevents re-entrant `handleUnexpectedDrop`) and `_stopped` (prevents reconnection after intentional `stopLive()`). Tests that need reconnection to *fail* must override `listen.live` to throw after the first call.
+
+**The Resulting Rule**: Any reconnecting WebSocket must have: (1) a `_reconnecting` guard to prevent re-entrant drop handlers, (2) a `_stopped` flag set in the intentional-close path to suppress post-close reconnection, (3) tests that explicitly control whether reconnection succeeds or fails by overriding the connection factory. Never rely on the same mock object being reused — create fresh instances per connection attempt.
+
+**Future Warning**: If the reconnection loop's `openLiveConnection()` succeeds but the *new* connection drops immediately, the `_reconnecting` flag is already false (set to false on success), so `handleUnexpectedDrop` re-fires. This is correct behavior (retry on new drop), but with a shared mock it cascades. Always use `createReconnectableMockClient()` for reconnection tests to get distinct client instances.
+
 ## 🗓️ 2026-03-21 — Lesson 41: Native details/summary for Config Section Collapse
 
 **The Discovery**: The consent form grew to 7 sections over C1-C5, pushing the Start Speech button ~4 screen-heights below the fold. Rather than building a custom accordion or React component, native `<details>`/`<summary>` HTML elements provide zero-JS collapse behavior that works on all modern browsers, including mobile Safari.

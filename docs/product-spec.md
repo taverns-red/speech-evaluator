@@ -90,6 +90,14 @@ After a speech ends, the system delivers a spoken and written evaluation in unde
 | **Sticky Action Bar** | Start Speech / Panic Mute fixed at bottom of viewport | `style.css` |
 | **Dynamic Summary Labels** | Collapsed headers show current setting (e.g., "Standard ~$0.10") | `consent.js` |
 
+### Resilient at the Podium (Sprint C7)
+
+| Feature | Description | Key Files |
+|---------|-------------|-----------|
+| **Deepgram Auto-Reconnect** | Up to 3 WS reconnect attempts with exponential backoff; audio buffered during gap and replayed | `transcription-engine.ts` |
+| **Reconnection Status** | `transcription_status` WS message notifies client of reconnecting/reconnected/failed | `server.ts`, `session-manager.ts`, `websocket.js` |
+| **Mobile Viewport Polish** | Responsive breakpoints (768px tablet, 480px phone) with 44px touch targets, stacking layout | `style.css` |
+
 ---
 
 ## Business Rules
