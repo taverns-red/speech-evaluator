@@ -25,19 +25,35 @@ function showError(message) {
     // Handle sign-out action from main app
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get("action") === "signout") {
-      // Clear session cookie and reload login page
+      // Clear session cookie and reload login page clean
       document.cookie = "__session=;path=/;max-age=0";
       window.location.replace("/login.html");
       return;
     }
 
-    // Load Clerk JS dynamically
+    // Load Clerk JS from the Clerk Frontend API host.
+    // The publishable key encodes the host: pk_test_<base64(host)>$
+    // Clerk's browser script auto-instantiates and assigns window.Clerk.
+    const pkParts = config.publishableKey.replace(/\$$/, "").split("_");
+    const encodedHost = pkParts[pkParts.length - 1];
+    const clerkHost = atob(encodedHost);
+
     const script = document.createElement("script");
-    script.src = `https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js`;
+    script.src = `https://${clerkHost}/npm/@clerk/clerk-js@latest/dist/clerk.browser.js`;
+    script.dataset.clerkPublishableKey = config.publishableKey;
     script.crossOrigin = "anonymous";
+    script.async = true;
+
     script.onload = async () => {
       try {
-        const clerk = new window.Clerk(config.publishableKey);
+        // Clerk auto-instantiates — window.Clerk is already an instance, not a class.
+        const clerk = window.Clerk;
+        if (!clerk) {
+          showError("Authentication service failed to initialize.");
+          return;
+        }
+
+        // Wait for Clerk to be fully loaded
         await clerk.load();
 
         // If already signed in, redirect to app
