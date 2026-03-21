@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.21](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.20...ai-speech-evaluator-v0.6.21) (2026-03-21)
+
+
+### Features
+
+* add category score breakdowns backend — type, prompt, parser, golden tests ([#144](https://github.com/taverns-red/speech-evaluator/issues/144)) ([09056b3](https://github.com/taverns-red/speech-evaluator/commit/09056b30d49825c7034ddf87d21beaf7b317ad75))
+* category score bar chart in live + history UI ([#144](https://github.com/taverns-red/speech-evaluator/issues/144)) ([044e74b](https://github.com/taverns-red/speech-evaluator/commit/044e74b1af9f91097b6ae7eadb7ff1c207adb6a5))
+* collapsible config sections + sticky action bar ([#137](https://github.com/taverns-red/speech-evaluator/issues/137)) ([9f3cd43](https://github.com/taverns-red/speech-evaluator/commit/9f3cd437fe4fbe5e1a441ab1cd7a63289b4b684c))
+* deepgram websocket auto-reconnect with audio buffering ([#139](https://github.com/taverns-red/speech-evaluator/issues/139)) ([4e07d28](https://github.com/taverns-red/speech-evaluator/commit/4e07d285ae05bc55f2720e3e529db113d3ad0074))
+* improved history empty state with progress tracking prompt ([#140](https://github.com/taverns-red/speech-evaluator/issues/140)) ([31134d1](https://github.com/taverns-red/speech-evaluator/commit/31134d165d96defad8bbdc00a8949434f6eac345))
+* personalized improvement plans with score aggregation + LLM exercises ([#145](https://github.com/taverns-red/speech-evaluator/issues/145)) ([174269e](https://github.com/taverns-red/speech-evaluator/commit/174269e97c3bd603f02863b1c9ca3e91d1358fda))
+* progress trend chart with SVG sparklines in history tab ([#140](https://github.com/taverns-red/speech-evaluator/issues/140)) ([9571bf6](https://github.com/taverns-red/speech-evaluator/commit/9571bf613dee6e6e5a57b127bcca4cfa2ed2cc73))
+* responsive CSS for tablet and phone viewports ([#139](https://github.com/taverns-red/speech-evaluator/issues/139)) ([5931310](https://github.com/taverns-red/speech-evaluator/commit/5931310ce7e624f66a8cd81debd7bf5a0442e9ea))
+* speaker progress API with getProgressData and endpoint ([#140](https://github.com/taverns-red/speech-evaluator/issues/140)) ([445444a](https://github.com/taverns-red/speech-evaluator/commit/445444ac3b53d223c80b5b3ef5228e72b888def2))
+
 ## [0.6.20](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.19...ai-speech-evaluator-v0.6.20) (2026-03-21)
 
 
