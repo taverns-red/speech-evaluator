@@ -18,6 +18,30 @@
 
 **Future Warning**: If adding a new `set_*` WebSocket config message, remember to add it to `resyncSessionState()` in `websocket.js` or the same issue will recur.
 
+## 🗓️ 2026-03-22 — Lesson 56: Auth Middleware Must Exempt Static Assets
+
+**The Discovery**: Adding Clerk auth middleware to Express without exempting `/js/` in `PUBLIC_PREFIXES` caused all JS module files to return the login page HTML. The app never initialized — no WebSocket, no audio, no transcription, no evaluation. The site was completely broken.
+
+**The Resulting Rule**: When adding auth middleware, always exempt static asset paths (`/js/`, `/fonts/`, `/style.css`, `/audio-worklet.js`, etc.). Auth should protect page routes and API endpoints, not static files. Add explicit tests for static asset paths in the auth middleware test.
+
+**Future Warning**: Any new static asset directory must be added to `PUBLIC_PREFIXES` in `auth-middleware.ts`.
+
+## 🗓️ 2026-03-22 — Lesson 57: updateUI Must Run AFTER State Restoration
+
+**The Discovery**: `updateUI(IDLE)` was called before `restoreFormState()` in `app.js`. When `updateUI` evaluated the Start Speech button state, `S.consentConfirmed` was still `false` (not yet restored from localStorage). The button stayed disabled until something else triggered `updateUI` — like toggling the video checkbox.
+
+**The Resulting Rule**: `updateUI()` must always run AFTER any state restoration. The initialization order must be: restore state → then re-evaluate UI. This also applies to any future form/state restoration logic.
+
+**Future Warning**: The frontend has zero automated test coverage (#167). Any initialization ordering assumption is untested.
+
+## 🗓️ 2026-03-22 — Lesson 58: Set State Before Starting Async Producers
+
+**The Discovery**: `startAudioCapture()` creates an AudioWorklet that immediately starts firing `onmessage` with audio chunks. But `S.currentState` didn't transition to `RECORDING` until 19 lines later. The guard at `audio.js:75` (`S.currentState === SessionState.RECORDING`) silently dropped every audio chunk — zero transcription, zero evaluation.
+
+**The Resulting Rule**: When an async producer (AudioWorklet, VideoCapture, etc.) has a state guard in its callback, the state MUST be set BEFORE the producer is started. Never assume the producer will have a warm-up delay. Order must be: (1) set state, (2) start producer.
+
+**Future Warning**: This pattern applies anywhere a callback/event handler checks state. If you see `if (S.currentState === X)` inside a callback, verify the state is set before the callback source is activated.
+
 ## 🗓️ 2026-03-21 — Lesson 54: Pure Modules Enable Parallel Feature Development
 
 **The Discovery**: Sprint C20 shipped 3 features (operator notes, Markdown export, shareable links) in rapid succession with 29 new tests and 0 regressions. The key enabler was extracting logic into pure function modules (`markdown-export.ts`, `share-token.ts`) that are tested independently of the server, then wiring them into `server.ts` via dynamic `import()`. This pattern avoids circular deps and keeps blast radius minimal.
