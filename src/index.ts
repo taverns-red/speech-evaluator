@@ -193,8 +193,24 @@ if (allowedEmails.size > 0) {
     const cookieHeader = req.headers.cookie || "";
     const cookies = parseCookie(cookieHeader);
     const token = cookies.__session;
-    if (!token) return false;
+    const cookieNames = Object.keys(cookies);
+    if (!token) {
+      log.warn("WS upgrade: no __session cookie", {
+        cookieNames,
+        hasCookieHeader: !!req.headers.cookie,
+      });
+      return false;
+    }
+    log.info("WS upgrade: __session cookie found, verifying...", {
+      tokenLen: token.length,
+      cookieNames,
+    });
     const decoded = await verifyAndAuthorize(token, allowedEmails);
+    if (!decoded) {
+      log.warn("WS upgrade: verifyAndAuthorize returned null (expired/invalid/not in allowlist)");
+    } else {
+      log.info("WS upgrade: auth success", { email: decoded.email });
+    }
     return decoded !== null;
   };
 } else {
