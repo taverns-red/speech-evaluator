@@ -576,7 +576,7 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
   const wss = new WebSocketServer(wsAuthVerify ? { noServer: true } : { server: httpServer });
 
   wss.on("connection", (ws: WebSocket) => {
-    handleConnection(ws, sessionManager, logger, roleRegistry);
+    handleConnection(ws, sessionManager, logger, roleRegistry, gcsHistoryService);
   });
 
   // WebSocket upgrade with auth verification
@@ -653,6 +653,7 @@ function handleConnection(
   sessionManager: SessionManager,
   logger: ServerLogger,
   roleRegistry: RoleRegistry | null,
+  historyService: GcsHistoryService | null,
 ): void {
   // Each WebSocket connection gets its own session
   const session = sessionManager.createSession();
@@ -687,7 +688,7 @@ function handleConnection(
       } else {
         const text = typeof data === "string" ? data : data.toString("utf-8");
         const message = JSON.parse(text) as ClientMessage;
-        handleClientMessage(ws, message, connState, sessionManager, logger, roleRegistry);
+        handleClientMessage(ws, message, connState, sessionManager, logger, roleRegistry, historyService);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -820,6 +821,7 @@ function handleClientMessage(
   sessionManager: SessionManager,
   logger: ServerLogger,
   roleRegistry: RoleRegistry | null,
+  historyService: GcsHistoryService | null,
 ): void {
   // Helper to catch errors from async handlers and send them to the client
   const catchAsync = (promise: Promise<void>) => {
@@ -856,7 +858,7 @@ function handleClientMessage(
     }
 
     case "deliver_evaluation":
-      catchAsync(handleDeliverEvaluation(ws, connState, sessionManager, logger, roleRegistry));
+      catchAsync(handleDeliverEvaluation(ws, connState, sessionManager, logger, roleRegistry, historyService));
       break;
 
     case "save_outputs":
@@ -1171,6 +1173,53 @@ async function handleStopRecording(
 }
 
 
+// ─── Persist to GCS History (#168) ──────────────────────────────────────────────
+
+/**
+ * Fire-and-forget: persist evaluation results to GCS so they show in History.
+ * Errors are logged but never block the delivery flow.
+ */
+function persistToHistory(
+  connState: ConnectionState,
+  session: Session,
+  ttsAudio: Buffer | undefined,
+  logger: ServerLogger,
+  historyService: GcsHistoryService | null,
+): void {
+  if (!historyService) return;
+  if (!session.evaluation || !session.metrics || !session.consent) {
+    logger.debug(`[persistToHistory] Skipping — missing evaluation, metrics, or consent for session ${connState.sessionId}`);
+    return;
+  }
+
+  // Fire-and-forget — never block delivery
+  historyService.saveEvaluationResults({
+    speakerName: session.consent.speakerName,
+    speechTitle: session.projectContext?.speechTitle || "Untitled",
+    mode: connState.sessionMode,
+    durationSeconds: session.metrics.durationSeconds,
+    wordsPerMinute: session.metrics.wordsPerMinute,
+    passRate: session.evaluationPassRate ?? 0,
+    projectType: session.projectContext?.projectType ?? undefined,
+    transcript: session.transcript,
+    metrics: session.metrics,
+    evaluation: session.evaluation,
+    evaluationScript: session.evaluationScript ?? undefined,
+    ttsAudio,
+    analysisTier: connState.analysisTier,
+    visionFrameCount: connState.visionFrameBuffer.length,
+  }).then((prefix: string | null) => {
+    if (prefix) {
+      logger.info(`[persistToHistory] Saved to GCS: ${prefix}`);
+    } else {
+      logger.warn(`[persistToHistory] GCS save returned null for session ${connState.sessionId}`);
+    }
+  }).catch((err: unknown) => {
+    logger.error(`[persistToHistory] GCS save failed for session ${connState.sessionId}: ${err instanceof Error ? err.message : String(err)}`);
+  });
+}
+
+
 // ─── Deliver Evaluation ─────────────────────────────────────────────────────────
 
 async function handleDeliverEvaluation(
@@ -1179,6 +1228,7 @@ async function handleDeliverEvaluation(
   sessionManager: SessionManager,
   logger: ServerLogger,
   roleRegistry: RoleRegistry | null,
+  historyService: GcsHistoryService | null,
 ): Promise<void> {
   const session = sessionManager.getSession(connState.sessionId);
 
@@ -1201,7 +1251,7 @@ async function handleDeliverEvaluation(
   // ── Branch 1: Cache hit — deliver from eager cache immediately ──
   if (sessionManager.isEagerCacheValid(connState.sessionId)) {
     logger.info(`[handleDeliverEvaluation] Cache hit — delivering from eager cache for session ${connState.sessionId}`);
-    deliverFromCache(ws, connState, sessionManager, logger);
+    deliverFromCache(ws, connState, sessionManager, logger, historyService);
     return;
   }
 
@@ -1224,7 +1274,7 @@ async function handleDeliverEvaluation(
       // Fall through to Branch 3
     } else if (sessionManager.isEagerCacheValid(connState.sessionId)) {
       logger.info(`[handleDeliverEvaluation] Eager pipeline completed successfully — delivering from cache for session ${connState.sessionId}`);
-      deliverFromCache(ws, connState, sessionManager, logger);
+      deliverFromCache(ws, connState, sessionManager, logger, historyService);
       return;
     } else {
       logger.info(`[handleDeliverEvaluation] Eager pipeline completed but cache invalid — falling through to synchronous fallback for session ${connState.sessionId}`);
@@ -1332,6 +1382,9 @@ async function handleDeliverEvaluation(
     }
     sendMessage(ws, { type: "tts_complete" });
 
+    // Persist to GCS history (#168) — fire-and-forget before transitioning to IDLE
+    persistToHistory(connState, sessionAfterGen, audioBuffer, logger, historyService);
+
     // Transition back to IDLE after TTS delivery
     sessionManager.completeDelivery(connState.sessionId);
     sendMessage(ws, { type: "state_change", state: SessionState.IDLE });
@@ -1347,6 +1400,9 @@ async function handleDeliverEvaluation(
       message: "Text-to-speech synthesis failed. The written evaluation is displayed as a fallback.",
       recoverable: false,
     });
+
+    // Persist to GCS history (#168) — save even without audio
+    persistToHistory(connState, sessionAfterGen, undefined, logger, historyService);
 
     // Complete delivery even without audio — the written evaluation is the fallback
     sessionManager.completeDelivery(connState.sessionId);
@@ -1375,6 +1431,7 @@ function deliverFromCache(
   connState: ConnectionState,
   sessionManager: SessionManager,
   logger: ServerLogger,
+  historyService: GcsHistoryService | null,
 ): void {
   const session = sessionManager.getSession(connState.sessionId);
   const cache = session.evaluationCache!;
@@ -1409,6 +1466,9 @@ function deliverFromCache(
     logger.warn(`[deliverFromCache] WebSocket not open, skipping audio send for session ${connState.sessionId}`);
   }
   sendMessage(ws, { type: "tts_complete" });
+
+  // Persist to GCS history (#168) — fire-and-forget before transitioning to IDLE
+  persistToHistory(connState, session, cache.ttsAudio, logger, historyService);
 
   // Transition back to IDLE after TTS delivery
   sessionManager.completeDelivery(connState.sessionId);

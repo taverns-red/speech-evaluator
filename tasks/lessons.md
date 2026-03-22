@@ -716,3 +716,11 @@
 **Future Warning**: The comparison currently only uses metadata (WPM, duration, passRate). To compare category scores or feedback items, the evaluation detail must be fetched — this would require lazy-loading both evaluations' data, which adds complexity.
 
 **rules.md**: none
+
+## 🗓️ 2026-03-22 — Lesson 61: Feature Parity Across Code Paths — Upload vs Live Session
+
+**The Discovery**: `saveEvaluationResults` was called from `upload-handler.ts` for uploaded files but never from the live session delivery flow in `server.ts`. Result: evaluations from live sessions never appeared in History. The upload and live flows share the same `GcsHistoryService` and data model, but the live delivery path was written before GCS history was implemented and was never updated.
+
+**The Resulting Rule**: When adding a cross-cutting feature (e.g., persistence, logging, analytics), audit ALL code paths that produce the same type of output — not just the one you're currently working on. Use `grep` for the function name to find all call sites and all places that _should_ call it but don't.
+
+**Future Warning**: The `persistToHistory` function is fire-and-forget. If GCS saves fail silently, the operator won't know. Consider adding a `history_saved` WebSocket message or a toast notification in a future sprint.
