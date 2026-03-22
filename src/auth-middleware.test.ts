@@ -230,7 +230,7 @@ describe("Auth Middleware (Clerk)", () => {
   // ── Protected Routes ──────────────────────────────────────────────────────────
 
   describe("protected routes require auth", () => {
-    const protectedPaths = ["/", "/index.html", "/api/version", "/api/upload"];
+    const protectedPaths = ["/", "/index.html", "/api/upload"];
 
     for (const path of protectedPaths) {
       it(`requires auth for ${path}`, async () => {
@@ -243,6 +243,25 @@ describe("Auth Middleware (Clerk)", () => {
 
         expect(next).not.toHaveBeenCalled();
         expect(res.redirectUrl).toBe("/login.html");
+      });
+    }
+  });
+
+  // ── Public Prefixes (#165) ─────────────────────────────────────────────────
+
+  describe("public prefixes bypass auth (#165)", () => {
+    const publicPrefixPaths = ["/js/app.js", "/js/websocket.js", "/share/abc123"];
+
+    for (const path of publicPrefixPaths) {
+      it(`allows ${path} without auth`, async () => {
+        mockGetAuth.mockReturnValue({ userId: null });
+        const req = mockRequest({ path });
+        const res = mockResponse();
+        const next = vi.fn();
+
+        await middleware(req, res, next);
+
+        expect(next).toHaveBeenCalled();
       });
     }
   });

@@ -26,11 +26,15 @@ const PUBLIC_PATHS = [
   "/apple-touch-icon.png",
   "/logo-taverns.png",
   "/api/config",
+  "/api/version",
+  "/audio-worklet.js",
 ];
 
-/** Prefixes that bypass authentication (fonts, etc.) */
+/** Prefixes that bypass authentication (fonts, JS modules, etc.) */
 const PUBLIC_PREFIXES = [
   "/fonts/",
+  "/js/",
+  "/share/",
 ];
 
 function isPublicPath(path: string): boolean {
