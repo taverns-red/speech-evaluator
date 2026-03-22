@@ -53,8 +53,8 @@ export async function startAudioCapture() {
       await S.audioContext.resume();
     }
 
-    // Load the AudioWorklet processor module
-    await S.audioContext.audioWorklet.addModule("audio-worklet.js");
+    // Load the AudioWorklet processor module (cache-bust to clear stale auth HTML, #165)
+    await S.audioContext.audioWorklet.addModule("audio-worklet.js?v=2");
 
     // Create source node from mic stream
     S.sourceNode = S.audioContext.createMediaStreamSource(S.mediaStream);
