@@ -119,20 +119,6 @@ export async function verifyAndAuthorize(
   try {
     const decoded = await verifyToken(token, {
       secretKey: secretKey ?? process.env.CLERK_SECRET_KEY ?? "",
-      // Clerk's __session JWT expires every ~60s. The Clerk JS SDK
-      // refreshes it continuously — but only on pages that load the SDK.
-      // Our main app page (index.html) does NOT load the Clerk SDK, so
-      // the cookie goes stale after ~60s and is never refreshed.
-      //
-      // We allow 24h of clock skew because:
-      // 1. The JWT signature is still verified (can't be forged without CLERK_SECRET_KEY)
-      // 2. The email allowlist check still runs
-      // 3. We only relax the exp claim — identity is still cryptographically proven
-      // 4. Users stay on the page for hours between sessions
-      //
-      // A proper fix would load Clerk JS on index.html, but that adds
-      // complexity and load time for a single-user app. (#165)
-      clockSkewInMs: 24 * 60 * 60 * 1000,
     });
     const email = (decoded.email as string ?? "").toLowerCase();
     if (!email || !allowedEmails.has(email)) return null;

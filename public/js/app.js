@@ -44,6 +44,52 @@ function signOut() {
   window.location.href = "/login.html?action=signout";
 }
 
+// ─── Clerk Session Refresh (#165) ──────────────────────────────────
+// Load the Clerk JS SDK to keep the __session cookie alive.
+// Clerk's __session JWT expires every ~60s. The SDK refreshes it
+// continuously in the background. Without this, WebSocket upgrades
+// fail with 401 because the cookie goes stale.
+async function initClerkSession() {
+  try {
+    const res = await fetch("/api/config");
+    if (!res.ok) return;
+    const config = await res.json();
+    if (!config.publishableKey) return;
+
+    // Decode Clerk Frontend API host from the publishable key
+    const encodedHost = config.publishableKey.replace(/^pk_(test|live)_/, "");
+    const clerkHost = atob(encodedHost).replace(/\$+$/, "");
+
+    // Load Clerk JS (same approach as login.js)
+    const script = document.createElement("script");
+    script.src = "https://" + clerkHost + "/npm/@clerk/clerk-js@latest/dist/clerk.browser.js";
+    script.dataset.clerkPublishableKey = config.publishableKey;
+    script.crossOrigin = "anonymous";
+    script.async = true;
+
+    script.onload = async function () {
+      try {
+        const clerk = window.Clerk;
+        if (!clerk) return;
+        await clerk.load();
+        console.log("[Clerk] Session refresh active");
+
+        // If Clerk detects user signed out, redirect to login
+        clerk.addListener(function () {
+          if (!clerk.user) {
+            window.location.href = "/login.html";
+          }
+        });
+      } catch (err) {
+        console.warn("[Clerk] Session init error:", err);
+      }
+    };
+    document.head.appendChild(script);
+  } catch (err) {
+    console.warn("[Clerk] Failed to load config for session refresh:", err);
+  }
+}
+
 // ─── Load User Info (Issue #41) ──────────────────────────────────
 function loadUserInfo() {
   fetch("/api/me")
@@ -93,6 +139,7 @@ function showInitials(el, nameOrEmail) {
 }
 
 loadUserInfo();
+initClerkSession(); // Keep __session cookie alive for WS auth (#165)
 
 // ─── Meeting Roles (Phase 9, #72) ──────────────────────────────────
 
