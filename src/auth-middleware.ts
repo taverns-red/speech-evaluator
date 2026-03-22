@@ -119,6 +119,12 @@ export async function verifyAndAuthorize(
   try {
     const decoded = await verifyToken(token, {
       secretKey: secretKey ?? process.env.CLERK_SECRET_KEY ?? "",
+      // Clerk's __session JWT expires every ~60s. The Clerk JS SDK
+      // refreshes it on the login page but NOT on the main app page.
+      // Allow 5 minutes of clock skew so WS upgrades succeed even
+      // when the short-lived JWT wrapper has expired. The underlying
+      // Clerk session is still valid. (#165)
+      clockSkewInMs: 5 * 60 * 1000,
     });
     const email = (decoded.email as string ?? "").toLowerCase();
     if (!email || !allowedEmails.has(email)) return null;
