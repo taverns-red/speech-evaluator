@@ -10,7 +10,15 @@
 <!--                                                                                      -->
 <!-- **The Resulting Rule**: [The new rule or constraint going forward]                    -->
 <!--                                                                                      -->
-<!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->## 🗓️ 2026-03-21 — Lesson 54: Pure Modules Enable Parallel Feature Development
+<!-- **Future Warning**: [What to watch for — a tripwire for the agent]                    -->## 🗓️ 2026-03-21 — Lesson 55: WebSocket Reconnect Loses All Session State
+
+**The Discovery**: User reported iPhone recording failure (#165). Root cause: when the WS drops (Cloud Run idle timeout) and reconnects, the server creates a fresh session with no consent. The `onopen` handler only sent `audio_format` — never consent or other config. The server then rejected `start_recording` with "consent not confirmed" even though the client showed consent as confirmed.
+
+**The Resulting Rule**: Every persistent client-side config message (consent, video, project context, analysis tier, evaluation style, VAD, time limit, notes) must be replayed on `ws.onopen` via `resyncSessionState()`. When adding new config messages in the future, add them to the resync function too.
+
+**Future Warning**: If adding a new `set_*` WebSocket config message, remember to add it to `resyncSessionState()` in `websocket.js` or the same issue will recur.
+
+## 🗓️ 2026-03-21 — Lesson 54: Pure Modules Enable Parallel Feature Development
 
 **The Discovery**: Sprint C20 shipped 3 features (operator notes, Markdown export, shareable links) in rapid succession with 29 new tests and 0 regressions. The key enabler was extracting logic into pure function modules (`markdown-export.ts`, `share-token.ts`) that are tested independently of the server, then wiring them into `server.ts` via dynamic `import()`. This pattern avoids circular deps and keeps blast radius minimal.
 
