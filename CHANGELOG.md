@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.25](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.24...ai-speech-evaluator-v0.6.25) (2026-03-22)
+
+
+### Bug Fixes
+
+* add /js/ and static assets to auth bypass — entire app was broken ([#165](https://github.com/taverns-red/speech-evaluator/issues/165)) ([518488f](https://github.com/taverns-red/speech-evaluator/commit/518488fa99416a3f962eb6f39efac085093b8cdd))
+* add 5-minute clockSkewInMs to Clerk JWT verification ([#165](https://github.com/taverns-red/speech-evaluator/issues/165)) ([154d8bc](https://github.com/taverns-red/speech-evaluator/commit/154d8bc0ac96e77e0c1991a2f4bb9e6f98d9ffe4))
+* add missing checkVadEnergyFallback import in audio.js ([#165](https://github.com/taverns-red/speech-evaluator/issues/165)) ([99ec10e](https://github.com/taverns-red/speech-evaluator/commit/99ec10e1ee64483377ebde344458107cc44d2ef5))
+* cache-bust audio-worklet.js to clear stale auth HTML cache ([#165](https://github.com/taverns-red/speech-evaluator/issues/165)) ([d662cd1](https://github.com/taverns-red/speech-evaluator/commit/d662cd1085bcad57105609f6ca09de7940b12867))
+* increase Clerk JWT clockSkew to 24h for WS auth ([#165](https://github.com/taverns-red/speech-evaluator/issues/165)) ([20c7170](https://github.com/taverns-red/speech-evaluator/commit/20c7170505037f6ee29d07ebfbce2b89624b9543))
+* load Clerk SDK on main page to keep __session fresh ([#165](https://github.com/taverns-red/speech-evaluator/issues/165)) ([6c0176a](https://github.com/taverns-red/speech-evaluator/commit/6c0176ad5234b314d1d7d1be76c81944a041af16))
+* persist live session evaluations to GCS history ([#168](https://github.com/taverns-red/speech-evaluator/issues/168)) ([bf512f0](https://github.com/taverns-red/speech-evaluator/commit/bf512f070f0eefaf05f25e60689acdf9b99eea25))
+* re-evaluate UI after restoring consent from localStorage ([#165](https://github.com/taverns-red/speech-evaluator/issues/165)) ([d2e976e](https://github.com/taverns-red/speech-evaluator/commit/d2e976ec35d4f2a4c6e09419b89d6b7a132f4dbb))
+* set RECORDING state before starting AudioWorklet ([#165](https://github.com/taverns-red/speech-evaluator/issues/165)) ([a0a7dff](https://github.com/taverns-red/speech-evaluator/commit/a0a7dffb5f17493a9c534bae901150857f5dc592))
+* use Express 5 named wildcard {*path} for export route ([#165](https://github.com/taverns-red/speech-evaluator/issues/165)) ([7bfe1ab](https://github.com/taverns-red/speech-evaluator/commit/7bfe1abfaf8c9db05ab19082a7e4265b336bfe2b))
+
 ## [0.6.24](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.23...ai-speech-evaluator-v0.6.24) (2026-03-22)
 
 
