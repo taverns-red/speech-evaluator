@@ -66,6 +66,8 @@ export function connectWebSocket() {
     reconnectDelay = RECONNECT_DELAY_INITIAL;
     // Send audio format handshake immediately on connection
     sendAudioFormatHandshake();
+    // Re-send all client-side session config (#165)
+    resyncSessionState();
   };
 
   S.ws.onmessage = function (event) {
@@ -192,6 +194,94 @@ export function sendAudioFormatHandshake() {
     encoding: "LINEAR16",
   });
   S.audioFormatSent = true;
+}
+
+/**
+ * Re-sends all client-side session config to the server after a WebSocket
+ * reconnect. The server creates a fresh session on each new WS connection,
+ * so any consent, video, project context, analysis tier, evaluation style,
+ * VAD config, time limit, and operator notes must be replayed. (#165)
+ *
+ * This is safe to call on first connect too — the server handles idempotent
+ * config messages gracefully (they overwrite defaults).
+ */
+function resyncSessionState() {
+  // 1. Consent (the critical one — blocks start_recording)
+  if (S.consentSpeakerName || S.consentConfirmed) {
+    wsSend({
+      type: "set_consent",
+      speakerName: S.consentSpeakerName,
+      consentConfirmed: S.consentConfirmed,
+    });
+  }
+
+  // 2. Video consent
+  if (S.videoConsentEnabled) {
+    wsSend({
+      type: "set_video_consent",
+      consentGranted: true,
+      timestamp: new Date().toISOString(),
+    });
+    // Re-send video stream ready if camera is active
+    if (S.videoStream) {
+      const readyMsg = { type: "video_stream_ready", width: 0, height: 0 };
+      const tracks = S.videoStream.getVideoTracks();
+      if (tracks.length > 0) {
+        const settings = tracks[0].getSettings();
+        readyMsg.width = settings.width || 0;
+        readyMsg.height = settings.height || 0;
+        if (tracks[0].label) readyMsg.deviceLabel = tracks[0].label;
+      }
+      wsSend(readyMsg);
+    }
+  }
+
+  // 3. Video FPS config (if not default)
+  if (S.videoFpsConfig && S.videoFpsConfig !== 2) {
+    wsSend({ type: "set_video_config", frameRate: S.videoFpsConfig });
+  }
+
+  // 4. Time limit (if not default)
+  if (S.configuredTimeLimit && S.configuredTimeLimit !== 120) {
+    wsSend({ type: "set_time_limit", seconds: S.configuredTimeLimit });
+  }
+
+  // 5. VAD config (if changed from defaults: enabled=true, threshold=5)
+  if (!S.vadEnabled || S.vadSilenceThreshold !== 5) {
+    wsSend({
+      type: "set_vad_config",
+      silenceThresholdSeconds: S.vadSilenceThreshold,
+      enabled: S.vadEnabled,
+    });
+  }
+
+  // 6. Project context
+  if (S.projectContext && (S.projectContext.speechTitle || S.projectContext.projectType)) {
+    wsSend({
+      type: "set_project_context",
+      speechTitle: S.projectContext.speechTitle,
+      projectType: S.projectContext.projectType,
+      objectives: S.projectContext.objectives,
+    });
+  }
+
+  // 7. Analysis tier (if not default)
+  if (S.analysisTier && S.analysisTier !== "standard") {
+    wsSend({ type: "set_analysis_tier", tier: S.analysisTier });
+  }
+
+  // 8. Evaluation style (if not default)
+  if (S.evaluationStyle && S.evaluationStyle !== "classic") {
+    wsSend({ type: "set_evaluation_style", style: S.evaluationStyle });
+  }
+
+  // 9. Operator notes (#164)
+  const notesTextarea = document.getElementById("operator-notes");
+  if (notesTextarea && notesTextarea.value.trim().length > 0) {
+    wsSend({ type: "set_notes", notes: notesTextarea.value });
+  }
+
+  console.log("[WS] Session state resynced after reconnect (#165)");
 }
 
 // ─── Stop Speech ──────────────────────────────────────────────────
