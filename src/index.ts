@@ -193,23 +193,13 @@ if (allowedEmails.size > 0) {
     const cookieHeader = req.headers.cookie || "";
     const cookies = parseCookie(cookieHeader);
     const token = cookies.__session;
-    const cookieNames = Object.keys(cookies);
     if (!token) {
-      log.warn("WS upgrade: no __session cookie", {
-        cookieNames,
-        hasCookieHeader: !!req.headers.cookie,
-      });
+      log.warn("WS upgrade rejected: no __session cookie");
       return false;
     }
-    log.info("WS upgrade: __session cookie found, verifying...", {
-      tokenLen: token.length,
-      cookieNames,
-    });
     const decoded = await verifyAndAuthorize(token, allowedEmails);
     if (!decoded) {
-      log.warn("WS upgrade: verifyAndAuthorize returned null (expired/invalid/not in allowlist)");
-    } else {
-      log.info("WS upgrade: auth success", { email: decoded.email });
+      log.warn("WS upgrade rejected: token invalid/expired/not in allowlist");
     }
     return decoded !== null;
   };

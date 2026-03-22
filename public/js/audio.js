@@ -42,43 +42,29 @@ export async function checkMicPermission() {
 export async function startAudioCapture() {
   try {
     // Request mic permission
-    console.log("[Audio] Requesting mic permission...");
     S.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    console.log("[Audio] Mic stream acquired, tracks:", S.mediaStream.getAudioTracks().length);
 
     // Create AudioContext (or reuse if already created)
     if (!S.audioContext || S.audioContext.state === "closed") {
       S.audioContext = new AudioContext();
-      console.log("[Audio] New AudioContext created, sampleRate:", S.audioContext.sampleRate);
-    } else {
-      console.log("[Audio] Reusing AudioContext, state:", S.audioContext.state, "sampleRate:", S.audioContext.sampleRate);
     }
     // Resume if suspended (browsers require user gesture)
     if (S.audioContext.state === "suspended") {
-      console.log("[Audio] Resuming suspended AudioContext...");
       await S.audioContext.resume();
     }
-    console.log("[Audio] AudioContext state:", S.audioContext.state);
 
-    // Load the AudioWorklet processor module (cache-bust to clear stale auth HTML, #165)
-    console.log("[Audio] Loading AudioWorklet module...");
+    // Load the AudioWorklet processor module
     await S.audioContext.audioWorklet.addModule("audio-worklet.js?v=2");
-    console.log("[Audio] AudioWorklet module loaded");
 
     // Create source node from mic stream
     S.sourceNode = S.audioContext.createMediaStreamSource(S.mediaStream);
-    console.log("[Audio] MediaStreamSource created");
 
     // Create AudioWorklet node
     S.workletNode = new AudioWorkletNode(S.audioContext, "audio-capture-processor");
-    console.log("[Audio] AudioWorkletNode created");
 
     // Listen for audio chunks from the worklet
-    let chunkCount = 0;
-    let dropCount = 0;
     S.workletNode.port.onmessage = function (event) {
       if (event.data && event.data.type === "audio_chunk") {
-        chunkCount++;
         // Check if VAD energy has gone stale and we need to fall back (Req 10.4)
         checkVadEnergyFallback();
         // Update audio level meter (skipped if VAD energy is active, Req 10.3)
@@ -88,16 +74,6 @@ export async function startAudioCapture() {
         // Send audio chunk as binary WebSocket frame
         if (S.ws && S.ws.readyState === WebSocket.OPEN && S.currentState === SessionState.RECORDING) {
           S.ws.send(event.data.samples);
-          if (chunkCount <= 3 || chunkCount % 100 === 0) {
-            console.log("[Audio] Chunk #" + chunkCount + " sent, bytes:", event.data.samples.byteLength);
-          }
-        } else {
-          dropCount++;
-          if (dropCount <= 5) {
-            console.warn("[Audio] Chunk DROPPED #" + dropCount + ": ws=" + !!S.ws +
-              " wsReady=" + (S.ws ? S.ws.readyState : "N/A") +
-              " state=" + S.currentState);
-          }
         }
       }
     };
@@ -107,7 +83,6 @@ export async function startAudioCapture() {
     // Connect worklet to destination to keep the audio graph alive
     // (AudioWorklet needs to be connected to process)
     S.workletNode.connect(S.audioContext.destination);
-    console.log("[Audio] Pipeline connected: source → worklet → destination");
 
     // Start MediaRecorder to capture original speech (#60)
     S.speechRecordingChunks = [];
