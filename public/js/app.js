@@ -196,17 +196,27 @@ async function onStartSpeech() {
     sendAudioFormatHandshake();
   }
 
+  // Send start_recording command to server BEFORE starting audio capture
+  // so server is in RECORDING state when binary frames arrive
+  wsSend({ type: "start_recording" });
+
+  // Transition to RECORDING state BEFORE starting audio capture (#165)
+  // AudioWorklet fires onmessage immediately — the guard at audio.js:75
+  // checks S.currentState === RECORDING. If state is still IDLE, every
+  // audio chunk is silently dropped.
+  updateUI(SessionState.RECORDING);
+  updateElapsedTime(0);
+
   // Start audio capture (mic + AudioWorklet)
   const captureStarted = await startAudioCapture();
   if (!captureStarted) {
+    // Revert state on failure
+    updateUI(SessionState.IDLE);
     return; // Error already shown by startAudioCapture
   }
 
   // Phase 4: Camera is already acquired via video consent toggle (Req 1.5)
   // Only start video capture if video consent is enabled and camera is ready
-
-  // Send start_recording command to server
-  wsSend({ type: "start_recording" });
 
   if (S.videoConsentEnabled && S.videoStream) {
     startVideoCapture();
@@ -214,10 +224,6 @@ async function onStartSpeech() {
 
   // Sprint C2: Start Vision frame capture if tier has vision enabled (#128)
   startVisionCapture();
-
-  // Optimistic UI update (server will confirm via state_change)
-  updateUI(SessionState.RECORDING);
-  updateElapsedTime(0);
 
   // Practice mode: 5-minute auto-stop timer (#146)
   if (S.currentMode === "practice") {
