@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.24](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.23...ai-speech-evaluator-v0.6.24) (2026-03-22)
+
+
+### Features
+
+* add GET /api/me endpoint for user profile display ([#162](https://github.com/taverns-red/speech-evaluator/issues/162)) ([3e85bd0](https://github.com/taverns-red/speech-evaluator/commit/3e85bd004b07f6d7f0edb550ef5be1a6fef71fd2))
+* add Markdown evaluation export with /api/export endpoint and history button ([#164](https://github.com/taverns-red/speech-evaluator/issues/164)) ([e83d2e7](https://github.com/taverns-red/speech-evaluator/commit/e83d2e7d5f6216f02a09a422632ec94390e4958f))
+* add operator notes — live textarea injected into evaluation prompt ([#164](https://github.com/taverns-red/speech-evaluator/issues/164)) ([f9c0729](https://github.com/taverns-red/speech-evaluator/commit/f9c0729635bb2e7528bb743cfbace0bf10b2df5c))
+* add shareable evaluation links with public share page ([#164](https://github.com/taverns-red/speech-evaluator/issues/164)) ([0f42358](https://github.com/taverns-red/speech-evaluator/commit/0f42358d8069ed9f395c2b6b3bd7613a1faac7e5))
+* auto-populate speaker name from signed-in Clerk user ([#163](https://github.com/taverns-red/speech-evaluator/issues/163)) ([7999cdb](https://github.com/taverns-red/speech-evaluator/commit/7999cdb9983edeb27372e6a9dae7e05a6ac17bfd))
+* migrate from Firebase Auth to Clerk ([#158](https://github.com/taverns-red/speech-evaluator/issues/158)) ([e858bfe](https://github.com/taverns-red/speech-evaluator/commit/e858bfe65ab5b42cd997cac62fc7289c57be1960))
+* rewrite login page with Clerk sign-in component ([#158](https://github.com/taverns-red/speech-evaluator/issues/158)) ([710f033](https://github.com/taverns-red/speech-evaluator/commit/710f0330a8a1a5301b5d0bedd9f2d91d954b74b4))
+* speaker diarization — multi-speaker labels in transcript ([#157](https://github.com/taverns-red/speech-evaluator/issues/157)) ([e7d9f73](https://github.com/taverns-red/speech-evaluator/commit/e7d9f73489918e2da5d915c744105fd19eef9c32))
+
+
+### Bug Fixes
+
+* mount sign-up component on our domain instead of redirecting to Clerk hosted page ([#158](https://github.com/taverns-red/speech-evaluator/issues/158)) ([e85a975](https://github.com/taverns-red/speech-evaluator/commit/e85a97509d5e8c0f162fe2523d94ab1b959f34c3))
+* pin trivy-action to 0.35.0 (supply chain attack on earlier tags) ([#160](https://github.com/taverns-red/speech-evaluator/issues/160)) ([51e36d5](https://github.com/taverns-red/speech-evaluator/commit/51e36d5207efb5d0c5badbce4866e7512d9471a7))
+* re-send consent + session config on WebSocket reconnect ([#165](https://github.com/taverns-red/speech-evaluator/issues/165)) ([673df43](https://github.com/taverns-red/speech-evaluator/commit/673df43211d2217a277f7de419551e892c07cd83))
+* remove double card wrapper on login page ([#158](https://github.com/taverns-red/speech-evaluator/issues/158)) ([7b463a8](https://github.com/taverns-red/speech-evaluator/commit/7b463a8129f78617d30e0dfa2d29e0304b7ba10f))
+* strip trailing $ from decoded Clerk host in login.js ([#158](https://github.com/taverns-red/speech-evaluator/issues/158)) ([3f42ab6](https://github.com/taverns-red/speech-evaluator/commit/3f42ab64529f7b133a6eef2e53fbc751a3da343f))
+* use Clerk auto-instantiated window.Clerk instead of constructor ([#158](https://github.com/taverns-red/speech-evaluator/issues/158)) ([a40d2f3](https://github.com/taverns-red/speech-evaluator/commit/a40d2f3c7f7091c1bbdf88bbd7a04de44e8fec43))
+
 ## [0.6.23](https://github.com/taverns-red/speech-evaluator/compare/ai-speech-evaluator-v0.6.22...ai-speech-evaluator-v0.6.23) (2026-03-21)
 
 
