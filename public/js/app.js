@@ -427,6 +427,9 @@ updateUI(SessionState.IDLE);
 // Restore form state from localStorage (#58)
 restoreFormState();
 
+// Re-evaluate UI after form restore — consent state may enable Start Speech (#165)
+updateUI(SessionState.IDLE);
+
 // Show setup wizard for first-time users (#156)
 initSetupWizard();
 
