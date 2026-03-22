@@ -340,11 +340,11 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
     });
     logger.info("Progress endpoint mounted at /api/progress/:speaker (#140)");
 
-    // GET /api/export/:speaker/* — Markdown evaluation export (#164)
-    app.get("/api/export/:speaker/*", async (req, res) => {
+    // GET /api/export/:speaker/{*path} — Markdown evaluation export (#164)
+    app.get("/api/export/:speaker/{*path}", async (req, res) => {
       try {
         const speaker = decodeURIComponent(req.params.speaker);
-        const evalPrefix = (req.params as unknown as Record<string, string>)[0]; // Everything after /speaker/
+        const evalPrefix = req.params.path; // Everything after /speaker/
 
         if (!evalPrefix) {
           res.status(400).json({ error: "Missing evaluation prefix" });
@@ -384,7 +384,7 @@ export function createAppServer(options: CreateServerOptions = {}): AppServer {
         res.status(500).json({ error: "Failed to generate export" });
       }
     });
-    logger.info("Export endpoint mounted at /api/export/:speaker/* (#164)");
+    logger.info("Export endpoint mounted at /api/export/:speaker/{*path} (#164)");
 
     // POST /api/share — create shareable link (#164)
     app.post("/api/share", async (req, res) => {
