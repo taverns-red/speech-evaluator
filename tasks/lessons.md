@@ -42,6 +42,20 @@
 
 **Future Warning**: This pattern applies anywhere a callback/event handler checks state. If you see `if (S.currentState === X)` inside a callback, verify the state is set before the callback source is activated.
 
+## 🗓️ 2026-03-22 — Lesson 59: Clerk JS SDK Must Run on Every Authenticated Page
+
+**The Discovery**: Clerk's `__session` cookie JWT expires every ~60s. The Clerk JS SDK refreshes it silently. We only loaded the SDK on `login.html` — the main app page never refreshed the cookie. After ~60s, `verifyToken()` rejected the expired JWT, causing WebSocket upgrades to fail with 401.
+
+**The Resulting Rule**: Every page that needs authenticated API access must load the Clerk JS SDK via `clerk.load()`. Never work around expired tokens with `clockSkewInMs` hacks.
+
+**Future Warning**: If adding a new authenticated page, include `initClerkSession()`.
+
+## 🗓️ 2026-03-22 — Lesson 60: Missing Imports Crash Silently in Event Handlers
+
+**The Discovery**: `checkVadEnergyFallback` was called in the AudioWorklet `onmessage` handler but never imported. Each chunk threw `ReferenceError` before `ws.send()`. The error was silent — uncaught errors in callbacks don't propagate to the main thread's error handler.
+
+**The Resulting Rule**: When moving code between modules, re-check all function references for imports. The extraction pattern (#110) is prone to missing imports. Frontend has zero automated test coverage (#167).
+
 ## 🗓️ 2026-03-21 — Lesson 54: Pure Modules Enable Parallel Feature Development
 
 **The Discovery**: Sprint C20 shipped 3 features (operator notes, Markdown export, shareable links) in rapid succession with 29 new tests and 0 regressions. The key enabler was extracting logic into pure function modules (`markdown-export.ts`, `share-token.ts`) that are tested independently of the server, then wiring them into `server.ts` via dynamic `import()`. This pattern avoids circular deps and keeps blast radius minimal.
