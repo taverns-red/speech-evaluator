@@ -5,7 +5,7 @@
 import { S, dom } from "./state.js";
 import { SessionState, COOLDOWN_MS, STATUS_TEXT } from "./constants.js";
 import { show, hide, enable, disable } from "./utils.js";
-import { updateUI, updateAudioLevel, showError } from "./ui.js";
+import { updateUI, updateAudioLevel, checkVadEnergyFallback, showError } from "./ui.js";
 import { stopVideoCapture, stopVisionCapture } from "./video.js";
 // Circular import — safe (called inside function bodies only)
 import { wsSend } from "./websocket.js";
