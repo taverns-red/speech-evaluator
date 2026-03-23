@@ -724,3 +724,11 @@
 **The Resulting Rule**: When adding a cross-cutting feature (e.g., persistence, logging, analytics), audit ALL code paths that produce the same type of output — not just the one you're currently working on. Use `grep` for the function name to find all call sites and all places that _should_ call it but don't.
 
 **Future Warning**: The `persistToHistory` function is fire-and-forget. If GCS saves fail silently, the operator won't know. Consider adding a `history_saved` WebSocket message or a toast notification in a future sprint.
+
+## 🗓️ 2026-03-22 — Lesson 62: Await WebSocket Close Handshake in Test Teardown
+
+**The Discovery**: `server.test.ts > set_consent > should allow updating consent while still in IDLE` intermittently failed with `Expected HTTP/, RTSP/ or ICE/`. Root cause: `TestClient.close()` called `ws.close()` but didn't await the close handshake. The `afterEach` immediately called `server.close()`, and Vitest started the next test before socket FDs were fully released by the OS.
+
+**The Resulting Rule**: Never fire-and-forget WebSocket closes in test teardown. Always use a `waitForClose()` pattern that returns a promise resolving on the `close` event, with a timeout fallback (`ws.terminate()`). Call `await Promise.all(clients.map(c => c.waitForClose()))` before `server.close()`.
+
+**Future Warning**: If new test files create HTTP/WebSocket servers, they must follow the same `waitForClose()` pattern. Consider extracting `TestClient` into a shared test utility module.

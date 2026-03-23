@@ -108,6 +108,24 @@ class TestClient {
       this.ws.close();
     }
   }
+
+  /** Wait for the WebSocket to fully close (close handshake complete) */
+  waitForClose(timeoutMs = 2000): Promise<void> {
+    if (this.ws.readyState === WebSocket.CLOSED) return Promise.resolve();
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.ws.terminate();
+        resolve();
+      }, timeoutMs);
+      this.ws.on("close", () => {
+        clearTimeout(timer);
+        resolve();
+      });
+      if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+        this.ws.close();
+      }
+    });
+  }
 }
 
 /** Gets the server address after listening */
@@ -261,8 +279,7 @@ describe("Feature: ai-speech-evaluator, Property 9: Audio Capture Inactive Durin
           } finally {
             client.close();
             vi.restoreAllMocks();
-            // Small delay to let the server process the close before next iteration
-            await new Promise((resolve) => setTimeout(resolve, 10));
+            await client.waitForClose();
           }
         }),
         { numRuns: 100 },
@@ -398,7 +415,7 @@ describe("Feature: eager-evaluation-pipeline, Property 10: Cache-hit delivery sk
             } finally {
               client.close();
               vi.restoreAllMocks();
-              await new Promise((resolve) => setTimeout(resolve, 10));
+              await client.waitForClose();
             }
           },
         ),
@@ -526,7 +543,7 @@ describe("Feature: eager-evaluation-pipeline, Property 11: Fallback delivery on 
             } finally {
               client.close();
               vi.restoreAllMocks();
-              await new Promise((resolve) => setTimeout(resolve, 10));
+              await client.waitForClose();
             }
           },
         ),
@@ -637,7 +654,7 @@ describe("Feature: eager-evaluation-pipeline, Property 1: State and behavioral b
             } finally {
               client.close();
               vi.restoreAllMocks();
-              await new Promise((resolve) => setTimeout(resolve, 10));
+              await client.waitForClose();
             }
           },
         ),

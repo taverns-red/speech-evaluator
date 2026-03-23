@@ -126,6 +126,25 @@ class TestClient {
       this.ws.close();
     }
   }
+
+  /** Wait for the WebSocket to fully close (close handshake complete) */
+  waitForClose(timeoutMs = 2000): Promise<void> {
+    if (this.ws.readyState === WebSocket.CLOSED) return Promise.resolve();
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.ws.terminate(); // Force-kill if handshake hangs
+        resolve();
+      }, timeoutMs);
+      this.ws.on("close", () => {
+        clearTimeout(timer);
+        resolve();
+      });
+      // Initiate close if not already closing
+      if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+        this.ws.close();
+      }
+    });
+  }
 }
 
 /** Gets the server address after listening */
@@ -169,7 +188,9 @@ describe("Server", () => {
   });
 
   afterEach(async () => {
-    for (const c of clients) c.close();
+    // Await full WebSocket close handshake before tearing down the server
+    // to prevent socket FD reuse between tests (#169)
+    await Promise.all(clients.map((c) => c.waitForClose()));
     await server.close();
   });
 
