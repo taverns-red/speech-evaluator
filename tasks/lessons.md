@@ -732,3 +732,11 @@
 **The Resulting Rule**: Never fire-and-forget WebSocket closes in test teardown. Always use a `waitForClose()` pattern that returns a promise resolving on the `close` event, with a timeout fallback (`ws.terminate()`). Call `await Promise.all(clients.map(c => c.waitForClose()))` before `server.close()`.
 
 **Future Warning**: If new test files create HTTP/WebSocket servers, they must follow the same `waitForClose()` pattern. Consider extracting `TestClient` into a shared test utility module.
+
+## 🗓️ 2026-03-22 — Lesson 63: E2E Tests Must Account for First-Run UI Overlays
+
+**The Discovery**: Playwright e2e tests failed with `setup-wizard-overlay intercepts pointer events`. The setup wizard shows on first visit (detected via `localStorage` flag). Since tests clear `localStorage` in `beforeEach`, every test triggered the wizard, blocking all click interactions.
+
+**The Resulting Rule**: When clearing `localStorage` in e2e test setup, immediately re-set any "first-run complete" flags to prevent modal overlays from blocking the test. For this project: `localStorage.setItem("speechEval_setupComplete", "1")`. Also verify actual DOM element IDs by grepping the HTML source before writing selectors — guessing IDs wastes entire test iterations.
+
+**Future Warning**: If new first-run/onboarding flows are added, the e2e `beforeEach` blocks must be updated to skip them.
