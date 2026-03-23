@@ -1161,6 +1161,7 @@ describe("purgeSessionData", () => {
         gazeReliable: true, gestureReliable: true, stabilityReliable: true, facialEnergyReliable: true,
       },
       videoConfig: { frameRate: 5 },
+      operatorNotes: "",
     };
 
     purgeSessionData(session);

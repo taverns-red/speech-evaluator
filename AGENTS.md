@@ -10,7 +10,7 @@ This file contains **project-specific** context only.
 When beginning a new session or task in this project:
 
 1. **Read lessons**: Review the last 5 entries in `tasks/lessons.md`
-2. **Establish baseline**: Run `npx vitest run` and record the pass count (currently 1940)
+2. **Establish baseline**: Run `npx vitest run` and record the pass count (currently 1971)
 3. **Identify or create an issue**: Use `gh issue list` or `gh issue create` before writing code
 4. **If root cause is unknown**: Use `tasks/experiment_template.md` before implementing
 
@@ -99,12 +99,6 @@ PORT=3004              # Optional, defaults to 3000
 - `main` — stable, tagged releases
 - `feature/phase-N-*` — active development branches per PRD phase
 
-## Known Flaky Tests
-
-- `server.test.ts > set_consent > should allow updating consent while still in IDLE`
-  - Intermittent HTTP parse error (`Expected HTTP/, RTSP/ or ICE/`)
-  - Cause: likely WebSocket port collision when many test files run in parallel
-  - Workaround: re-run; passes on retry
 
 ## Frontend Conventions
 
