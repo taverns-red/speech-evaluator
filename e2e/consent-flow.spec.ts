@@ -42,12 +42,15 @@ test.describe("Consent Flow", () => {
     await page.reload();
     await page.waitForLoadState("networkidle");
 
+    // Wait for restoreFormState() to complete — checkbox checked confirms it ran
+    await expect(page.locator("#consent-checkbox")).toBeChecked({ timeout: 5000 });
+
     const speakerValue = await page.locator("#speaker-name-input").inputValue();
     expect(speakerValue).toBe("Persistent Speaker");
 
     const isChecked = await page.locator("#consent-checkbox").isChecked();
     expect(isChecked).toBe(true);
 
-    await expect(page.locator("#btn-start")).toBeEnabled({ timeout: 2000 });
+    await expect(page.locator("#btn-start")).toBeEnabled({ timeout: 5000 });
   });
 });

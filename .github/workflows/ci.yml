@@ -54,6 +54,7 @@ jobs:
         run: npm run test:e2e
 
       - name: Run Trivy vulnerability scanner
+        if: always()
         uses: aquasecurity/trivy-action@0.35.0
         with:
           scan-type: 'fs'
