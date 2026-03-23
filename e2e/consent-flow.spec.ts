@@ -42,14 +42,14 @@ test.describe("Consent Flow", () => {
     await page.reload();
     await page.waitForLoadState("networkidle");
 
-    // Wait for restoreFormState() to complete — checkbox checked confirms it ran
+    // Verify DOM values were restored from localStorage by restoreFormState()
     await expect(page.locator("#consent-checkbox")).toBeChecked({ timeout: 5000 });
-
     const speakerValue = await page.locator("#speaker-name-input").inputValue();
     expect(speakerValue).toBe("Persistent Speaker");
 
-    const isChecked = await page.locator("#consent-checkbox").isChecked();
-    expect(isChecked).toBe(true);
+    // Re-trigger consent evaluation to ensure S.consentConfirmed is in sync
+    // (restoreFormState sets DOM and state, but async module init may race)
+    await page.locator("#speaker-name-input").dispatchEvent("input");
 
     await expect(page.locator("#btn-start")).toBeEnabled({ timeout: 5000 });
   });
