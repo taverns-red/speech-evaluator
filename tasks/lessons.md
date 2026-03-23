@@ -740,3 +740,13 @@
 **The Resulting Rule**: When clearing `localStorage` in e2e test setup, immediately re-set any "first-run complete" flags to prevent modal overlays from blocking the test. For this project: `localStorage.setItem("speechEval_setupComplete", "1")`. Also verify actual DOM element IDs by grepping the HTML source before writing selectors — guessing IDs wastes entire test iterations.
 
 **Future Warning**: If new first-run/onboarding flows are added, the e2e `beforeEach` blocks must be updated to skip them.
+
+## 🗓️ 2026-03-23 — Lesson 64: E2E Consent Persistence Requires Event Re-trigger After Reload (#170)
+
+**The Discovery**: The `consent persists across page refresh` E2E test passed locally but failed deterministically in CI. After `page.reload()`, `restoreFormState()` correctly restored DOM values (checkbox checked, input filled) but the Start button remained disabled. Root cause: `restoreFormState()` sets `S.consentConfirmed = true` at line 51 of `consent.js`, and `updateUI(IDLE)` at line 484 of `app.js` should enable the button. However, an async race with module-level `fetch()` calls (`loadUserInfo()`, `initClerkSession()`) on CI's slower runners causes `S.consentConfirmed` to be evaluated before the state is fully synced.
+
+**The Scientific Proof**: CI logs showed `9 × locator resolved to <button disabled>` for 5 full seconds — the button was permanently disabled, not just slow. The fix: dispatching an `input` event on the speaker name field after reload forces `onConsentChange()` to re-sync `S.consentConfirmed` and call `updateUI(IDLE)`, making the test deterministic.
+
+**The Resulting Rule**: When E2E tests verify state persistence across page reloads, don't assume `restoreFormState()` alone keeps all in-memory state in sync. After asserting DOM restoration, explicitly trigger the relevant event handler (e.g., `dispatchEvent("input")`) to force re-evaluation of derived state. This mirrors real browser behavior where event handlers are the canonical source of state updates.
+
+**Future Warning**: If new state variables are added that depend on consent state (e.g., new feature gated on `S.consentConfirmed`), the E2E test may need additional event triggers after reload. Consider extracting a `reEvaluateConsentState()` function that can be called both by `restoreFormState()` and by event handlers.
