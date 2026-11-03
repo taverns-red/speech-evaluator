@@ -109,6 +109,10 @@ function arbitraryAudioBuffer(): fc.Arbitrary<Buffer> {
 
 // ─── Property Tests ─────────────────────────────────────────────────────────────
 
+
+// Heavy fast-check properties: the 5s default is too tight on loaded hosts (#200).
+vi.setConfig({ testTimeout: 30_000 });
+
 describe("Feature: tts-audio-replay-and-save, Property 1: TTS audio cache stored after synthesis", () => {
   /**
    * **Validates: Requirements 1.1**
