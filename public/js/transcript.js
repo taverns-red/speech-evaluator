@@ -4,7 +4,7 @@
  */
 import { S, dom } from "./state.js";
 import { SessionState } from "./constants.js";
-import { show, hide, formatTimestamp, escapeHtml } from "./utils.js";
+import { show, hide, formatTimestamp, escapeHtml, renderSpeakerAttrs } from "./utils.js";
 
 // ─── UI Update: Transcript ────────────────────────────────────────
 /**
@@ -44,13 +44,11 @@ export function renderTranscript() {
     const words = seg.text.trim().split(/\s+/).filter(Boolean);
     totalWords += words.length;
 
-    html += '<div class="segment' + cssClass + '"' +
-      (seg.speakerId !== undefined ? ' data-speaker="' + seg.speakerId + '"' : '') +
+    const speaker = renderSpeakerAttrs(seg.speakerId);
+    html += '<div class="segment' + cssClass + '"' + speaker.dataAttr +
       ' data-segment-index="' + idx + '">';
-    html += '<span class="segment-time">[' + timeStr + ']</span>';
-    if (seg.speakerId !== undefined) {
-      html += '<span class="speaker-label speaker-' + (seg.speakerId % 6) + '">Speaker ' + (seg.speakerId + 1) + ':</span> ';
-    }
+    html += '<span class="segment-time">[' + escapeHtml(timeStr) + ']</span>';
+    html += speaker.label;
     html += escapeHtml(seg.text);
     html += "</div>";
   }

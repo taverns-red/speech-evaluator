@@ -52,13 +52,30 @@ export function formatTimestamp(totalSeconds) {
   return String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
 }
 
+const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
 /**
- * Escapes HTML special characters to prevent XSS.
- * @param {string} text
+ * Escapes HTML special characters to prevent XSS. Safe for element content
+ * and for quoted attribute values (quotes are escaped too) (#199).
+ * @param {unknown} text
  * @returns {string}
  */
 export function escapeHtml(text) {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
+  if (text === null || text === undefined) return "";
+  return String(text).replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
+}
+
+/**
+ * Builds the speaker data attribute and label markup for a transcript segment.
+ * Only non-negative integer speaker ids are rendered; anything else is dropped
+ * so untrusted values never reach innerHTML (#199).
+ * @param {unknown} speakerId
+ * @returns {{ dataAttr: string, label: string }}
+ */
+export function renderSpeakerAttrs(speakerId) {
+  if (!Number.isInteger(speakerId) || speakerId < 0) return { dataAttr: "", label: "" };
+  return {
+    dataAttr: ' data-speaker="' + speakerId + '"',
+    label: '<span class="speaker-label speaker-' + (speakerId % 6) + '">Speaker ' + (speakerId + 1) + ':</span> ',
+  };
 }
