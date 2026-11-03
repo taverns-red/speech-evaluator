@@ -1,7 +1,7 @@
 // Property-Based Tests for FilePersistence
 // Feature: ai-speech-evaluator, Property 10: Session Output File Round-Trip
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import * as fc from "fast-check";
 import { mkdtemp, rm, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -268,6 +268,10 @@ function parseTranscriptLine(line: string): { minutes: number; seconds: number; 
 }
 
 // ─── Property Tests ─────────────────────────────────────────────────────────────
+
+
+// Heavy fast-check properties: the 5s default is too tight on loaded hosts (#200).
+vi.setConfig({ testTimeout: 30_000 });
 
 describe("Feature: ai-speech-evaluator, Property 10: Session Output File Round-Trip", () => {
 

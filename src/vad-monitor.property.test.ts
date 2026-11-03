@@ -85,6 +85,10 @@ const arbitraryAudioChunkSequence = fc.record({
 
 // ─── Property Tests ─────────────────────────────────────────────────────────────
 
+
+// Heavy fast-check properties: the 5s default is too tight on loaded hosts (#200).
+vi.setConfig({ testTimeout: 30_000 });
+
 describe("Feature: phase-3-semi-automation, VAD-P1: Chunk RMS classification matches adaptive threshold", () => {
   /**
    * **Validates: Requirements 1.1, 1.2**
