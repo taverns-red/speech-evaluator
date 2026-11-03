@@ -702,8 +702,9 @@ async function toggleHistoryDetail(div, item) {
         html += '<div class="category-scores-label">Category Scores</div>';
         html += '<div class="category-scores-bars">';
         for (const cs of evaluation.category_scores) {
-          const pct = Math.round((cs.score / 10) * 100);
-          const colorClass = cs.score >= 7 ? "score-good" : cs.score >= 4 ? "score-fair" : "score-poor";
+          const score = Number(cs.score) || 0;
+          const pct = Math.min(100, Math.max(0, Math.round((score / 10) * 100)));
+          const colorClass = score >= 7 ? "score-good" : score >= 4 ? "score-fair" : "score-poor";
           const categoryLabel = cs.category.charAt(0).toUpperCase() + cs.category.slice(1);
           html += `
             <div class="category-score-row">
@@ -711,7 +712,7 @@ async function toggleHistoryDetail(div, item) {
               <div class="category-score-track">
                 <div class="category-score-fill ${colorClass}" style="width:${pct}%"></div>
               </div>
-              <span class="category-score-value">${cs.score}</span>
+              <span class="category-score-value">${score}</span>
             </div>
           `;
         }
