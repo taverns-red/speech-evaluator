@@ -182,7 +182,7 @@ export function showUploadThumbnail(file) {
   if (file.type.startsWith("video/")) {
     thumbnailObjectUrl = URL.createObjectURL(file);
     // Only a locally created blob: URL may be used as the preview source.
-    if (thumbnailObjectUrl.startsWith("blob:")) {
+    if (thumbnailObjectUrl.startsWith("blob:") && !/^\s*(javascript|data|vbscript):/i.test(thumbnailObjectUrl)) {
       video.src = thumbnailObjectUrl;
     }
     video.style.display = "block";
