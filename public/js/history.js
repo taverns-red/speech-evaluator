@@ -770,9 +770,15 @@ async function toggleHistoryDetail(div, item) {
     const playBtn = detail.querySelector(".history-play-btn");
     if (playBtn) {
       const audio = detail.querySelector(".history-audio-player");
+      // URL comes from the fetched item, validated here — never read back from the DOM.
+      const audioUrl = sanitizeUrl(urls.audio);
+      let audioLoaded = false;
       playBtn.addEventListener("click", () => {
-        if (audio.paused || !audio.src) {
-          audio.src = sanitizeUrl(playBtn.getAttribute("data-src"));
+        if (audio.paused || !audioLoaded) {
+          if (!audioLoaded && (audioUrl.startsWith("https://") || audioUrl.startsWith("http://") || audioUrl.startsWith("/"))) {
+            audio.src = audioUrl;
+            audioLoaded = true;
+          }
           audio.play();
           playBtn.textContent = "⏸ Pause";
         } else {
