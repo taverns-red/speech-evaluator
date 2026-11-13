@@ -59,9 +59,16 @@
     "@types/ws": "^8.18.1",
     "fast-check": "^4.5.3",
     "husky": "^9.1.7",
+    "jsdom": "^31.0.1",
     "vitest": "^4.1.12"
   },
   "overrides": {
-    "@tootallnate/once": "3.0.1"
+    "@tootallnate/once": "3.0.1",
+    "gaxios": {
+      "uuid": "11.1.1"
+    },
+    "teeny-request": {
+      "uuid": "11.1.1"
+    }
   }
 }

@@ -65,17 +65,63 @@ export function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
 }
 
+// Placeholder origin used only to check that a relative URL cannot leave its origin.
+const SAME_ORIGIN_PROBE = "https://same-origin.invalid";
+
 /**
- * Builds the speaker data attribute and label markup for a transcript segment.
- * Only non-negative integer speaker ids are rendered; anything else is dropped
- * so untrusted values never reach innerHTML (#199).
- * @param {unknown} speakerId
- * @returns {{ dataAttr: string, label: string }}
+ * Validates a URL before it is used as an element src/href (#207).
+ * Allows http(s) and same-origin relative paths; blob: only on request
+ * (local object URLs). Returns "" for anything else.
+ * @param {unknown} url
+ * @param {{ allowBlob?: boolean }} [opts]
+ * @returns {string}
  */
-export function renderSpeakerAttrs(speakerId) {
-  if (!Number.isInteger(speakerId) || speakerId < 0) return { dataAttr: "", label: "" };
-  return {
-    dataAttr: ' data-speaker="' + speakerId + '"',
-    label: '<span class="speaker-label speaker-' + (speakerId % 6) + '">Speaker ' + (speakerId + 1) + ':</span> ',
-  };
+export function sanitizeUrl(url, opts = {}) {
+  if (typeof url !== "string") return "";
+  const trimmed = url.trim();
+  if (!trimmed) return "";
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
+    const scheme = trimmed.slice(0, trimmed.indexOf(":")).toLowerCase();
+    if (scheme === "http" || scheme === "https") return trimmed;
+    if (scheme === "blob" && opts.allowBlob) return trimmed;
+    return "";
+  }
+  // Relative input: must start with a single "/" and resolve to the same
+  // origin the way a browser's URL parser would (which strips tabs/newlines
+  // and treats "\\" as "/"), so "/\\evil.com" and "/\t/evil.com" are rejected.
+  if (!trimmed.startsWith("/")) return "";
+  try {
+    const base = new URL(SAME_ORIGIN_PROBE);
+    return new URL(trimmed, base).origin === base.origin ? trimmed : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Builds a transcript segment element using only createElement/textContent,
+ * so transcript text is never parsed as HTML (#207).
+ * @param {{text: string, startTime: number, isFinal: boolean, speakerId?: unknown}} seg
+ * @param {number} idx
+ * @param {Document} doc
+ * @returns {HTMLElement}
+ */
+export function buildSegmentElement(seg, idx, doc) {
+  const el = doc.createElement("div");
+  el.className = "segment" + (seg.isFinal ? "" : " interim");
+  const time = doc.createElement("span");
+  time.className = "segment-time";
+  time.textContent = "[" + formatTimestamp(seg.startTime) + "]";
+  el.appendChild(time);
+  if (Number.isInteger(seg.speakerId) && seg.speakerId >= 0) {
+    el.setAttribute("data-speaker", String(seg.speakerId));
+    const label = doc.createElement("span");
+    label.className = "speaker-label speaker-" + (seg.speakerId % 6);
+    label.textContent = "Speaker " + (seg.speakerId + 1) + ":";
+    el.appendChild(label);
+    el.appendChild(doc.createTextNode(" "));
+  }
+  el.appendChild(doc.createTextNode(seg.text));
+  el.setAttribute("data-segment-index", String(idx));
+  return el;
 }

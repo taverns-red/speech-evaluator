@@ -3,6 +3,8 @@
  * Fetches from GET /api/history/:speaker, renders list with expand/play/download.
  */
 
+import { sanitizeUrl, escapeHtml } from "./utils.js";
+
 // ─── State ──────────────────────────────────────────────────────────
 let historyLoaded = false;
 let historyLoading = false;
@@ -656,7 +658,7 @@ async function toggleHistoryDetail(div, item) {
     if (urls.audio) {
       html += `
         <div class="history-audio-section">
-          <button class="history-play-btn" data-src="${escapeHtml(urls.audio)}">▶ Play Evaluation</button>
+          <button class="history-play-btn" data-src="${escapeHtml(sanitizeUrl(urls.audio))}">▶ Play Evaluation</button>
           <audio class="history-audio-player" preload="none"></audio>
         </div>
       `;
@@ -739,8 +741,8 @@ async function toggleHistoryDetail(div, item) {
 
     // Links
     html += '<div class="history-links">';
-    if (urls.transcript) html += `<a href="${escapeHtml(urls.transcript)}" download="transcript.json" class="history-link"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Transcript</a>`;
-    if (urls.metrics) html += `<a href="${escapeHtml(urls.metrics)}" download="metrics.json" class="history-link"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Metrics</a>`;
+    if (urls.transcript) html += `<a href="${escapeHtml(sanitizeUrl(urls.transcript))}" download="transcript.json" class="history-link"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Transcript</a>`;
+    if (urls.metrics) html += `<a href="${escapeHtml(sanitizeUrl(urls.metrics))}" download="metrics.json" class="history-link"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Metrics</a>`;
     html += `<button class="history-export-btn" title="Export as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</button>`;
     html += `<button class="history-share-btn" title="Create shareable link"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Share</button>`;
     html += `<div class="history-reeval-group">
@@ -768,9 +770,19 @@ async function toggleHistoryDetail(div, item) {
     const playBtn = detail.querySelector(".history-play-btn");
     if (playBtn) {
       const audio = detail.querySelector(".history-audio-player");
+      // URL comes from the fetched item, validated here — never read back from the DOM.
+      const audioUrl = sanitizeUrl(urls.audio);
+      let audioLoaded = false;
       playBtn.addEventListener("click", () => {
-        if (audio.paused || !audio.src) {
-          audio.src = playBtn.getAttribute("data-src");
+        if (audio.paused || !audioLoaded) {
+          if (!audioUrl) {
+            showAudioError(playBtn);
+            return;
+          }
+          if (!audioLoaded) {
+            audio.src = audioUrl;
+            audioLoaded = true;
+          }
           audio.play();
           playBtn.textContent = "⏸ Pause";
         } else {
@@ -968,9 +980,10 @@ function renderHistoryStyleItem(item, evaluationStyle) {
   return `<div class="style-item-card"><div class="style-item-header">${icon}</div>${fieldsHtml}</div>`;
 }
 
-function escapeHtml(str) {
-  if (!str) return "";
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+/** Shows a short inline error on a play button when its audio URL was rejected (#207). */
+function showAudioError(btn) {
+  btn.textContent = "Audio unavailable";
+  btn.disabled = true;
 }
 
 // ─── Load History ───────────────────────────────────────────────────
@@ -1111,13 +1124,13 @@ export async function loadMeetingHistory() {
       const card = document.createElement("div");
       card.className = "meeting-history-card";
       card.innerHTML = `
-        <div class="meeting-history-header" data-meeting-id="${meeting.meetingId}">
-          <span class="meeting-history-date">${meeting.meetingDate}</span>
+        <div class="meeting-history-header" data-meeting-id="${escapeHtml(meeting.meetingId)}">
+          <span class="meeting-history-date">${escapeHtml(meeting.meetingDate)}</span>
           ${meeting.clubName ? `<span class="meeting-history-club">${escapeHtml(meeting.clubName)}</span>` : ""}
-          <span class="meeting-history-count">${meeting.completedCount}/${meeting.slotCount} speakers</span>
-          <button class="btn-icon meeting-history-expand" data-meeting-id="${meeting.meetingId}">▼</button>
+          <span class="meeting-history-count">${escapeHtml(meeting.completedCount)}/${escapeHtml(meeting.slotCount)} speakers</span>
+          <button class="btn-icon meeting-history-expand" data-meeting-id="${escapeHtml(meeting.meetingId)}">▼</button>
         </div>
-        <div class="meeting-history-detail" id="meeting-detail-${meeting.meetingId}" style="display:none;"></div>
+        <div class="meeting-history-detail" id="meeting-detail-${escapeHtml(meeting.meetingId)}" style="display:none;"></div>
       `;
 
       card.querySelector(".meeting-history-expand").addEventListener("click", async (e) => {
@@ -1160,9 +1173,9 @@ function renderMeetingDetail(container, record, evaluations, meetingId) {
   // Export button
   const exportRow = document.createElement("div");
   exportRow.style.cssText = "display:flex;gap:0.5rem;margin-bottom:0.5rem;";
-  exportRow.innerHTML = `<button class="btn btn--sm" id="btn-export-meeting-${meetingId}">📥 Export Markdown</button>`;
+  exportRow.innerHTML = `<button class="btn btn--sm" id="btn-export-meeting-${escapeHtml(meetingId)}">📥 Export Markdown</button>`;
   exportRow.querySelector("button").addEventListener("click", () => {
-    window.open(`/api/meetings/${meetingId}/export`, "_blank");
+    window.open(`/api/meetings/${encodeURIComponent(meetingId)}/export`, "_blank");
   });
   container.appendChild(exportRow);
 
@@ -1191,8 +1204,8 @@ function renderMeetingDetail(container, record, evaluations, meetingId) {
           ${eval_.metadata.durationSeconds ? ` · ${Math.round(eval_.metadata.durationSeconds)}s` : ""}
         </span>
         <div class="meeting-eval-actions">
-          ${eval_.urls.evaluation_audio ? `<button class="btn btn--sm" data-audio-url="${eval_.urls.evaluation_audio}">▶ Play</button>` : ""}
-          <button class="btn btn--sm meeting-share-btn" data-prefix="${eval_.prefix}" data-speaker="${escapeHtml(slot.speakerName)}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Share</button>
+          ${eval_.urls.evaluation_audio ? `<button class="btn btn--sm" data-audio-url="${escapeHtml(sanitizeUrl(eval_.urls.evaluation_audio))}">▶ Play</button>` : ""}
+          <button class="btn btn--sm meeting-share-btn" data-prefix="${escapeHtml(eval_.prefix)}" data-speaker="${escapeHtml(slot.speakerName)}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Share</button>
         </div>
       `;
 
@@ -1240,6 +1253,10 @@ let meetingAudioElement = null;
 let activeMeetingPlayBtn = null;
 
 function playMeetingAudio(url, btn) {
+  if (!sanitizeUrl(url)) {
+    showAudioError(btn);
+    return;
+  }
   // Stop any currently playing audio
   if (meetingAudioElement) {
     meetingAudioElement.pause();

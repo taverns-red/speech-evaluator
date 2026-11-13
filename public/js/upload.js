@@ -4,7 +4,7 @@
  */
 import { S, dom } from "./state.js";
 import { SessionState, MAX_UPLOAD_SIZE_MB } from "./constants.js";
-import { show, hide, formatTimestamp, escapeHtml } from "./utils.js";
+import { show, hide, formatTimestamp, escapeHtml, sanitizeUrl } from "./utils.js";
 import { updateUI, showError, showNotification, buildZip } from "./ui.js";
 import { showEvaluation, displayRoleResults, renderEvaluationWithEvidence } from "./transcript.js";
 // Circular import — safe (called inside function bodies only)
@@ -181,7 +181,7 @@ export function showUploadThumbnail(file) {
 
   if (file.type.startsWith("video/")) {
     thumbnailObjectUrl = URL.createObjectURL(file);
-    video.src = thumbnailObjectUrl;
+    video.src = sanitizeUrl(thumbnailObjectUrl, { allowBlob: true });
     video.style.display = "block";
   } else {
     video.style.display = "none";
@@ -454,8 +454,7 @@ export async function uploadVideo(file) {
     if (result.transcript && result.transcript.length > 0) {
       const transcriptEl = document.getElementById("transcript-content");
       if (transcriptEl) {
-        const text = result.transcript.map(s => s.text).join(" ");
-        transcriptEl.innerHTML = `<p>${text}</p>`;
+        renderUploadTranscript(transcriptEl, result.transcript);
       }
     }
 
@@ -551,8 +550,8 @@ export async function uploadVideo(file) {
             if (result.evaluation.opening) evalText += result.evaluation.opening + "\n\n";
             for (const item of (result.evaluation.items || [])) {
               evalText += `[${item.type.toUpperCase()}] ${item.summary}\n`;
-              if (item.explanation) evalText += `  ${item.explanation}\n`;
-              if (item.evidence_quote) evalText += `  Quote: "${item.evidence_quote}"\n`;
+              if (item.explanation) evalText += `  ${escapeHtml(item.explanation)}\n`;
+              if (item.evidence_quote) evalText += `  Quote: "${escapeHtml(item.evidence_quote)}"\n`;
               evalText += "\n";
             }
             if (result.evaluation.closing) evalText += result.evaluation.closing + "\n";
@@ -616,24 +615,35 @@ export async function uploadVideo(file) {
   }
 }
 
+/**
+ * Renders the uploaded transcript as a text-only paragraph (#207).
+ * @param {HTMLElement} container
+ * @param {Array<{text: string}>} transcript
+ */
+export function renderUploadTranscript(container, transcript) {
+  const p = document.createElement("p");
+  p.textContent = transcript.map((s) => s.text).join(" ");
+  container.replaceChildren(p);
+}
+
 export function formatUploadedEvaluation(evaluation, metrics, passRate) {
   let html = '<div class="evaluation-uploaded">';
 
   // Opening
   if (evaluation.opening) {
-    html += `<p style="margin-bottom:16px; color: var(--text-secondary, #b0b0b0);">${evaluation.opening}</p>`;
+    html += `<p style="margin-bottom:16px; color: var(--text-secondary, #b0b0b0);">${escapeHtml(evaluation.opening)}</p>`;
   }
 
   if (evaluation.items && Array.isArray(evaluation.items)) {
     for (const item of evaluation.items) {
       const icon = item.type === "commendation" ? "✅" : "💡";
       html += `<div style="margin-bottom: 16px; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.03);">`;
-      html += `<strong>${icon} ${item.summary || item.type}</strong>`;
+      html += `<strong>${icon} ${escapeHtml(item.summary || item.type)}</strong>`;
       if (item.explanation) {
-        html += `<p style="margin: 8px 0 4px; color: var(--text-secondary, #b0b0b0);">${item.explanation}</p>`;
+        html += `<p style="margin: 8px 0 4px; color: var(--text-secondary, #b0b0b0);">${escapeHtml(item.explanation)}</p>`;
       }
       if (item.evidence_quote) {
-        html += `<p style="margin: 4px 0; font-style: italic; color: var(--text-muted, #888);">"${item.evidence_quote}"</p>`;
+        html += `<p style="margin: 4px 0; font-style: italic; color: var(--text-muted, #888);">"${escapeHtml(item.evidence_quote)}"</p>`;
       }
       html += `</div>`;
     }
@@ -641,11 +651,11 @@ export function formatUploadedEvaluation(evaluation, metrics, passRate) {
 
   // Closing
   if (evaluation.closing) {
-    html += `<p style="margin-top:16px; color: var(--text-secondary, #b0b0b0);">${evaluation.closing}</p>`;
+    html += `<p style="margin-top:16px; color: var(--text-secondary, #b0b0b0);">${escapeHtml(evaluation.closing)}</p>`;
   }
 
   if (passRate !== undefined) {
-    html += `<p style="margin-top:12px; font-weight:600;">Evidence pass rate: ${(passRate * 100).toFixed(0)}%</p>`;
+    html += `<p style="margin-top:12px; font-weight:600;">Evidence pass rate: ${(Number(passRate) * 100).toFixed(0)}%</p>`;
   }
   html += '</div>';
   return html;
@@ -653,10 +663,10 @@ export function formatUploadedEvaluation(evaluation, metrics, passRate) {
 
 export function formatUploadedMetrics(metrics) {
   return `<div class="metrics-uploaded">
-    <span><strong>${metrics.totalWords || 0}</strong> words</span> ·
-    <span><strong>${Math.round(metrics.wordsPerMinute || 0)}</strong> WPM</span> ·
-    <span><strong>${metrics.durationFormatted || "—"}</strong></span> ·
-    <span><strong>${metrics.fillerWordCount || 0}</strong> fillers</span> ·
-    <span><strong>${metrics.pauseCount || 0}</strong> pauses</span>
+    <span><strong>${escapeHtml(Number(metrics.totalWords) || 0)}</strong> words</span> ·
+    <span><strong>${Math.round(Number(metrics.wordsPerMinute) || 0)}</strong> WPM</span> ·
+    <span><strong>${escapeHtml(metrics.durationFormatted || "—")}</strong></span> ·
+    <span><strong>${escapeHtml(Number(metrics.fillerWordCount) || 0)}</strong> fillers</span> ·
+    <span><strong>${escapeHtml(Number(metrics.pauseCount) || 0)}</strong> pauses</span>
   </div>`;
 }
