@@ -3,7 +3,7 @@
  * Fetches from GET /api/history/:speaker, renders list with expand/play/download.
  */
 
-import { sanitizeUrl } from "./utils.js";
+import { sanitizeUrl, escapeHtml } from "./utils.js";
 
 // ─── State ──────────────────────────────────────────────────────────
 let historyLoaded = false;
@@ -775,7 +775,11 @@ async function toggleHistoryDetail(div, item) {
       let audioLoaded = false;
       playBtn.addEventListener("click", () => {
         if (audio.paused || !audioLoaded) {
-          if (!audioLoaded && (audioUrl.startsWith("https://") || audioUrl.startsWith("http://") || audioUrl.startsWith("/"))) {
+          if (!audioUrl) {
+            showAudioError(playBtn);
+            return;
+          }
+          if (!audioLoaded) {
             audio.src = audioUrl;
             audioLoaded = true;
           }
@@ -976,9 +980,10 @@ function renderHistoryStyleItem(item, evaluationStyle) {
   return `<div class="style-item-card"><div class="style-item-header">${icon}</div>${fieldsHtml}</div>`;
 }
 
-function escapeHtml(str) {
-  if (!str) return "";
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+/** Shows a short inline error on a play button when its audio URL was rejected (#207). */
+function showAudioError(btn) {
+  btn.textContent = "Audio unavailable";
+  btn.disabled = true;
 }
 
 // ─── Load History ───────────────────────────────────────────────────
@@ -1119,13 +1124,13 @@ export async function loadMeetingHistory() {
       const card = document.createElement("div");
       card.className = "meeting-history-card";
       card.innerHTML = `
-        <div class="meeting-history-header" data-meeting-id="${meeting.meetingId}">
-          <span class="meeting-history-date">${meeting.meetingDate}</span>
+        <div class="meeting-history-header" data-meeting-id="${escapeHtml(meeting.meetingId)}">
+          <span class="meeting-history-date">${escapeHtml(meeting.meetingDate)}</span>
           ${meeting.clubName ? `<span class="meeting-history-club">${escapeHtml(meeting.clubName)}</span>` : ""}
-          <span class="meeting-history-count">${meeting.completedCount}/${meeting.slotCount} speakers</span>
-          <button class="btn-icon meeting-history-expand" data-meeting-id="${meeting.meetingId}">▼</button>
+          <span class="meeting-history-count">${escapeHtml(meeting.completedCount)}/${escapeHtml(meeting.slotCount)} speakers</span>
+          <button class="btn-icon meeting-history-expand" data-meeting-id="${escapeHtml(meeting.meetingId)}">▼</button>
         </div>
-        <div class="meeting-history-detail" id="meeting-detail-${meeting.meetingId}" style="display:none;"></div>
+        <div class="meeting-history-detail" id="meeting-detail-${escapeHtml(meeting.meetingId)}" style="display:none;"></div>
       `;
 
       card.querySelector(".meeting-history-expand").addEventListener("click", async (e) => {
@@ -1168,9 +1173,9 @@ function renderMeetingDetail(container, record, evaluations, meetingId) {
   // Export button
   const exportRow = document.createElement("div");
   exportRow.style.cssText = "display:flex;gap:0.5rem;margin-bottom:0.5rem;";
-  exportRow.innerHTML = `<button class="btn btn--sm" id="btn-export-meeting-${meetingId}">📥 Export Markdown</button>`;
+  exportRow.innerHTML = `<button class="btn btn--sm" id="btn-export-meeting-${escapeHtml(meetingId)}">📥 Export Markdown</button>`;
   exportRow.querySelector("button").addEventListener("click", () => {
-    window.open(`/api/meetings/${meetingId}/export`, "_blank");
+    window.open(`/api/meetings/${encodeURIComponent(meetingId)}/export`, "_blank");
   });
   container.appendChild(exportRow);
 
@@ -1248,6 +1253,10 @@ let meetingAudioElement = null;
 let activeMeetingPlayBtn = null;
 
 function playMeetingAudio(url, btn) {
+  if (!sanitizeUrl(url)) {
+    showAudioError(btn);
+    return;
+  }
   // Stop any currently playing audio
   if (meetingAudioElement) {
     meetingAudioElement.pause();

@@ -65,20 +65,8 @@ export function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
 }
 
-/**
- * Builds the speaker data attribute and label markup for a transcript segment.
- * Only non-negative integer speaker ids are rendered; anything else is dropped
- * so untrusted values never reach innerHTML (#199).
- * @param {unknown} speakerId
- * @returns {{ dataAttr: string, label: string }}
- */
-export function renderSpeakerAttrs(speakerId) {
-  if (!Number.isInteger(speakerId) || speakerId < 0) return { dataAttr: "", label: "" };
-  return {
-    dataAttr: ' data-speaker="' + speakerId + '"',
-    label: '<span class="speaker-label speaker-' + (speakerId % 6) + '">Speaker ' + (speakerId + 1) + ':</span> ',
-  };
-}
+// Placeholder origin used only to check that a relative URL cannot leave its origin.
+const SAME_ORIGIN_PROBE = "https://same-origin.invalid";
 
 /**
  * Validates a URL before it is used as an element src/href (#207).
@@ -91,14 +79,23 @@ export function renderSpeakerAttrs(speakerId) {
 export function sanitizeUrl(url, opts = {}) {
   if (typeof url !== "string") return "";
   const trimmed = url.trim();
-  if (!trimmed || trimmed.startsWith("//") || trimmed.startsWith("\\")) return "";
+  if (!trimmed) return "";
   if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
     const scheme = trimmed.slice(0, trimmed.indexOf(":")).toLowerCase();
     if (scheme === "http" || scheme === "https") return trimmed;
     if (scheme === "blob" && opts.allowBlob) return trimmed;
     return "";
   }
-  return trimmed.startsWith("/") ? trimmed : "";
+  // Relative input: must start with a single "/" and resolve to the same
+  // origin the way a browser's URL parser would (which strips tabs/newlines
+  // and treats "\\" as "/"), so "/\\evil.com" and "/\t/evil.com" are rejected.
+  if (!trimmed.startsWith("/")) return "";
+  try {
+    const base = new URL(SAME_ORIGIN_PROBE);
+    return new URL(trimmed, base).origin === base.origin ? trimmed : "";
+  } catch {
+    return "";
+  }
 }
 
 /**
