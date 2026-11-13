@@ -4,7 +4,7 @@
  */
 import { S, dom } from "./state.js";
 import { SessionState } from "./constants.js";
-import { show, hide, formatTimestamp, escapeHtml, renderSpeakerAttrs } from "./utils.js";
+import { show, hide, formatTimestamp, escapeHtml, buildSegmentElement } from "./utils.js";
 
 // ─── UI Update: Transcript ────────────────────────────────────────
 /**
@@ -28,32 +28,24 @@ export function updateTranscript(newSegments, replaceFromIndex) {
  */
 export function renderTranscript() {
   if (S.segments.length === 0) {
-    dom.transcriptContent.innerHTML =
-      '<div class="transcript-empty">Transcript will appear here during recording...</div>';
+    const empty = document.createElement("div");
+    empty.className = "transcript-empty";
+    empty.textContent = "Transcript will appear here during recording...";
+    dom.transcriptContent.replaceChildren(empty);
     dom.transcriptWordCount.textContent = "";
     return;
   }
 
-  let html = "";
+  const frag = document.createDocumentFragment();
   let totalWords = 0;
 
   for (let idx = 0; idx < S.segments.length; idx++) {
     const seg = S.segments[idx];
-    const timeStr = formatTimestamp(seg.startTime);
-    const cssClass = seg.isFinal ? "" : " interim";
-    const words = seg.text.trim().split(/\s+/).filter(Boolean);
-    totalWords += words.length;
-
-    const speaker = renderSpeakerAttrs(seg.speakerId);
-    html += '<div class="segment' + cssClass + '"' + speaker.dataAttr +
-      ' data-segment-index="' + idx + '">';
-    html += '<span class="segment-time">[' + escapeHtml(timeStr) + ']</span>';
-    html += speaker.label;
-    html += escapeHtml(seg.text);
-    html += "</div>";
+    totalWords += seg.text.trim().split(/\s+/).filter(Boolean).length;
+    frag.appendChild(buildSegmentElement(seg, idx, document));
   }
 
-  dom.transcriptContent.innerHTML = html;
+  dom.transcriptContent.replaceChildren(frag);
   dom.transcriptWordCount.textContent = totalWords + " words";
 
   // Auto-scroll to bottom

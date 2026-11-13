@@ -4,7 +4,7 @@
  */
 import { S, dom } from "./state.js";
 import { SessionState, MAX_UPLOAD_SIZE_MB } from "./constants.js";
-import { show, hide, formatTimestamp, escapeHtml } from "./utils.js";
+import { show, hide, formatTimestamp, escapeHtml, sanitizeUrl } from "./utils.js";
 import { updateUI, showError, showNotification, buildZip } from "./ui.js";
 import { showEvaluation, displayRoleResults, renderEvaluationWithEvidence } from "./transcript.js";
 // Circular import — safe (called inside function bodies only)
@@ -181,7 +181,7 @@ export function showUploadThumbnail(file) {
 
   if (file.type.startsWith("video/")) {
     thumbnailObjectUrl = URL.createObjectURL(file);
-    video.src = thumbnailObjectUrl;
+    video.src = sanitizeUrl(thumbnailObjectUrl, { allowBlob: true });
     video.style.display = "block";
   } else {
     video.style.display = "none";
